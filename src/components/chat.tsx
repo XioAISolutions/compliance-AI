@@ -20,6 +20,7 @@ interface Citation {
 }
 interface Message { id: string; role: "user" | "assistant"; content: string; citations?: Citation[]; model?: string; queryTimeMs?: number; streaming?: boolean; }
 interface DocInfo { documentId: string; fileName: string; chunkCount: number; }
+interface GraphStats { nodeCount: number; edgeCount: number; resolvedRefs: number; unresolvedRefs: number; unresolvedSamples: { phrase: string; fromChunkId: string; fileName: string }[]; }
 
 const SUGGESTED = [
   "What are the consent requirements under PIPEDA?",
@@ -35,6 +36,7 @@ export function Chat() {
   const [selectedChunkId, setSelectedChunkId] = useState<string | null>(null);
   const [documents, setDocuments] = useState<DocInfo[]>([]);
   const [totalChunks, setTotalChunks] = useState(0);
+  const [graphStats, setGraphStats] = useState<GraphStats | null>(null);
   const [showDocs, setShowDocs] = useState(true);
   const [showSource, setShowSource] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -43,7 +45,15 @@ export function Chat() {
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isStreaming]);
 
   async function refreshDocs() {
-    try { const r = await fetch("/api/sources"); if (r.ok) { const d = await r.json(); setDocuments(d.documents || []); setTotalChunks(d.totalChunks || 0); } } catch {}
+    try {
+      const r = await fetch("/api/sources");
+      if (r.ok) {
+        const d = await r.json();
+        setDocuments(d.documents || []);
+        setTotalChunks(d.totalChunks || 0);
+        setGraphStats(d.graphStats || null);
+      }
+    } catch {}
   }
 
   async function handleUpload(file: File) {
@@ -95,7 +105,7 @@ export function Chat() {
   return (
     <div className="flex h-screen">
       {showDocs && <div className="flex flex-col border-r" style={{ width: 260, borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-        <DocumentLibrary documents={documents} totalChunks={totalChunks} onUpload={handleUpload} onRefresh={refreshDocs} />
+        <DocumentLibrary documents={documents} totalChunks={totalChunks} graphStats={graphStats} onUpload={handleUpload} onRefresh={refreshDocs} />
       </div>}
 
       <div className="flex flex-col flex-1 min-w-0">

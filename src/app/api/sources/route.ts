@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { vectorStore } from "@/lib/vector-store";
-import { getContext } from "@/lib/graph";
+import { getContext, getGraphStats } from "@/lib/graph";
 
 export async function GET(req: NextRequest) {
   const chunkId = req.nextUrl.searchParams.get("chunkId");
@@ -9,7 +9,10 @@ export async function GET(req: NextRequest) {
     if (!ctx) return NextResponse.json({ error: "Chunk not found" }, { status: 404 });
     return NextResponse.json(ctx);
   }
-  const documents = await vectorStore.listDocuments();
-  const totalChunks = await vectorStore.count();
-  return NextResponse.json({ documents, totalChunks });
+  const [documents, totalChunks, graphStats] = await Promise.all([
+    vectorStore.listDocuments(),
+    vectorStore.count(),
+    getGraphStats(),
+  ]);
+  return NextResponse.json({ documents, totalChunks, graphStats });
 }

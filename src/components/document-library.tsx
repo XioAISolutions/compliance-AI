@@ -2,9 +2,10 @@
 import { useState, useRef } from "react";
 
 interface DocInfo { documentId: string; fileName: string; chunkCount: number; }
+interface GraphStats { nodeCount: number; edgeCount: number; resolvedRefs: number; unresolvedRefs: number; unresolvedSamples: { phrase: string; fromChunkId: string; fileName: string }[]; }
 
-export function DocumentLibrary({ documents, totalChunks, onUpload, onRefresh }: {
-  documents: DocInfo[]; totalChunks: number;
+export function DocumentLibrary({ documents, totalChunks, graphStats, onUpload, onRefresh }: {
+  documents: DocInfo[]; totalChunks: number; graphStats: GraphStats | null;
   onUpload: (file: File) => Promise<any>; onRefresh: () => void;
 }) {
   const [uploading, setUploading] = useState(false);
@@ -56,6 +57,17 @@ export function DocumentLibrary({ documents, totalChunks, onUpload, onRefresh }:
       <div className="px-3 py-3 border-t text-xs" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
         <div>Runtime: Ollama (local)</div>
         <div>Chunks indexed: {totalChunks}</div>
+        {graphStats && (
+          <>
+            <div className="mt-1">Graph: {graphStats.nodeCount} nodes / {graphStats.edgeCount} edges</div>
+            <div className="flex items-center gap-2 mt-1">
+              <span style={{ color: "var(--success)" }}>{graphStats.resolvedRefs} resolved</span>
+              <span style={{ color: graphStats.unresolvedRefs > 0 ? "var(--warning)" : "var(--text-muted)" }} title={graphStats.unresolvedSamples.map((s) => `${s.phrase} (${s.fileName})`).join("\n")}>
+                {graphStats.unresolvedRefs} unresolved
+              </span>
+            </div>
+          </>
+        )}
         <div className="flex items-center gap-1.5 mt-2">
           <div className="rounded-full" style={{ width: 6, height: 6, background: "var(--success)", boxShadow: "0 0 6px var(--success)" }} />
           <span style={{ color: "var(--success)" }}>Private / on-device</span>

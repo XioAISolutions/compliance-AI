@@ -192,6 +192,51 @@ export async function saveGraph(graph: Graph): Promise<void> {
   await fs.writeFile(config.paths.graph, JSON.stringify(graph, null, 2));
 }
 
+export interface GraphStats {
+  nodeCount: number;
+  edgeCount: number;
+  resolvedRefs: number;    // REFERENCES edges — chunk -> target section resolved
+  unresolvedRefs: number;  // MENTIONS edges — cross-ref phrase we couldn't resolve
+  unresolvedSamples: { phrase: string; fromChunkId: string; fileName: string }[];
+}
+
+export async function getGraphStats(): Promise<GraphStats> {
+  const graph = await loadGraph();
+  let resolvedRefs = 0;
+  let unresolvedRefs = 0;
+  const unresolvedSamples: GraphStats["unresolvedSamples"] = [];
+
+  // Lazy-load chunks only if we have something to annotate.
+  const needsChunks = graph.edges.some((e) => e.type === "MENTIONS");
+  const chunksById = needsChunks
+    ? new Map((await loadAllChunks()).map((c) => [c.id, c]))
+    : new Map();
+
+  for (const e of graph.edges) {
+    if (e.type === "REFERENCES") resolvedRefs++;
+    else if (e.type === "MENTIONS") {
+      unresolvedRefs++;
+      if (unresolvedSamples.length < 10) {
+        const chunkId = e.from.startsWith("chk:") ? e.from.slice(4) : "";
+        const chunk = chunksById.get(chunkId);
+        unresolvedSamples.push({
+          phrase: e.excerpt ?? "",
+          fromChunkId: chunkId,
+          fileName: chunk?.fileName ?? "",
+        });
+      }
+    }
+  }
+
+  return {
+    nodeCount: graph.nodes.length,
+    edgeCount: graph.edges.length,
+    resolvedRefs,
+    unresolvedRefs,
+    unresolvedSamples,
+  };
+}
+
 export async function loadGraph(): Promise<Graph> {
   try {
     const raw = await fs.readFile(config.paths.graph, "utf-8");

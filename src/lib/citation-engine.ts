@@ -6,6 +6,8 @@ import type { DocumentChunk } from "./ingest";
 import { retrieve, type Strategy } from "./retrieval-strategies";
 import { extractClaimForCitation, verifyClaimAgainstChunk, type VerificationResult } from "./verify";
 import { judgeClaim, type JudgeResult } from "./judge";
+import type { RetrievalFilter } from "./retrieval-filter";
+import { getPromptProfile, defaultUserWrapper, type PromptProfileId } from "./prompt-profiles";
 
 const ollama = new Ollama({ host: config.ollama.baseUrl });
 
@@ -44,23 +46,14 @@ export type QueryOptions = {
    * When false/undefined, skip the judge entirely.
    */
   judge?: boolean | "weak";
+  /** Retrieval scope (matters, docTypes, jurisdictions, authorityBoost). */
+  filter?: RetrievalFilter;
+  /** Which prompt profile to use. Defaults to `compliance_qa` (original behavior). */
+  promptProfile?: PromptProfileId;
 };
 
-const SYSTEM_PROMPT = `You are a compliance assistant operating in citation-first mode.
-
-CITATION FORMAT:
-- Every factual claim MUST end with a citation of the form [[doc:ref]].
-- "doc" is the source identifier (a short tag like S1, S2, ... matching the tagged sources below).
-- "ref" is the section or page locator provided with each source (for example [[S1:§4.1]] or [[S2:p.12]]).
-- Example: "Consent must be meaningful [[S1:§4.3]] and can be withdrawn at any time [[S1:§4.3.8]]."
-
-RULES:
-1. Answer ONLY using the provided source documents below.
-2. NEVER fabricate citations or regulatory references. If the answer is not in the sources, say: "I cannot find this information in the loaded compliance documents."
-3. NEVER invent a doc tag (S3, S4...) that isn't listed below.
-4. When multiple sources support a claim, cite all of them back-to-back: [[S1:§4.3]] [[S2:§12]].
-5. If sources conflict, note the conflict and cite both sides.
-6. Be precise, direct, and actionable. Compliance answers must be usable.`;
+// System prompts now live in `prompt-profiles.ts`. The `compliance_qa`
+// profile preserves the original wording verbatim.
 
 function docTag(index: number): string {
   return `S${index + 1}`;
@@ -176,7 +169,7 @@ async function logAudit(entry: Record<string, unknown>) {
 export async function query(question: string, opts: QueryOptions = {}): Promise<CitedAnswer> {
   const strategy = opts.strategy ?? "hybrid";
   const start = Date.now();
-  const results = await retrieve(question, strategy, opts.topK);
+  const results = await retrieve(question, strategy, opts.topK, opts.filter);
   const chunks = results.map((r) => r.chunk);
 
   if (chunks.length === 0) {
@@ -191,11 +184,13 @@ export async function query(question: string, opts: QueryOptions = {}): Promise<
   }
 
   const context = buildContext(chunks);
+  const profile = getPromptProfile(opts.promptProfile);
+  const userContent = (profile.userWrapper ?? defaultUserWrapper)(question, context);
   const res = await ollama.chat({
     model: config.ollama.chatModel,
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: `SOURCES:\n\n${context}\n\n---\n\nQUESTION: ${question}\n\nAnswer using ONLY these sources. Cite every claim with [[doc:ref]].` },
+      { role: "system", content: profile.system },
+      { role: "user", content: userContent },
     ],
     options: { temperature: 0.1, num_predict: 1024 },
   });
@@ -234,7 +229,7 @@ export async function* queryStream(
 ): AsyncGenerator<{ type: "text" | "citations" | "meta" | "error"; data: any }> {
   const strategy = opts.strategy ?? "hybrid";
   const start = Date.now();
-  const results = await retrieve(question, strategy, opts.topK);
+  const results = await retrieve(question, strategy, opts.topK, opts.filter);
   const chunks = results.map((r) => r.chunk);
 
   if (chunks.length === 0) {
@@ -243,11 +238,13 @@ export async function* queryStream(
   }
 
   const context = buildContext(chunks);
+  const profile = getPromptProfile(opts.promptProfile);
+  const userContent = (profile.userWrapper ?? defaultUserWrapper)(question, context);
   const stream = await ollama.chat({
     model: config.ollama.chatModel,
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: `SOURCES:\n\n${context}\n\n---\n\nQUESTION: ${question}\n\nAnswer using ONLY these sources. Cite every claim with [[doc:ref]].` },
+      { role: "system", content: profile.system },
+      { role: "user", content: userContent },
     ],
     stream: true,
     options: { temperature: 0.1, num_predict: 1024 },

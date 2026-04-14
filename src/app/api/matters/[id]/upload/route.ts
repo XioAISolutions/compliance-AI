@@ -2,25 +2,30 @@ import { NextRequest, NextResponse } from "next/server";
 import { ingestPDF } from "@/lib/ingest";
 import { vectorStore } from "@/lib/vector-store";
 import { buildGraph, saveGraph } from "@/lib/graph";
-import { DEFAULT_MATTER_ID } from "@/lib/config";
+import { getMatter } from "@/lib/matters";
 import { DOC_TYPES, type DocType } from "@/lib/retrieval-filter";
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
+    const matter = await getMatter(id);
+    if (!matter) return NextResponse.json({ error: "Matter not found" }, { status: 404 });
+
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     if (!file || !file.name.toLowerCase().endsWith(".pdf"))
       return NextResponse.json({ error: "Please upload a PDF file" }, { status: 400 });
 
-    const rawMatterId = formData.get("matterId");
-    const matterId = typeof rawMatterId === "string" && rawMatterId.length > 0 ? rawMatterId : DEFAULT_MATTER_ID;
     const rawDocType = formData.get("docType");
     const docType: DocType = DOC_TYPES.includes(rawDocType as DocType) ? (rawDocType as DocType) : "unknown";
     const rawJurisdiction = formData.get("jurisdiction");
-    const jurisdiction = typeof rawJurisdiction === "string" && rawJurisdiction.trim().length > 0 ? rawJurisdiction.trim() : null;
+    const jurisdiction =
+      typeof rawJurisdiction === "string" && rawJurisdiction.trim().length > 0
+        ? rawJurisdiction.trim()
+        : matter.jurisdiction ?? null;
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const result = await ingestPDF(buffer, file.name, { matterId, docType, jurisdiction });
+    const result = await ingestPDF(buffer, file.name, { matterId: id, docType, jurisdiction });
     await vectorStore.indexChunks(result.chunks);
     await vectorStore.refresh();
     await saveGraph(await buildGraph());
@@ -32,11 +37,10 @@ export async function POST(req: NextRequest) {
       totalPages: result.totalPages,
       totalChunks: result.totalChunks,
       totalSections: result.sections.length,
-      matterId,
       docType,
     });
   } catch (err: any) {
-    console.error("Upload error:", err);
+    console.error("Matter upload error:", err);
     return NextResponse.json({ error: err.message || "Failed to process document" }, { status: 500 });
   }
 }

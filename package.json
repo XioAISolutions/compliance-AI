@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "ingest": "tsx src/lib/scripts/ingest-docs.ts",
-    "eval": "tsx src/lib/scripts/run-eval.ts"
+    "eval": "tsx src/lib/scripts/run-eval.ts",
+    "migrate:0001": "tsx src/lib/migrations/0001-matters.ts"
   },
   "dependencies": {
     "ai": "^4.1.0",

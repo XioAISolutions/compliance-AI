@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { queryStream } from "@/lib/citation-engine";
 import type { Strategy } from "@/lib/retrieval-strategies";
+import { effectiveMatterIds } from "@/lib/matters";
+import { DOC_TYPES, type DocType, type RetrievalFilter } from "@/lib/retrieval-filter";
 
 const VALID_STRATEGIES: Strategy[] = ["hybrid", "hyde", "multi"];
 
@@ -17,11 +19,24 @@ export async function POST(req: NextRequest) {
     // judge cost by accident.
     const judge: boolean | "weak" = rawJudge === true ? true : rawJudge === "weak" ? "weak" : false;
 
+    // Scope retrieval to a matter (plus any statute libraries it subscribes
+    // to) when a matterId is provided. When omitted, existing callers keep
+    // their whole-corpus behavior.
+    let filter: RetrievalFilter | undefined;
+    if (typeof body.matterId === "string" && body.matterId.length > 0) {
+      const matterIds = await effectiveMatterIds(body.matterId);
+      filter = { matterIds };
+    }
+    if (Array.isArray(body.docTypes) && body.docTypes.length > 0) {
+      const dts = body.docTypes.filter((d: unknown) => typeof d === "string" && DOC_TYPES.includes(d as DocType)) as DocType[];
+      if (dts.length > 0) filter = { ...(filter ?? {}), docTypes: dts };
+    }
+
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of queryStream(question, { strategy, judge })) {
+          for await (const chunk of queryStream(question, { strategy, judge, filter })) {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
           }
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));

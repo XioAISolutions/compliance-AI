@@ -2,7 +2,8 @@ import fs from "fs/promises";
 import path from "path";
 import pdfParse from "pdf-parse";
 import { v4 as uuid } from "uuid";
-import { config } from "./config";
+import { config, DEFAULT_MATTER_ID, matterPaths } from "./config";
+import { authorityWeightFor, type DocType } from "./retrieval-filter";
 
 /**
  * A structural section detected in the document.
@@ -36,6 +37,14 @@ export interface DocumentChunk {
   content: string;
   tokenEstimate: number;
   createdAt: string;
+  /** Matter this chunk belongs to. Defaults to "default" for legacy corpora. */
+  matterId: string;
+  /** Document type — drives docType filtering and authority weighting. */
+  docType: DocType;
+  /** Precomputed from docType at ingest; cached to avoid repeated lookups. */
+  authorityWeight: number;
+  /** Optional jurisdiction tag (e.g. "US-federal", "US-CA", "ON"). */
+  jurisdiction: string | null;
 }
 
 export interface IngestResult {
@@ -207,7 +216,25 @@ function buildPageMap(fullText: string, totalPages: number): { lines: string[]; 
 
 // --- Main entry --------------------------------------------------------------
 
-export async function ingestPDF(fileBuffer: Buffer, fileName: string): Promise<IngestResult> {
+export interface IngestOptions {
+  /** Matter the document belongs to. Defaults to "default" for backwards compat. */
+  matterId?: string;
+  /** Document type — defaults to "unknown" so existing upload flows keep working. */
+  docType?: DocType;
+  /** Optional jurisdiction tag. */
+  jurisdiction?: string | null;
+}
+
+export async function ingestPDF(
+  fileBuffer: Buffer,
+  fileName: string,
+  opts: IngestOptions = {},
+): Promise<IngestResult> {
+  const matterId = opts.matterId ?? DEFAULT_MATTER_ID;
+  const docType: DocType = opts.docType ?? "unknown";
+  const jurisdiction = opts.jurisdiction ?? null;
+  const authority = authorityWeightFor(docType);
+
   const documentId = uuid();
   const data = await pdfParse(fileBuffer);
   const { lines, pageForLine } = buildPageMap(data.text, data.numpages);
@@ -255,13 +282,19 @@ export async function ingestPDF(fileBuffer: Buffer, fileName: string): Promise<I
         content,
         tokenEstimate: estimateTokens(content),
         createdAt: new Date().toISOString(),
+        matterId,
+        docType,
+        authorityWeight: authority,
+        jurisdiction,
       });
     }
   }
   allChunks.forEach((c) => (c.totalChunks = allChunks.length));
 
-  // Persist chunks + sections as sibling files.
-  const chunksDir = config.paths.chunks;
+  // Persist chunks + sections under the matter's chunks directory. For the
+  // `default` matter this is the legacy top-level chunks/ path, so existing
+  // corpora keep working with no migration.
+  const chunksDir = matterPaths(matterId).chunks;
   await fs.mkdir(chunksDir, { recursive: true });
   const base = fileName.replace(/\.pdf$/i, "");
   await fs.writeFile(path.join(chunksDir, `${base}-chunks.json`), JSON.stringify(allChunks, null, 2));
@@ -277,34 +310,88 @@ export async function ingestPDF(fileBuffer: Buffer, fileName: string): Promise<I
   };
 }
 
-export async function loadAllChunks(): Promise<DocumentChunk[]> {
-  const chunksDir = config.paths.chunks;
+/**
+ * Apply backwards-compatible defaults to a raw chunk record read from disk.
+ * Chunks persisted before the consumer-law layer was added will be missing
+ * matterId/docType/authorityWeight/jurisdiction — we tag them as the
+ * `default` matter with docType `unknown`.
+ */
+function hydrateChunk(raw: unknown, inferredMatterId: string): DocumentChunk {
+  const r = raw as Partial<DocumentChunk> & Record<string, unknown>;
+  const docType = (r.docType as DocType | undefined) ?? "unknown";
+  return {
+    id: String(r.id ?? ""),
+    documentId: String(r.documentId ?? ""),
+    fileName: String(r.fileName ?? ""),
+    pageNumber: Number(r.pageNumber ?? 1),
+    sectionId: (r.sectionId as string | null) ?? null,
+    sectionHeader: (r.sectionHeader as string | null) ?? null,
+    sectionPath: Array.isArray(r.sectionPath) ? (r.sectionPath as string[]) : [],
+    sectionNumber: (r.sectionNumber as string | null) ?? null,
+    chunkIndex: Number(r.chunkIndex ?? 0),
+    totalChunks: Number(r.totalChunks ?? 0),
+    content: String(r.content ?? ""),
+    tokenEstimate: Number(r.tokenEstimate ?? 0),
+    createdAt: String(r.createdAt ?? new Date().toISOString()),
+    matterId: typeof r.matterId === "string" && r.matterId.length > 0 ? r.matterId : inferredMatterId,
+    docType,
+    authorityWeight: typeof r.authorityWeight === "number" ? r.authorityWeight : authorityWeightFor(docType),
+    jurisdiction: (r.jurisdiction as string | null | undefined) ?? null,
+  };
+}
+
+async function listMatterChunkDirs(): Promise<{ matterId: string; dir: string }[]> {
+  const out: { matterId: string; dir: string }[] = [];
+  // Legacy "default" matter lives at the top-level chunks/ path.
   try {
-    const files = await fs.readdir(chunksDir);
-    const out: DocumentChunk[] = [];
-    for (const file of files.filter((f) => f.endsWith("-chunks.json"))) {
-      const raw = await fs.readFile(path.join(chunksDir, file), "utf-8");
-      out.push(...JSON.parse(raw));
+    await fs.access(config.paths.chunks);
+    out.push({ matterId: DEFAULT_MATTER_ID, dir: config.paths.chunks });
+  } catch {}
+  // Per-matter directories under matters/<id>/chunks.
+  try {
+    const entries = await fs.readdir(config.paths.matters, { withFileTypes: true });
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      if (e.name === DEFAULT_MATTER_ID) continue; // already covered via legacy path
+      const dir = path.join(config.paths.matters, e.name, "chunks");
+      try {
+        await fs.access(dir);
+        out.push({ matterId: e.name, dir });
+      } catch {}
     }
-    return out;
-  } catch {
-    return [];
+  } catch {}
+  return out;
+}
+
+export async function loadAllChunks(): Promise<DocumentChunk[]> {
+  const dirs = await listMatterChunkDirs();
+  const out: DocumentChunk[] = [];
+  for (const { matterId, dir } of dirs) {
+    try {
+      const files = await fs.readdir(dir);
+      for (const file of files.filter((f) => f.endsWith("-chunks.json"))) {
+        const raw = await fs.readFile(path.join(dir, file), "utf-8");
+        const arr = JSON.parse(raw) as unknown[];
+        for (const r of arr) out.push(hydrateChunk(r, matterId));
+      }
+    } catch {}
   }
+  return out;
 }
 
 export async function loadAllSections(): Promise<DocumentSection[]> {
-  const chunksDir = config.paths.chunks;
-  try {
-    const files = await fs.readdir(chunksDir);
-    const out: DocumentSection[] = [];
-    for (const file of files.filter((f) => f.endsWith("-sections.json"))) {
-      const raw = await fs.readFile(path.join(chunksDir, file), "utf-8");
-      out.push(...JSON.parse(raw));
-    }
-    return out;
-  } catch {
-    return [];
+  const dirs = await listMatterChunkDirs();
+  const out: DocumentSection[] = [];
+  for (const { dir } of dirs) {
+    try {
+      const files = await fs.readdir(dir);
+      for (const file of files.filter((f) => f.endsWith("-sections.json"))) {
+        const raw = await fs.readFile(path.join(dir, file), "utf-8");
+        out.push(...JSON.parse(raw));
+      }
+    } catch {}
   }
+  return out;
 }
 
 /**

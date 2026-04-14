@@ -1,6 +1,7 @@
 import { vectorStore } from "./vector-store";
 import { config } from "./config";
 import type { DocumentChunk } from "./ingest";
+import type { RetrievalFilter } from "./retrieval-filter";
 
 /**
  * Hybrid search: BM25 (lexical) + dense vector (semantic), fused with
@@ -116,12 +117,14 @@ export interface HybridResult {
   bm25Score: number;
 }
 
-export async function hybridSearch(query: string, topK?: number): Promise<HybridResult[]> {
+export async function hybridSearch(query: string, topK?: number, filter?: RetrievalFilter): Promise<HybridResult[]> {
   const k = topK ?? config.retrieval.topK;
 
+  // Both sides of the fusion must see the same filtered subcorpus so BM25
+  // IDF and vector scoring agree on what's in scope.
   const [vectorRanked, allChunks] = await Promise.all([
-    vectorStore.rankAll(query),
-    vectorStore.allChunks(),
+    vectorStore.rankAll(query, filter),
+    vectorStore.allChunks(filter),
   ]);
 
   if (allChunks.length === 0) return [];
@@ -137,13 +140,18 @@ export async function hybridSearch(query: string, topK?: number): Promise<Hybrid
 
   const fused = mergeWithRRF([vectorRanks, bm25Ranks]);
   const chunkById = new Map(allChunks.map((c) => [c.id, c]));
+  const boost = filter?.authorityBoost === true;
 
   return Array.from(fused.entries())
     .map(([chunkId, score]) => {
       const chunk = chunkById.get(chunkId)!;
+      // authorityBoost multiplies the fused RRF score by the chunk's
+      // authority weight (1.0 for binding statutes, 0.3 for client facts).
+      // Off by default so existing callers keep identical ranking.
+      const finalScore = boost ? score * (chunk.authorityWeight ?? 0.3) : score;
       return {
         chunk,
-        score,
+        score: finalScore,
         vectorScore: vectorMap.get(chunkId) ?? 0,
         bm25Score: bm25Map.get(chunkId) ?? 0,
       };

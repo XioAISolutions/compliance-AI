@@ -1,2 +1,5 @@
-import { Chat } from "@/components/chat";
-export default function Home() { return <Chat />; }
+import { HomeClient } from "@/components/home-client";
+
+export default function Home() {
+  return <HomeClient />;
+}

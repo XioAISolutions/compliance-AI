@@ -1,6 +1,7 @@
 import { Ollama } from "ollama";
 import { config } from "./config";
 import { hybridSearch, type HybridResult } from "./hybrid-search";
+import type { RetrievalFilter } from "./retrieval-filter";
 
 /**
  * Retrieval strategies sit on top of hybrid search.
@@ -67,24 +68,32 @@ function fuseRanked(lists: HybridResult[][], topK: number): HybridResult[] {
     .map(({ result, score }) => ({ ...result, score }));
 }
 
-export async function retrieve(question: string, strategy: Strategy = "hybrid", topK?: number): Promise<HybridResult[]> {
+export async function retrieve(
+  question: string,
+  strategy: Strategy = "hybrid",
+  topK?: number,
+  filter?: RetrievalFilter,
+): Promise<HybridResult[]> {
   const k = topK ?? config.retrieval.topK;
 
   if (strategy === "hybrid") {
-    return hybridSearch(question, k);
+    return hybridSearch(question, k, filter);
   }
 
   if (strategy === "hyde") {
     const hypo = await generateHypotheticalAnswer(question);
     // Run both the original question and the hypothetical; fuse so we don't
     // lose matches that the hypothetical drifted away from.
-    const [a, b] = await Promise.all([hybridSearch(question, k * 2), hybridSearch(hypo, k * 2)]);
+    const [a, b] = await Promise.all([
+      hybridSearch(question, k * 2, filter),
+      hybridSearch(hypo, k * 2, filter),
+    ]);
     return fuseRanked([a, b], k);
   }
 
   // multi
   const variants = await generateQueryVariants(question);
   const queries = [question, ...variants];
-  const lists = await Promise.all(queries.map((q) => hybridSearch(q, k * 2)));
+  const lists = await Promise.all(queries.map((q) => hybridSearch(q, k * 2, filter)));
   return fuseRanked(lists, k);
 }

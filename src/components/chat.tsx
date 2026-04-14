@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { DocumentLibrary } from "./document-library";
+import { DocumentLibrary, type DocType } from "./document-library";
 import { SourceViewer } from "./source-viewer";
 import { CitationBadge } from "./citation-badge";
 import { CitationRenderer } from "./citation-renderer";
@@ -22,7 +22,7 @@ interface Citation {
   claim: string;
 }
 interface Message { id: string; role: "user" | "assistant"; content: string; citations?: Citation[]; model?: string; queryTimeMs?: number; streaming?: boolean; }
-interface DocInfo { documentId: string; fileName: string; chunkCount: number; }
+interface DocInfo { documentId: string; fileName: string; chunkCount: number; matterId?: string; docType?: DocType; }
 interface GraphStats { nodeCount: number; edgeCount: number; resolvedRefs: number; unresolvedRefs: number; unresolvedSamples: { phrase: string; fromChunkId: string; fileName: string }[]; }
 
 function VerifyDot({ verification, judge }: { verification: Citation["verification"]; judge?: Citation["judge"] }) {
@@ -56,7 +56,7 @@ const SUGGESTED = [
   "How do breach notification and technology risk management interact?",
 ];
 
-export function Chat() {
+export function Chat({ matterId, embedded = false }: { matterId?: string; embedded?: boolean } = {}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -64,17 +64,18 @@ export function Chat() {
   const [documents, setDocuments] = useState<DocInfo[]>([]);
   const [totalChunks, setTotalChunks] = useState(0);
   const [graphStats, setGraphStats] = useState<GraphStats | null>(null);
-  const [showDocs, setShowDocs] = useState(true);
+  const [showDocs, setShowDocs] = useState(!embedded);
   const [showSource, setShowSource] = useState(false);
   const [strategy, setStrategy] = useState<"hybrid" | "hyde" | "multi">("hybrid");
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { refreshDocs(); }, []);
+  useEffect(() => { refreshDocs(); }, [matterId]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isStreaming]);
 
   async function refreshDocs() {
     try {
-      const r = await fetch("/api/sources");
+      const url = matterId ? `/api/sources?matterId=${encodeURIComponent(matterId)}` : "/api/sources";
+      const r = await fetch(url);
       if (r.ok) {
         const d = await r.json();
         setDocuments(d.documents || []);
@@ -84,9 +85,13 @@ export function Chat() {
     } catch {}
   }
 
-  async function handleUpload(file: File) {
-    const fd = new FormData(); fd.append("file", file);
-    const r = await fetch("/api/upload", { method: "POST", body: fd });
+  async function handleUpload(file: File, meta: { docType: DocType }) {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("docType", meta.docType);
+    if (matterId) fd.append("matterId", matterId);
+    const endpoint = matterId ? `/api/matters/${matterId}/upload` : "/api/upload";
+    const r = await fetch(endpoint, { method: "POST", body: fd });
     if (!r.ok) { const e = await r.json(); throw new Error(e.error); }
     return r.json();
   }
@@ -101,7 +106,11 @@ export function Chat() {
     setIsStreaming(true);
 
     try {
-      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: q, strategy }) });
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: q, strategy, matterId }),
+      });
       if (!res.ok) throw new Error("Request failed");
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
@@ -128,15 +137,16 @@ export function Chat() {
       setMessages((prev) => prev.map((m) => m.id === aid ? { ...m, content: "Failed. Is Ollama running?", streaming: false } : m));
     }
     setIsStreaming(false);
-  }, [input, isStreaming, strategy]);
+  }, [input, isStreaming, strategy, matterId]);
 
   return (
-    <div className="flex h-screen">
+    <div className={`flex ${embedded ? "h-full" : "h-screen"}`}>
       {showDocs && <div className="flex flex-col border-r" style={{ width: 260, borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
         <DocumentLibrary documents={documents} totalChunks={totalChunks} graphStats={graphStats} onUpload={handleUpload} onRefresh={refreshDocs} />
       </div>}
 
       <div className="flex flex-col flex-1 min-w-0">
+        {!embedded && (
         <header className="flex items-center justify-between px-5 py-3 border-b" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center rounded-lg text-lg font-bold" style={{ width: 34, height: 34, background: "linear-gradient(135deg, #1e3a5f, #3b82f6)" }}>C</div>
@@ -154,6 +164,20 @@ export function Chat() {
             <button onClick={() => setShowSource(!showSource)} className="px-3 py-1 rounded-md text-xs border" style={{ background: showSource ? "var(--accent-dim)" : "transparent", borderColor: showSource ? "var(--accent)" : "var(--border)", color: "var(--text-secondary)" }}>Sources</button>
           </div>
         </header>
+        )}
+        {embedded && (
+          <div className="flex items-center justify-end gap-2 px-4 py-2 border-b" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+            <select value={strategy} onChange={(e) => setStrategy(e.target.value as typeof strategy)} disabled={isStreaming}
+              className="px-2 py-1 rounded-md text-xs border bg-transparent"
+              style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }} title="Retrieval strategy">
+              <option value="hybrid">Hybrid</option>
+              <option value="hyde">HyDE</option>
+              <option value="multi">Multi-query</option>
+            </select>
+            <button onClick={() => setShowDocs(!showDocs)} className="px-3 py-1 rounded-md text-xs border" style={{ background: showDocs ? "var(--accent-dim)" : "transparent", borderColor: showDocs ? "var(--accent)" : "var(--border)", color: "var(--text-secondary)" }}>Corpus</button>
+            <button onClick={() => setShowSource(!showSource)} className="px-3 py-1 rounded-md text-xs border" style={{ background: showSource ? "var(--accent-dim)" : "transparent", borderColor: showSource ? "var(--accent)" : "var(--border)", color: "var(--text-secondary)" }}>Sources</button>
+          </div>
+        )}
 
         <div className="flex-1 overflow-auto px-5 py-4">
           {messages.length === 0 && (

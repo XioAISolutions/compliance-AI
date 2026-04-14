@@ -1,17 +1,23 @@
 import { NextRequest } from "next/server";
 import { queryStream } from "@/lib/citation-engine";
+import type { Strategy } from "@/lib/retrieval-strategies";
+
+const VALID_STRATEGIES: Strategy[] = ["hybrid", "hyde", "multi"];
 
 export async function POST(req: NextRequest) {
   try {
-    const { question } = await req.json();
+    const body = await req.json();
+    const question: string | undefined = body.question;
+    const rawStrategy: string | undefined = body.strategy;
     if (!question?.trim())
       return new Response(JSON.stringify({ error: "Question is required" }), { status: 400, headers: { "Content-Type": "application/json" } });
+    const strategy = VALID_STRATEGIES.includes(rawStrategy as Strategy) ? (rawStrategy as Strategy) : "hybrid";
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of queryStream(question)) {
+          for await (const chunk of queryStream(question, { strategy })) {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
           }
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));

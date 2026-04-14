@@ -17,6 +17,8 @@ interface Citation {
   confidence: number;
   vectorScore: number;
   bm25Score: number;
+  verification: { verified: boolean; overlap: number; significantTokens: number; matchedTokens: number };
+  claim: string;
 }
 interface Message { id: string; role: "user" | "assistant"; content: string; citations?: Citation[]; model?: string; queryTimeMs?: number; streaming?: boolean; }
 interface DocInfo { documentId: string; fileName: string; chunkCount: number; }
@@ -39,6 +41,7 @@ export function Chat() {
   const [graphStats, setGraphStats] = useState<GraphStats | null>(null);
   const [showDocs, setShowDocs] = useState(true);
   const [showSource, setShowSource] = useState(false);
+  const [strategy, setStrategy] = useState<"hybrid" | "hyde" | "multi">("hybrid");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { refreshDocs(); }, []);
@@ -73,7 +76,7 @@ export function Chat() {
     setIsStreaming(true);
 
     try {
-      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: q }) });
+      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: q, strategy }) });
       if (!res.ok) throw new Error("Request failed");
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
@@ -100,7 +103,7 @@ export function Chat() {
       setMessages((prev) => prev.map((m) => m.id === aid ? { ...m, content: "Failed. Is Ollama running?", streaming: false } : m));
     }
     setIsStreaming(false);
-  }, [input, isStreaming]);
+  }, [input, isStreaming, strategy]);
 
   return (
     <div className="flex h-screen">
@@ -114,7 +117,14 @@ export function Chat() {
             <div className="flex items-center justify-center rounded-lg text-lg font-bold" style={{ width: 34, height: 34, background: "linear-gradient(135deg, #1e3a5f, #3b82f6)" }}>C</div>
             <div><div className="text-sm font-semibold">Compliance AI</div><div className="text-xs" style={{ color: "var(--text-muted)" }}>Citation-first private assistant</div></div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            <select value={strategy} onChange={(e) => setStrategy(e.target.value as typeof strategy)} disabled={isStreaming}
+              className="px-2 py-1 rounded-md text-xs border bg-transparent"
+              style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }} title="Retrieval strategy">
+              <option value="hybrid">Hybrid</option>
+              <option value="hyde">HyDE</option>
+              <option value="multi">Multi-query</option>
+            </select>
             <button onClick={() => setShowDocs(!showDocs)} className="px-3 py-1 rounded-md text-xs border" style={{ background: showDocs ? "var(--accent-dim)" : "transparent", borderColor: showDocs ? "var(--accent)" : "var(--border)", color: "var(--text-secondary)" }}>Corpus</button>
             <button onClick={() => setShowSource(!showSource)} className="px-3 py-1 rounded-md text-xs border" style={{ background: showSource ? "var(--accent-dim)" : "transparent", borderColor: showSource ? "var(--accent)" : "var(--border)", color: "var(--text-secondary)" }}>Sources</button>
           </div>

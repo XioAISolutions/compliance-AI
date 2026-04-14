@@ -1,13 +1,15 @@
 import { Ollama } from "ollama";
 import fs from "fs/promises";
 import { config } from "./config";
-import { hybridSearch, type HybridResult } from "./hybrid-search";
+import type { HybridResult } from "./hybrid-search";
 import type { DocumentChunk } from "./ingest";
+import { retrieve, type Strategy } from "./retrieval-strategies";
+import { extractClaimForCitation, verifyClaimAgainstChunk, type VerificationResult } from "./verify";
 
 const ollama = new Ollama({ host: config.ollama.baseUrl });
 
 export interface Citation {
-  id: string;          // the full [[doc:§section]] ref as emitted by the LLM
+  id: string;          // the full [[Sn:ref]] ref as emitted by the LLM
   chunkId: string;
   fileName: string;
   pageNumber: number;
@@ -15,9 +17,11 @@ export interface Citation {
   sectionNumber: string | null;
   sectionPath: string[];
   excerpt: string;
-  confidence: number;  // fused RRF score, not raw cosine
+  confidence: number;  // fused RRF score
   vectorScore: number;
   bm25Score: number;
+  verification: VerificationResult; // quote-level sanity check
+  claim: string;                    // the sentence this citation follows
 }
 
 export interface CitedAnswer {
@@ -25,8 +29,14 @@ export interface CitedAnswer {
   citations: Citation[];
   retrievedChunks: DocumentChunk[];
   model: string;
+  strategy: Strategy;
   queryTimeMs: number;
 }
+
+export type QueryOptions = {
+  strategy?: Strategy;
+  topK?: number;
+};
 
 const SYSTEM_PROMPT = `You are a compliance assistant operating in citation-first mode.
 
@@ -64,8 +74,9 @@ function buildContext(chunks: DocumentChunk[]): string {
 }
 
 /**
- * Extract [[doc:ref]] citations from the answer and resolve them to chunks.
- * Strips any that reference unknown doc tags (hallucinated citations).
+ * Extract [[Sn:ref]] citations from the answer, resolve them to chunks,
+ * verify each one against its source, and strip markers that reference
+ * doc tags we never provided.
  */
 function extractAndValidateCitations(
   answer: string,
@@ -74,21 +85,31 @@ function extractAndValidateCitations(
   const tagToResult = new Map<string, { result: HybridResult; index: number }>();
   results.forEach((r, i) => tagToResult.set(docTag(i), { result: r, index: i }));
 
-  const matches = [...answer.matchAll(/\[\[\s*(S\d+)\s*:\s*([^\]]+?)\s*\]\]/gi)];
+  const re = /\[\[\s*(S\d+)\s*:\s*([^\]]+?)\s*\]\]/gi;
+  const matches = [...answer.matchAll(re)];
   const citationsByTag = new Map<string, Citation>();
   const invalidTags = new Set<string>();
 
   for (const m of matches) {
     const tag = m[1].toUpperCase();
     const ref = m[2];
+    const markerStart = m.index ?? 0;
     const entry = tagToResult.get(tag);
     if (!entry) {
       invalidTags.add(tag);
       continue;
     }
-    if (citationsByTag.has(tag)) continue; // dedupe per source
     const { result } = entry;
     const c = result.chunk;
+    const claim = extractClaimForCitation(answer, markerStart);
+    const verification = verifyClaimAgainstChunk(claim, c.content);
+
+    // Keep the best citation per tag (most recent overrides only if it has
+    // a better verification score — this matters when a model cites the
+    // same source for multiple claims of varying quality).
+    const existing = citationsByTag.get(tag);
+    if (existing && existing.verification.overlap >= verification.overlap) continue;
+
     const canonicalRef = ref.replace(/\s+/g, "");
     citationsByTag.set(tag, {
       id: `[[${tag}:${canonicalRef}]]`,
@@ -102,6 +123,8 @@ function extractAndValidateCitations(
       confidence: result.score,
       vectorScore: result.vectorScore,
       bm25Score: result.bm25Score,
+      verification,
+      claim,
     });
   }
 
@@ -114,11 +137,77 @@ function extractAndValidateCitations(
   return { cleanAnswer: clean, citations: Array.from(citationsByTag.values()) };
 }
 
+async function logAudit(entry: Record<string, unknown>) {
+  try {
+    let log: unknown[] = [];
+    try { log = JSON.parse(await fs.readFile(config.paths.auditLog, "utf-8")); } catch {}
+    log.push(entry);
+    await fs.writeFile(config.paths.auditLog, JSON.stringify(log, null, 2));
+  } catch {}
+}
+
+/**
+ * Non-streaming query — used by the eval harness and any caller that
+ * doesn't need incremental tokens.
+ */
+export async function query(question: string, opts: QueryOptions = {}): Promise<CitedAnswer> {
+  const strategy = opts.strategy ?? "hybrid";
+  const start = Date.now();
+  const results = await retrieve(question, strategy, opts.topK);
+  const chunks = results.map((r) => r.chunk);
+
+  if (chunks.length === 0) {
+    return {
+      answer: "I cannot find information relevant to this question in the loaded compliance documents.",
+      citations: [],
+      retrievedChunks: [],
+      model: config.ollama.chatModel,
+      strategy,
+      queryTimeMs: Date.now() - start,
+    };
+  }
+
+  const context = buildContext(chunks);
+  const res = await ollama.chat({
+    model: config.ollama.chatModel,
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: `SOURCES:\n\n${context}\n\n---\n\nQUESTION: ${question}\n\nAnswer using ONLY these sources. Cite every claim with [[doc:ref]].` },
+    ],
+    options: { temperature: 0.1, num_predict: 1024 },
+  });
+
+  const { cleanAnswer, citations } = extractAndValidateCitations(res.message.content, results);
+  const queryTimeMs = Date.now() - start;
+
+  await logAudit({
+    timestamp: new Date().toISOString(),
+    question,
+    strategy,
+    citationCount: citations.length,
+    verifiedCount: citations.filter((c) => c.verification.verified).length,
+    topFused: results[0]?.score ?? null,
+    model: config.ollama.chatModel,
+    queryTimeMs,
+  });
+
+  return {
+    answer: cleanAnswer,
+    citations,
+    retrievedChunks: chunks,
+    model: config.ollama.chatModel,
+    strategy,
+    queryTimeMs,
+  };
+}
+
 export async function* queryStream(
   question: string,
+  opts: QueryOptions = {},
 ): AsyncGenerator<{ type: "text" | "citations" | "meta" | "error"; data: any }> {
+  const strategy = opts.strategy ?? "hybrid";
   const start = Date.now();
-  const results = await hybridSearch(question);
+  const results = await retrieve(question, strategy, opts.topK);
   const chunks = results.map((r) => r.chunk);
 
   if (chunks.length === 0) {
@@ -144,22 +233,19 @@ export async function* queryStream(
   }
 
   const { citations } = extractAndValidateCitations(fullAnswer, results);
+  const queryTimeMs = Date.now() - start;
 
   yield { type: "citations", data: citations };
-  yield { type: "meta", data: { model: config.ollama.chatModel, queryTimeMs: Date.now() - start } };
+  yield { type: "meta", data: { model: config.ollama.chatModel, strategy, queryTimeMs } };
 
-  // Audit log
-  try {
-    let log: any[] = [];
-    try { log = JSON.parse(await fs.readFile(config.paths.auditLog, "utf-8")); } catch {}
-    log.push({
-      timestamp: new Date().toISOString(),
-      question,
-      citationCount: citations.length,
-      topFused: results[0]?.score ?? null,
-      model: config.ollama.chatModel,
-      queryTimeMs: Date.now() - start,
-    });
-    await fs.writeFile(config.paths.auditLog, JSON.stringify(log, null, 2));
-  } catch {}
+  await logAudit({
+    timestamp: new Date().toISOString(),
+    question,
+    strategy,
+    citationCount: citations.length,
+    verifiedCount: citations.filter((c) => c.verification.verified).length,
+    topFused: results[0]?.score ?? null,
+    model: config.ollama.chatModel,
+    queryTimeMs,
+  });
 }

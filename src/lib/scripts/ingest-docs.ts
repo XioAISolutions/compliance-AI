@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import { ingestPDF } from "../ingest";
 import { vectorStore } from "../vector-store";
+import { buildGraph, saveGraph } from "../graph";
 import { config } from "../config";
 
 async function main() {
@@ -28,6 +29,13 @@ async function main() {
     });
     console.log(`\n  Done.\n`);
   }
+
+  console.log("Rebuilding cross-reference graph...");
+  await vectorStore.refresh();
+  const graph = await buildGraph();
+  await saveGraph(graph);
+  console.log(`  Graph: ${graph.nodes.length} nodes, ${graph.edges.length} edges.\n`);
+
   console.log(`\nIngestion complete. Ready for queries.\n`);
 }
 main().catch((e) => { console.error(e); process.exit(1); });

@@ -13,6 +13,7 @@ export const config = {
     vectorStore: path.resolve(process.env.VECTOR_STORE_PATH || "./compliance-brain/01-corpus/vectors"),
     citationLog: path.resolve(process.env.CITATION_LOG_PATH || "./compliance-brain/02-citations/citation-log.json"),
     auditLog: path.resolve(process.env.AUDIT_LOG_PATH || "./compliance-brain/04-audit/query-log.json"),
+    graph: path.resolve(process.env.GRAPH_PATH || "./compliance-brain/05-graph/graph.json"),
   },
   chunking: {
     size: parseInt(process.env.CHUNK_SIZE || "500", 10),

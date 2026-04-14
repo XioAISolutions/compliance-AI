@@ -3,8 +3,21 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { DocumentLibrary } from "./document-library";
 import { SourceViewer } from "./source-viewer";
 import { CitationBadge } from "./citation-badge";
+import { CitationRenderer } from "./citation-renderer";
 
-interface Citation { id: string; chunkId: string; fileName: string; pageNumber: number; section: string | null; excerpt: string; confidence: number; }
+interface Citation {
+  id: string;
+  chunkId: string;
+  fileName: string;
+  pageNumber: number;
+  section: string | null;
+  sectionNumber: string | null;
+  sectionPath: string[];
+  excerpt: string;
+  confidence: number;
+  vectorScore: number;
+  bm25Score: number;
+}
 interface Message { id: string; role: "user" | "assistant"; content: string; citations?: Citation[]; model?: string; queryTimeMs?: number; streaming?: boolean; }
 interface DocInfo { documentId: string; fileName: string; chunkCount: number; }
 
@@ -121,7 +134,11 @@ export function Chat() {
                 <div style={{ maxWidth: "85%" }}>
                   <div className="px-4 py-3 text-sm leading-relaxed border" style={{ background: "var(--bg-card)", borderColor: "var(--border)", borderRadius: "4px 14px 14px 14px" }}>
                     <div className="whitespace-pre-wrap">
-                      {msg.content}
+                      <CitationRenderer
+                        text={msg.content}
+                        citations={msg.citations ?? []}
+                        onOpen={(chunkId) => { setSelectedChunkId(chunkId); setShowSource(true); }}
+                      />
                       {msg.streaming && <span className="inline-block ml-0.5 rounded-sm" style={{ width: 8, height: 16, background: "var(--accent)", animation: "blink 1s infinite" }} />}
                     </div>
                     {!msg.streaming && msg.citations && msg.citations.length > 0 && (
@@ -131,10 +148,10 @@ export function Chat() {
                           <button key={c.id} onClick={() => { setSelectedChunkId(c.chunkId); setShowSource(true); }}
                             className="flex items-center gap-2 w-full px-3 py-2 mb-1 rounded-md text-left border transition-colors"
                             style={{ background: selectedChunkId === c.chunkId ? "#1e3a5f" : "var(--bg-primary)", borderColor: selectedChunkId === c.chunkId ? "var(--accent)" : "var(--border)", fontSize: 13 }}>
-                            <span className="font-bold min-w-6" style={{ color: "var(--accent)" }}>{c.id}</span>
-                            <span className="flex-1 truncate">{c.section || c.fileName}</span>
+                            <span className="font-mono font-bold text-xs" style={{ color: "var(--accent)" }}>{c.id}</span>
+                            <span className="flex-1 truncate">{c.sectionPath.length > 0 ? c.sectionPath[c.sectionPath.length - 1] : c.fileName}</span>
                             <span className="text-xs" style={{ color: "var(--text-muted)" }}>p.{c.pageNumber}</span>
-                            <CitationBadge confidence={c.confidence} />
+                            <CitationBadge confidence={c.vectorScore} />
                           </button>
                         ))}
                       </div>
@@ -174,7 +191,7 @@ export function Chat() {
       </div>
 
       {showSource && <div className="flex flex-col border-l" style={{ width: 340, borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-        <SourceViewer chunkId={selectedChunkId} onClose={() => setShowSource(false)} />
+        <SourceViewer chunkId={selectedChunkId} onClose={() => setShowSource(false)} onOpenChunk={setSelectedChunkId} />
       </div>}
     </div>
   );

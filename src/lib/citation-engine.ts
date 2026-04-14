@@ -5,6 +5,7 @@ import type { HybridResult } from "./hybrid-search";
 import type { DocumentChunk } from "./ingest";
 import { retrieve, type Strategy } from "./retrieval-strategies";
 import { extractClaimForCitation, verifyClaimAgainstChunk, type VerificationResult } from "./verify";
+import { judgeClaim, type JudgeResult } from "./judge";
 
 const ollama = new Ollama({ host: config.ollama.baseUrl });
 
@@ -21,6 +22,7 @@ export interface Citation {
   vectorScore: number;
   bm25Score: number;
   verification: VerificationResult; // quote-level sanity check
+  judge?: JudgeResult;              // optional LLM-as-judge second opinion
   claim: string;                    // the sentence this citation follows
 }
 
@@ -36,6 +38,12 @@ export interface CitedAnswer {
 export type QueryOptions = {
   strategy?: Strategy;
   topK?: number;
+  /**
+   * When true, run the LLM judge on every citation.
+   * When "weak", only judge citations that failed the lexical verifier.
+   * When false/undefined, skip the judge entirely.
+   */
+  judge?: boolean | "weak";
 };
 
 const SYSTEM_PROMPT = `You are a compliance assistant operating in citation-first mode.
@@ -137,6 +145,21 @@ function extractAndValidateCitations(
   return { cleanAnswer: clean, citations: Array.from(citationsByTag.values()) };
 }
 
+/**
+ * Run the LLM judge on the subset of citations the caller asked about,
+ * mutating `citations` in place. Serial by design — parallel chat calls
+ * saturate local Ollama.
+ */
+async function applyJudge(citations: Citation[], mode: boolean | "weak" | undefined, chunksById: Map<string, DocumentChunk>) {
+  if (!mode) return;
+  const targets = mode === "weak" ? citations.filter((c) => !c.verification.verified) : citations;
+  for (const c of targets) {
+    const chunk = chunksById.get(c.chunkId);
+    if (!chunk) continue;
+    c.judge = await judgeClaim(c.claim, chunk.content);
+  }
+}
+
 async function logAudit(entry: Record<string, unknown>) {
   try {
     let log: unknown[] = [];
@@ -178,6 +201,8 @@ export async function query(question: string, opts: QueryOptions = {}): Promise<
   });
 
   const { cleanAnswer, citations } = extractAndValidateCitations(res.message.content, results);
+  const chunksById = new Map(chunks.map((c) => [c.id, c]));
+  await applyJudge(citations, opts.judge, chunksById);
   const queryTimeMs = Date.now() - start;
 
   await logAudit({
@@ -186,6 +211,8 @@ export async function query(question: string, opts: QueryOptions = {}): Promise<
     strategy,
     citationCount: citations.length,
     verifiedCount: citations.filter((c) => c.verification.verified).length,
+    judgedCount: citations.filter((c) => c.judge).length,
+    judgeSupportedCount: citations.filter((c) => c.judge?.supported).length,
     topFused: results[0]?.score ?? null,
     model: config.ollama.chatModel,
     queryTimeMs,
@@ -233,6 +260,8 @@ export async function* queryStream(
   }
 
   const { citations } = extractAndValidateCitations(fullAnswer, results);
+  const chunksById = new Map(chunks.map((c) => [c.id, c]));
+  await applyJudge(citations, opts.judge, chunksById);
   const queryTimeMs = Date.now() - start;
 
   yield { type: "citations", data: citations };
@@ -244,6 +273,8 @@ export async function* queryStream(
     strategy,
     citationCount: citations.length,
     verifiedCount: citations.filter((c) => c.verification.verified).length,
+    judgedCount: citations.filter((c) => c.judge).length,
+    judgeSupportedCount: citations.filter((c) => c.judge?.supported).length,
     topFused: results[0]?.score ?? null,
     model: config.ollama.chatModel,
     queryTimeMs,

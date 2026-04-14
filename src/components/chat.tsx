@@ -18,11 +18,36 @@ interface Citation {
   vectorScore: number;
   bm25Score: number;
   verification: { verified: boolean; overlap: number; significantTokens: number; matchedTokens: number };
+  judge?: { supported: boolean; confidence: number; reasoning: string };
   claim: string;
 }
 interface Message { id: string; role: "user" | "assistant"; content: string; citations?: Citation[]; model?: string; queryTimeMs?: number; streaming?: boolean; }
 interface DocInfo { documentId: string; fileName: string; chunkCount: number; }
 interface GraphStats { nodeCount: number; edgeCount: number; resolvedRefs: number; unresolvedRefs: number; unresolvedSamples: { phrase: string; fromChunkId: string; fileName: string }[]; }
+
+function VerifyDot({ verification, judge }: { verification: Citation["verification"]; judge?: Citation["judge"] }) {
+  // Judge result (when present) trumps the lexical verifier — it's a richer signal.
+  const supported = judge ? judge.supported : verification.verified;
+  const color = supported ? "var(--success)" : "var(--danger)";
+  const label = judge
+    ? `LLM judge: ${judge.supported ? "supported" : "not supported"} (${Math.round(judge.confidence * 100)}%) — ${judge.reasoning || "no reasoning"}`
+    : `Lexical overlap: ${verification.matchedTokens}/${verification.significantTokens} tokens (${Math.round(verification.overlap * 100)}%) — ${verification.verified ? "verified" : "weak match"}`;
+  return (
+    <span
+      title={label}
+      aria-label={label}
+      style={{
+        width: 8,
+        height: 8,
+        borderRadius: "50%",
+        background: color,
+        boxShadow: `0 0 4px ${color}`,
+        flexShrink: 0,
+        border: judge ? "1.5px solid #fff2" : "none",
+      }}
+    />
+  );
+}
 
 const SUGGESTED = [
   "What are the consent requirements under PIPEDA?",
@@ -171,6 +196,7 @@ export function Chat() {
                             <span className="font-mono font-bold text-xs" style={{ color: "var(--accent)" }}>{c.id}</span>
                             <span className="flex-1 truncate">{c.sectionPath.length > 0 ? c.sectionPath[c.sectionPath.length - 1] : c.fileName}</span>
                             <span className="text-xs" style={{ color: "var(--text-muted)" }}>p.{c.pageNumber}</span>
+                            <VerifyDot verification={c.verification} judge={c.judge} />
                             <CitationBadge confidence={c.vectorScore} />
                           </button>
                         ))}

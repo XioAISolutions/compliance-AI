@@ -23,13 +23,14 @@ import { config } from "../config";
  * regressions between runs.
  */
 
-type Args = { strategies: Strategy[]; limit: number | null };
+type Args = { strategies: Strategy[]; limit: number | null; judge: boolean | "weak" };
 
 const ALL_STRATEGIES: Strategy[] = ["hybrid", "hyde", "multi"];
 
 function parseArgs(argv: string[]): Args {
   let strategies: Strategy[] = [...ALL_STRATEGIES];
   let limit: number | null = null;
+  let judge: boolean | "weak" = false;
   for (const a of argv) {
     if (a.startsWith("--strategy=")) {
       const s = a.slice("--strategy=".length) as Strategy;
@@ -41,9 +42,15 @@ function parseArgs(argv: string[]): Args {
       const n = parseInt(a.slice("--limit=".length), 10);
       if (Number.isNaN(n) || n <= 0) throw new Error(`Invalid --limit: ${a}`);
       limit = n;
+    } else if (a === "--judge") {
+      judge = true;
+    } else if (a === "--judge=weak") {
+      judge = "weak";
+    } else if (a === "--judge=false") {
+      judge = false;
     }
   }
-  return { strategies, limit };
+  return { strategies, limit, judge };
 }
 
 async function loadQuestions(): Promise<string[]> {
@@ -64,6 +71,8 @@ interface PerRun {
   answerLength: number;
   citationCount: number;
   verifiedCount: number;
+  judgedCount: number;
+  judgeSupportedCount: number;
   avgOverlap: number;
   topFused: number | null;
   queryTimeMs: number;
@@ -71,10 +80,10 @@ interface PerRun {
   error?: string;
 }
 
-async function runOne(question: string, strategy: Strategy): Promise<PerRun> {
+async function runOne(question: string, strategy: Strategy, judge: boolean | "weak"): Promise<PerRun> {
   const startedAt = Date.now();
   try {
-    const r = await query(question, { strategy });
+    const r = await query(question, { strategy, judge });
     const firstLine = r.answer.split("\n").find((l) => l.trim().length > 0)?.trim() ?? "";
     const overlaps = r.citations.map((c) => c.verification.overlap);
     const avgOverlap = overlaps.length ? overlaps.reduce((a, b) => a + b, 0) / overlaps.length : 0;
@@ -85,6 +94,8 @@ async function runOne(question: string, strategy: Strategy): Promise<PerRun> {
       answerLength: r.answer.length,
       citationCount: r.citations.length,
       verifiedCount: r.citations.filter((c) => c.verification.verified).length,
+      judgedCount: r.citations.filter((c) => c.judge).length,
+      judgeSupportedCount: r.citations.filter((c) => c.judge?.supported).length,
       avgOverlap: Number(avgOverlap.toFixed(3)),
       topFused: r.retrievedChunks.length > 0 ? Number((r.citations[0]?.confidence ?? 0).toFixed(4)) : null,
       queryTimeMs: r.queryTimeMs,
@@ -98,6 +109,8 @@ async function runOne(question: string, strategy: Strategy): Promise<PerRun> {
       answerLength: 0,
       citationCount: 0,
       verifiedCount: 0,
+      judgedCount: 0,
+      judgeSupportedCount: 0,
       avgOverlap: 0,
       topFused: null,
       queryTimeMs: Date.now() - startedAt,
@@ -128,7 +141,7 @@ function printTable(rows: PerRun[]) {
   }
 }
 
-function summarize(rows: PerRun[]): Record<Strategy, { n: number; avgMs: number; avgCits: number; avgVerified: number; avgOverlap: number; errors: number }> {
+function summarize(rows: PerRun[]): Record<Strategy, { n: number; avgMs: number; avgCits: number; avgVerified: number; avgJudgeSupported: number; avgOverlap: number; errors: number }> {
   const out: any = {};
   for (const s of ALL_STRATEGIES) {
     const subset = rows.filter((r) => r.strategy === s);
@@ -138,6 +151,7 @@ function summarize(rows: PerRun[]): Record<Strategy, { n: number; avgMs: number;
       avgMs: Math.round(subset.reduce((a, r) => a + r.queryTimeMs, 0) / subset.length),
       avgCits: Number((subset.reduce((a, r) => a + r.citationCount, 0) / subset.length).toFixed(2)),
       avgVerified: Number((subset.reduce((a, r) => a + r.verifiedCount, 0) / subset.length).toFixed(2)),
+      avgJudgeSupported: Number((subset.reduce((a, r) => a + r.judgeSupportedCount, 0) / subset.length).toFixed(2)),
       avgOverlap: Number((subset.reduce((a, r) => a + r.avgOverlap, 0) / subset.length).toFixed(3)),
       errors: subset.filter((r) => r.error).length,
     };
@@ -154,11 +168,11 @@ function markdownSummary(rows: PerRun[], meta: { timestamp: string; totalQuestio
   lines.push("");
   lines.push(`## Per-strategy averages`);
   lines.push("");
-  lines.push(`| strategy | n | avg ms | avg cits | avg verified | avg overlap | errors |`);
-  lines.push(`|----------|---|--------|----------|--------------|-------------|--------|`);
+  lines.push(`| strategy | n | avg ms | avg cits | avg verified | avg judge✓ | avg overlap | errors |`);
+  lines.push(`|----------|---|--------|----------|--------------|------------|-------------|--------|`);
   const summary = summarize(rows);
   for (const [s, v] of Object.entries(summary)) {
-    lines.push(`| ${s} | ${v.n} | ${v.avgMs} | ${v.avgCits} | ${v.avgVerified} | ${v.avgOverlap} | ${v.errors} |`);
+    lines.push(`| ${s} | ${v.n} | ${v.avgMs} | ${v.avgCits} | ${v.avgVerified} | ${v.avgJudgeSupported} | ${v.avgOverlap} | ${v.errors} |`);
   }
   lines.push("");
   lines.push(`## Per-question details`);
@@ -191,15 +205,17 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`\nCorpus: ${corpusSize} chunks · Strategies: ${args.strategies.join(", ")} · Questions: ${questions.length}\n`);
+  const judgeLabel = args.judge === true ? "on" : args.judge === "weak" ? "weak-only" : "off";
+  console.log(`\nCorpus: ${corpusSize} chunks · Strategies: ${args.strategies.join(", ")} · Questions: ${questions.length} · Judge: ${judgeLabel}\n`);
 
   const rows: PerRun[] = [];
   for (const q of questions) {
     for (const strategy of args.strategies) {
       process.stdout.write(`  [${strategy}] ${q.slice(0, 60)}... `);
-      const row = await runOne(q, strategy);
+      const row = await runOne(q, strategy, args.judge);
       rows.push(row);
-      process.stdout.write(row.error ? `ERROR (${row.error})\n` : `${row.queryTimeMs}ms, ${row.citationCount} cits (${row.verifiedCount} verified)\n`);
+      const judgePart = row.judgedCount > 0 ? `, judge ${row.judgeSupportedCount}/${row.judgedCount}` : "";
+      process.stdout.write(row.error ? `ERROR (${row.error})\n` : `${row.queryTimeMs}ms, ${row.citationCount} cits (${row.verifiedCount} verified${judgePart})\n`);
     }
   }
 
@@ -215,6 +231,7 @@ async function main() {
     timestamp,
     corpusSize,
     strategies: args.strategies,
+    judge: args.judge,
     totalQuestions: questions.length,
     totalRuns: rows.length,
     model: config.ollama.chatModel,

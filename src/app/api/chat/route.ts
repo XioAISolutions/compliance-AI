@@ -9,15 +9,19 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const question: string | undefined = body.question;
     const rawStrategy: string | undefined = body.strategy;
+    const rawJudge: unknown = body.judge;
     if (!question?.trim())
       return new Response(JSON.stringify({ error: "Question is required" }), { status: 400, headers: { "Content-Type": "application/json" } });
     const strategy = VALID_STRATEGIES.includes(rawStrategy as Strategy) ? (rawStrategy as Strategy) : "hybrid";
+    // Accept true | "weak" | false; reject anything else so we never pay the
+    // judge cost by accident.
+    const judge: boolean | "weak" = rawJudge === true ? true : rawJudge === "weak" ? "weak" : false;
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of queryStream(question, { strategy })) {
+          for await (const chunk of queryStream(question, { strategy, judge })) {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
           }
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));

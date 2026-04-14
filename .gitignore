@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+build/
+.env.local
+.env*.local
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+compliance-brain/01-corpus/vectors/
+compliance-brain/04-audit/*.json
+compliance-brain/02-citations/*.json

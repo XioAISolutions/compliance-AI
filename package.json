@@ -1,0 +1,38 @@
+{
+  "name": "compliance-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Private compliance AI platform — citation-first retrieval with local LLM inference",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "ingest": "tsx src/lib/scripts/ingest-docs.ts",
+    "eval": "tsx src/lib/scripts/run-eval.ts"
+  },
+  "dependencies": {
+    "ai": "^4.1.0",
+    "@ai-sdk/openai": "^1.3.0",
+    "next": "15.3.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "ollama": "^0.5.14",
+    "pdf-parse": "^1.1.1",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/pdf-parse": "^1.1.4",
+    "@types/uuid": "^10.0.0",
+    "typescript": "^5.7.0",
+    "tsx": "^4.19.0",
+    "@tailwindcss/postcss": "^4.0.0",
+    "tailwindcss": "^4.0.0",
+    "postcss": "^8.5.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "15.3.1"
+  }
+}

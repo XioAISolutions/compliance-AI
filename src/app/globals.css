@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #030712;
+  --bg-secondary: #0a0f1a;
+  --bg-card: #111827;
+  --border: #1e293b;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #3b82f6;
+  --accent-dim: #3b82f620;
+  --success: #22c55e;
+  --warning: #eab308;
+  --danger: #ef4444;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "IBM Plex Sans", -apple-system, sans-serif; background: var(--bg-primary); color: var(--text-primary); overflow: hidden; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+@keyframes blink { 0%,50%{opacity:1} 51%,100%{opacity:0} }
+@keyframes slide-up { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+.animate-slide-up { animation: slide-up 0.25s ease-out; }

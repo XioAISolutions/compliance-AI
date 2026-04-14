@@ -31,6 +31,13 @@ export async function POST(req: NextRequest) {
       const dts = body.docTypes.filter((d: unknown) => typeof d === "string" && DOC_TYPES.includes(d as DocType)) as DocType[];
       if (dts.length > 0) filter = { ...(filter ?? {}), docTypes: dts };
     }
+    if (Array.isArray(body.jurisdictions) && body.jurisdictions.length > 0) {
+      const js = body.jurisdictions.filter((j: unknown) => typeof j === "string" && j.trim().length > 0) as string[];
+      if (js.length > 0) filter = { ...(filter ?? {}), jurisdictions: js };
+    }
+    if (body.authorityBoost === true) {
+      filter = { ...(filter ?? {}), authorityBoost: true };
+    }
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({

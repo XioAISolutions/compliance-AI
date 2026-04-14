@@ -60,9 +60,19 @@ export function DocumentLibrary({
     try {
       setTimeout(() => setStatus("Chunking..."), 1500);
       setTimeout(() => setStatus("Embedding..."), 3000);
-      await onUpload(file, { docType: uploadDocType });
-      setStatus("Indexed"); onRefresh();
-      setTimeout(() => setStatus(null), 2000);
+      const res = await onUpload(file, { docType: uploadDocType });
+      // If the user left the type as "unknown", the server may have
+      // auto-classified. Surface that so the user can confirm or reject.
+      const autoDocType: DocType | undefined = res?.docType;
+      const classification = res?.classification as { docType: DocType; confidence: number; method: string } | null | undefined;
+      if (uploadDocType === "unknown" && classification && autoDocType && autoDocType !== "unknown") {
+        const label = DOC_TYPE_OPTIONS.find((o) => o.id === autoDocType)?.label ?? autoDocType;
+        setStatus(`Indexed as ${label} (${Math.round(classification.confidence * 100)}%)`);
+      } else {
+        setStatus("Indexed");
+      }
+      onRefresh();
+      setTimeout(() => setStatus(null), 3000);
     } catch (e: any) { setStatus(`Error: ${e.message}`); }
     setUploading(false);
   }

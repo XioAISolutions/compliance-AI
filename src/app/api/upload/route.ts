@@ -4,6 +4,7 @@ import { vectorStore } from "@/lib/vector-store";
 import { buildGraph, saveGraph } from "@/lib/graph";
 import { DEFAULT_MATTER_ID } from "@/lib/config";
 import { DOC_TYPES, type DocType } from "@/lib/retrieval-filter";
+import { classifyDocument, extractHeadText, type ClassificationResult } from "@/lib/doc-classifier";
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,11 +16,22 @@ export async function POST(req: NextRequest) {
     const rawMatterId = formData.get("matterId");
     const matterId = typeof rawMatterId === "string" && rawMatterId.length > 0 ? rawMatterId : DEFAULT_MATTER_ID;
     const rawDocType = formData.get("docType");
-    const docType: DocType = DOC_TYPES.includes(rawDocType as DocType) ? (rawDocType as DocType) : "unknown";
+    const userDocType: DocType | null = DOC_TYPES.includes(rawDocType as DocType)
+      ? (rawDocType as DocType)
+      : null;
     const rawJurisdiction = formData.get("jurisdiction");
     const jurisdiction = typeof rawJurisdiction === "string" && rawJurisdiction.trim().length > 0 ? rawJurisdiction.trim() : null;
 
     const buffer = Buffer.from(await file.arrayBuffer());
+
+    let docType: DocType = userDocType ?? "unknown";
+    let classification: ClassificationResult | null = null;
+    if (!userDocType || userDocType === "unknown") {
+      const headText = await extractHeadText(buffer);
+      classification = await classifyDocument({ fileName: file.name, headText });
+      docType = classification.docType;
+    }
+
     const result = await ingestPDF(buffer, file.name, { matterId, docType, jurisdiction });
     await vectorStore.indexChunks(result.chunks);
     await vectorStore.refresh();
@@ -34,6 +46,7 @@ export async function POST(req: NextRequest) {
       totalSections: result.sections.length,
       matterId,
       docType,
+      classification,
     });
   } catch (err: any) {
     console.error("Upload error:", err);

@@ -129,12 +129,138 @@ const DEMAND_LETTER: DraftTemplate = {
   ],
 };
 
+// --- Complaint (civil) -----------------------------------------------------
+
+const COMPLAINT: DraftTemplate = {
+  kind: "complaint",
+  displayName: "Civil complaint",
+  promptProfile: "plaintiff_demand",
+  sections: [
+    {
+      id: "caption",
+      heading: "Caption and parties",
+      guidance:
+        "Produce a federal-style caption block followed by a short Parties section. Name the plaintiff(s) and defendant(s) using the intake. Cite any client-facts chunk that establishes who a party is. Do not cite statutes in this section.",
+      requiredCitations: ["client_facts", "correspondence"],
+    },
+    {
+      id: "jurisdiction",
+      heading: "Jurisdiction and venue",
+      guidance:
+        "State the basis for subject-matter jurisdiction and venue. Every jurisdictional assertion must cite the statute or regulation that grants it. If the intake supplies the client's address or the forum, cite the client-facts source for that fact.",
+      requiredCitations: ["statute", "regulation", "client_facts"],
+    },
+    {
+      id: "facts",
+      heading: "Factual allegations",
+      guidance:
+        "Enumerate numbered factual allegations (¶1, ¶2, ...) drawn ONLY from the sources. Each paragraph is one discrete fact, cited to the specific client-facts, correspondence, or contract chunk that establishes it. If a critical fact is absent, emit [[NEEDED: <fact>]] and do not fabricate.",
+      requiredCitations: ["client_facts", "correspondence", "contract"],
+      topK: 10,
+    },
+    {
+      id: "causes",
+      heading: "Causes of action",
+      guidance:
+        "For each violated statute/regulation, produce a numbered Count. Under each Count, quote or paraphrase the controlling statutory language (cite the statute), enumerate its elements (cite the statute), and for each element cite the factual paragraph or client-facts chunk that satisfies it. Emit [[NEEDED: <element>]] when no fact supports an element.",
+      requiredCitations: ["statute", "regulation", "client_facts", "correspondence", "contract"],
+      topK: 12,
+    },
+    {
+      id: "prayer",
+      heading: "Prayer for relief",
+      guidance:
+        "State the concrete relief requested. For each remedy, cite the statute or regulation that makes it available. Do not invent dollar figures; if the intake lacks quantum, emit [[NEEDED: damages figure]] and continue.",
+      requiredCitations: ["statute", "regulation"],
+    },
+  ],
+};
+
+// --- Internal memo ---------------------------------------------------------
+
+const INTERNAL_MEMO: DraftTemplate = {
+  kind: "internal_memo",
+  displayName: "Internal memo",
+  promptProfile: "internal_memo",
+  sections: [
+    {
+      id: "issue",
+      heading: "ISSUE",
+      guidance:
+        "State the legal question presented by the matter in one or two sentences. Cite the intake or client-facts source that frames the question. Do not expand beyond what the intake establishes.",
+      requiredCitations: ["client_facts", "correspondence", "contract"],
+    },
+    {
+      id: "rule",
+      heading: "RULE",
+      guidance:
+        "State the controlling rule(s). For each rule, quote or paraphrase the statute/regulation, cite it, and enumerate its elements with a citation per element. If caselaw is in the sources, cite it for interpretive gloss.",
+      requiredCitations: ["statute", "regulation", "caselaw"],
+      topK: 8,
+    },
+    {
+      id: "application",
+      heading: "APPLICATION",
+      guidance:
+        "Apply the rule to the matter's facts. For each element, name the element and cite a specific fact chunk that satisfies it or emit [[NEEDED: <what is missing>]] when the sources do not establish it. Keep this section analytical and neutral.",
+      requiredCitations: ["statute", "regulation", "client_facts", "correspondence", "contract"],
+      topK: 10,
+    },
+    {
+      id: "conclusion",
+      heading: "CONCLUSION",
+      guidance:
+        "State the conclusion in one paragraph. Identify outstanding gaps (elements not yet supported) and recommend the next concrete step. Citations optional here; do not invent authority.",
+      requiredCitations: [],
+    },
+  ],
+};
+
+// --- Response to regulator -------------------------------------------------
+
+const RESPONSE_TO_REGULATOR: DraftTemplate = {
+  kind: "response_to_regulator",
+  displayName: "Response to regulator",
+  promptProfile: "compliance_qa",
+  sections: [
+    {
+      id: "opening",
+      heading: "Opening and reference",
+      guidance:
+        "Write a formal opening that references the regulator's inquiry. Identify the respondent and the inquiry number or subject line as captured in the intake. Cite the intake or correspondence chunk that captures the inquiry. Do not cite statutes yet.",
+      requiredCitations: ["correspondence", "client_facts"],
+    },
+    {
+      id: "facts",
+      heading: "Statement of facts",
+      guidance:
+        "Summarize the facts the regulator asked about. Every factual claim must cite a client-facts, correspondence, or contract chunk. Be concise and chronological; do not editorialize.",
+      requiredCitations: ["client_facts", "correspondence", "contract"],
+      topK: 8,
+    },
+    {
+      id: "compliance",
+      heading: "Compliance posture",
+      guidance:
+        "For each statute or regulation the inquiry implicates, quote or paraphrase the binding language (cite the source), state the respondent's posture, and cite the client-facts or correspondence chunk that demonstrates compliance. Emit [[NEEDED: <what is missing>]] when evidence is absent.",
+      requiredCitations: ["statute", "regulation", "client_facts", "correspondence"],
+      topK: 10,
+    },
+    {
+      id: "closing",
+      heading: "Closing and offer to cooperate",
+      guidance:
+        "Close formally. Offer a contact for follow-up. Citations optional; keep the tone professional and non-adversarial.",
+      requiredCitations: [],
+    },
+  ],
+};
+
 export const DRAFT_TEMPLATES: Record<DraftKind, DraftTemplate | null> = {
   demand_letter: DEMAND_LETTER,
-  // MVP ships demand_letter only. Phase 2 fills these in.
-  complaint: null,
-  internal_memo: null,
-  response_to_regulator: null,
+  complaint: COMPLAINT,
+  internal_memo: INTERNAL_MEMO,
+  response_to_regulator: RESPONSE_TO_REGULATOR,
 };
 
 export function getDraftTemplate(kind: DraftKind): DraftTemplate {
@@ -149,9 +275,10 @@ function buildSectionQuestion(
   template: DraftSectionTemplate,
   matter: Matter,
   intake: Intake | null,
+  kindDisplayName: string,
 ): string {
   const parts: string[] = [];
-  parts.push(`You are drafting the "${template.heading}" section of a ${matter.displayName} demand letter.`);
+  parts.push(`You are drafting the "${template.heading}" section of a ${kindDisplayName} for matter "${matter.displayName}".`);
   parts.push("");
   parts.push("MATTER CONTEXT:");
   parts.push(`  Persona: ${matter.persona}`);
@@ -229,7 +356,7 @@ export async function generateDraft(
       matterIds,
       docTypes: sec.requiredCitations.length > 0 ? sec.requiredCitations : opts.filterOverrides?.docTypes,
     };
-    const question = buildSectionQuestion(sec, matter, intake);
+    const question = buildSectionQuestion(sec, matter, intake, template.displayName);
     const answer = await query(question, {
       filter,
       topK: sec.topK,

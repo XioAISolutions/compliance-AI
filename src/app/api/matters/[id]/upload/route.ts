@@ -4,6 +4,7 @@ import { vectorStore } from "@/lib/vector-store";
 import { buildGraph, saveGraph } from "@/lib/graph";
 import { getMatter } from "@/lib/matters";
 import { DOC_TYPES, type DocType } from "@/lib/retrieval-filter";
+import { classifyDocument, extractHeadText, type ClassificationResult } from "@/lib/doc-classifier";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -17,7 +18,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Please upload a PDF file" }, { status: 400 });
 
     const rawDocType = formData.get("docType");
-    const docType: DocType = DOC_TYPES.includes(rawDocType as DocType) ? (rawDocType as DocType) : "unknown";
+    const userDocType: DocType | null = DOC_TYPES.includes(rawDocType as DocType)
+      ? (rawDocType as DocType)
+      : null;
     const rawJurisdiction = formData.get("jurisdiction");
     const jurisdiction =
       typeof rawJurisdiction === "string" && rawJurisdiction.trim().length > 0
@@ -25,6 +28,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         : matter.jurisdiction ?? null;
 
     const buffer = Buffer.from(await file.arrayBuffer());
+
+    // Classify when the user didn't set an explicit type, or only said "unknown".
+    // The classifier is advisory; user selection always wins.
+    let docType: DocType = userDocType ?? "unknown";
+    let classification: ClassificationResult | null = null;
+    if (!userDocType || userDocType === "unknown") {
+      const headText = await extractHeadText(buffer);
+      classification = await classifyDocument({ fileName: file.name, headText });
+      docType = classification.docType;
+    }
+
     const result = await ingestPDF(buffer, file.name, { matterId: id, docType, jurisdiction });
     await vectorStore.indexChunks(result.chunks);
     await vectorStore.refresh();
@@ -38,6 +52,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       totalChunks: result.totalChunks,
       totalSections: result.sections.length,
       docType,
+      classification,
     });
   } catch (err: any) {
     console.error("Matter upload error:", err);

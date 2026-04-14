@@ -27,8 +27,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const judge: boolean | "weak" =
       body.judge === true ? true : body.judge === "weak" ? "weak" : false;
+    const authorityBoost = body.authorityBoost === true;
 
-    const draft = await generateDraft(id, rawKind as DraftKind, { judge });
+    const draft = await generateDraft(id, rawKind as DraftKind, {
+      judge,
+      filterOverrides: authorityBoost ? { authorityBoost: true } : undefined,
+    });
     await saveDraft(draft);
     return NextResponse.json({ draft });
   } catch (err: any) {

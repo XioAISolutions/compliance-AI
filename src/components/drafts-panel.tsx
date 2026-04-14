@@ -62,6 +62,7 @@ export function DraftsPanel({ matterId, onOpenSource }: { matterId: string; onOp
   const [generating, setGenerating] = useState(false);
   const [kind, setKind] = useState<DraftKind>("demand_letter");
   const [judge, setJudge] = useState<"off" | "weak" | "on">("off");
+  const [authorityBoost, setAuthorityBoost] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   async function refresh() {
@@ -90,7 +91,7 @@ export function DraftsPanel({ matterId, onOpenSource }: { matterId: string; onOp
       const r = await fetch(`/api/matters/${matterId}/drafts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind, judge: judgeArg }),
+        body: JSON.stringify({ kind, judge: judgeArg, authorityBoost }),
       });
       if (!r.ok) {
         const e = await r.json();
@@ -125,6 +126,14 @@ export function DraftsPanel({ matterId, onOpenSource }: { matterId: string; onOp
             <button onClick={() => setJudge("weak")} className="flex-1 py-1 rounded border" style={chipStyle(judge === "weak")}>Weak</button>
             <button onClick={() => setJudge("on")} className="flex-1 py-1 rounded border" style={chipStyle(judge === "on")}>On</button>
           </div>
+          <button
+            onClick={() => setAuthorityBoost(!authorityBoost)}
+            className="w-full py-1 mb-2 rounded border text-xs"
+            title="Rank retrieval by authority weight (statute > regulation > caselaw > client docs)"
+            style={chipStyle(authorityBoost)}
+          >
+            {authorityBoost ? "Authority boost on" : "Authority boost off"}
+          </button>
           <button
             onClick={generate}
             disabled={generating || availableKinds.length === 0}

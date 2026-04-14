@@ -5,6 +5,7 @@ import { IntakePanel } from "./intake-panel";
 import { DraftsPanel } from "./drafts-panel";
 import { MatterSelector, type MatterSummary } from "./matter-selector";
 import { SourceViewer } from "./source-viewer";
+import { TriagePanel } from "./triage-panel";
 
 type Tab = "chat" | "intake" | "triage" | "drafts";
 
@@ -22,7 +23,7 @@ interface MatterDetail {
 const TABS: { id: Tab; label: string; enabled: boolean }[] = [
   { id: "chat", label: "Chat", enabled: true },
   { id: "intake", label: "Intake", enabled: true },
-  { id: "triage", label: "Triage", enabled: false },
+  { id: "triage", label: "Triage", enabled: true },
   { id: "drafts", label: "Drafts", enabled: true },
 ];
 
@@ -32,6 +33,8 @@ export function MatterWorkspace({ matterId }: { matterId: string }) {
   const [tab, setTab] = useState<Tab>("chat");
   const [draftSourceChunkId, setDraftSourceChunkId] = useState<string | null>(null);
   const [showDraftSource, setShowDraftSource] = useState(false);
+  const [triageSourceChunkId, setTriageSourceChunkId] = useState<string | null>(null);
+  const [showTriageSource, setShowTriageSource] = useState(false);
 
   async function refreshMatters() {
     try {
@@ -119,8 +122,15 @@ export function MatterWorkspace({ matterId }: { matterId: string }) {
             </div>
           )}
           {tab === "triage" && (
-            <div className="p-10 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-              Triage panel ships in Phase 2.
+            <div className="flex h-full">
+              <div className="flex-1 min-w-0">
+                <TriagePanel matterId={matterId} onOpenSource={(id) => { setTriageSourceChunkId(id); setShowTriageSource(true); }} />
+              </div>
+              {showTriageSource && (
+                <div className="flex flex-col border-l" style={{ width: 340, borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+                  <SourceViewer chunkId={triageSourceChunkId} onClose={() => setShowTriageSource(false)} onOpenChunk={setTriageSourceChunkId} />
+                </div>
+              )}
             </div>
           )}
         </div>

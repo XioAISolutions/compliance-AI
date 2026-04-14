@@ -67,6 +67,8 @@ export function Chat({ matterId, embedded = false }: { matterId?: string; embedd
   const [showDocs, setShowDocs] = useState(!embedded);
   const [showSource, setShowSource] = useState(false);
   const [strategy, setStrategy] = useState<"hybrid" | "hyde" | "multi">("hybrid");
+  const [authorityBoost, setAuthorityBoost] = useState(false);
+  const [jurisdictionFilter, setJurisdictionFilter] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { refreshDocs(); }, [matterId]);
@@ -106,10 +108,20 @@ export function Chat({ matterId, embedded = false }: { matterId?: string; embedd
     setIsStreaming(true);
 
     try {
+      const jurisdictions = jurisdictionFilter
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q, strategy, matterId }),
+        body: JSON.stringify({
+          question: q,
+          strategy,
+          matterId,
+          authorityBoost,
+          jurisdictions: jurisdictions.length > 0 ? jurisdictions : undefined,
+        }),
       });
       if (!res.ok) throw new Error("Request failed");
       const reader = res.body?.getReader();
@@ -137,7 +149,7 @@ export function Chat({ matterId, embedded = false }: { matterId?: string; embedd
       setMessages((prev) => prev.map((m) => m.id === aid ? { ...m, content: "Failed. Is Ollama running?", streaming: false } : m));
     }
     setIsStreaming(false);
-  }, [input, isStreaming, strategy, matterId]);
+  }, [input, isStreaming, strategy, matterId, authorityBoost, jurisdictionFilter]);
 
   return (
     <div className={`flex ${embedded ? "h-full" : "h-screen"}`}>
@@ -160,6 +172,13 @@ export function Chat({ matterId, embedded = false }: { matterId?: string; embedd
               <option value="hyde">HyDE</option>
               <option value="multi">Multi-query</option>
             </select>
+            <RetrievalControls
+              authorityBoost={authorityBoost}
+              setAuthorityBoost={setAuthorityBoost}
+              jurisdictionFilter={jurisdictionFilter}
+              setJurisdictionFilter={setJurisdictionFilter}
+              disabled={isStreaming}
+            />
             <button onClick={() => setShowDocs(!showDocs)} className="px-3 py-1 rounded-md text-xs border" style={{ background: showDocs ? "var(--accent-dim)" : "transparent", borderColor: showDocs ? "var(--accent)" : "var(--border)", color: "var(--text-secondary)" }}>Corpus</button>
             <button onClick={() => setShowSource(!showSource)} className="px-3 py-1 rounded-md text-xs border" style={{ background: showSource ? "var(--accent-dim)" : "transparent", borderColor: showSource ? "var(--accent)" : "var(--border)", color: "var(--text-secondary)" }}>Sources</button>
           </div>
@@ -174,6 +193,13 @@ export function Chat({ matterId, embedded = false }: { matterId?: string; embedd
               <option value="hyde">HyDE</option>
               <option value="multi">Multi-query</option>
             </select>
+            <RetrievalControls
+              authorityBoost={authorityBoost}
+              setAuthorityBoost={setAuthorityBoost}
+              jurisdictionFilter={jurisdictionFilter}
+              setJurisdictionFilter={setJurisdictionFilter}
+              disabled={isStreaming}
+            />
             <button onClick={() => setShowDocs(!showDocs)} className="px-3 py-1 rounded-md text-xs border" style={{ background: showDocs ? "var(--accent-dim)" : "transparent", borderColor: showDocs ? "var(--accent)" : "var(--border)", color: "var(--text-secondary)" }}>Corpus</button>
             <button onClick={() => setShowSource(!showSource)} className="px-3 py-1 rounded-md text-xs border" style={{ background: showSource ? "var(--accent-dim)" : "transparent", borderColor: showSource ? "var(--accent)" : "var(--border)", color: "var(--text-secondary)" }}>Sources</button>
           </div>
@@ -264,5 +290,51 @@ export function Chat({ matterId, embedded = false }: { matterId?: string; embedd
         <SourceViewer chunkId={selectedChunkId} onClose={() => setShowSource(false)} onOpenChunk={setSelectedChunkId} />
       </div>}
     </div>
+  );
+}
+
+/**
+ * Authority boost + jurisdiction filter controls. Kept small and inline so
+ * they live in the chat header without crowding the existing buttons.
+ */
+function RetrievalControls({
+  authorityBoost,
+  setAuthorityBoost,
+  jurisdictionFilter,
+  setJurisdictionFilter,
+  disabled,
+}: {
+  authorityBoost: boolean;
+  setAuthorityBoost: (v: boolean) => void;
+  jurisdictionFilter: string;
+  setJurisdictionFilter: (v: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <>
+      <button
+        onClick={() => setAuthorityBoost(!authorityBoost)}
+        disabled={disabled}
+        className="px-2 py-1 rounded-md text-xs border"
+        title="Multiply fused RRF score by chunk authority (statute > regulation > caselaw > client docs)"
+        style={{
+          background: authorityBoost ? "var(--accent-dim)" : "transparent",
+          borderColor: authorityBoost ? "var(--accent)" : "var(--border)",
+          color: authorityBoost ? "var(--accent)" : "var(--text-secondary)",
+        }}
+      >
+        Authority
+      </button>
+      <input
+        type="text"
+        value={jurisdictionFilter}
+        onChange={(e) => setJurisdictionFilter(e.target.value)}
+        placeholder="Jurisdiction"
+        disabled={disabled}
+        className="px-2 py-1 rounded-md text-xs border bg-transparent"
+        style={{ borderColor: "var(--border)", color: "var(--text-secondary)", width: 110 }}
+        title="Comma-separated jurisdiction tags (e.g. US-federal, US-CA)"
+      />
+    </>
   );
 }

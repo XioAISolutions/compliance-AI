@@ -6,9 +6,9 @@ import { buildEmbeddingText, loadAllChunks } from "./ingest";
 import type { DocumentChunk } from "./ingest";
 
 /**
- * Split store (GitNexus pattern): vectors live in their own table keyed by
- * chunkId, chunk text + metadata live separately. This keeps the hot path
- * (vector cosine) cheap and avoids rewriting big content blobs on every index.
+ * Split store: vectors live in their own table keyed by chunkId, chunk
+ * text + metadata live separately. Keeps the hot path (cosine similarity)
+ * cheap and avoids rewriting big content blobs on every re-index.
  */
 interface StoredEmbedding {
   chunkId: string;

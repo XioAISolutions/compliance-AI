@@ -7,10 +7,10 @@ import type { DocumentChunk, DocumentSection } from "./ingest";
 /**
  * Compliance knowledge graph.
  *
- * Ported from GitNexus's schema pattern: typed nodes (Document, Section, Chunk)
- * and a single generic edge table with a `type` property. We use it to model
- * regulatory structure + cross-references so the UI can answer "cited by",
- * "cites", and "what's in the ancestor chain of this clause".
+ * Schema: typed nodes (Document, Section, Chunk) and a single generic edge
+ * table with a `type` property. This shape keeps LLM-written Cypher clean
+ * and lets the UI answer "cited by", "cites", and "what's in the ancestor
+ * chain of this clause" from a single store.
  */
 
 export type NodeType = "Document" | "Section" | "Chunk";
@@ -256,9 +256,10 @@ export interface ContextResult {
 }
 
 /**
- * One-shot context for a chunk (GitNexus `context` tool pattern):
- * returns the chunk, the ancestor chain of sections, its outgoing references,
- * and the chunks whose references resolve back to this chunk's section.
+ * One-shot context for a chunk: returns the chunk, the ancestor chain of
+ * sections, its outgoing references, and the chunks whose references
+ * resolve back to this chunk's section. Precomputing this at index time
+ * means the source panel never has to traverse the graph on the UI thread.
  */
 export async function getContext(chunkId: string): Promise<ContextResult | null> {
   const [chunks, sections, graph] = await Promise.all([loadAllChunks(), loadAllSections(), loadGraph()]);

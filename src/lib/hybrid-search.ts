@@ -4,10 +4,12 @@ import type { DocumentChunk } from "./ingest";
 
 /**
  * Hybrid search: BM25 (lexical) + dense vector (semantic), fused with
- * Reciprocal Rank Fusion. Ports GitNexus hybrid-search.ts.
+ * Reciprocal Rank Fusion.
  *
- * RRF avoids score normalization: rank is the only input, so lexical and
- * semantic scorers can live in different universes.
+ * Compliance queries hit both registers: exact section numbers and jargon
+ * (lexical) and paraphrased questions (semantic). RRF is the right fuser
+ * because it consumes only ranks, not scores — so cosine similarity and
+ * BM25 can live in different numeric universes without normalization.
  */
 
 const RRF_K = 60;

@@ -8,9 +8,8 @@ interface Citation {
 
 /**
  * Parse answer text and rewrite [[Sn:ref]] markers into clickable badges
- * that open the source viewer. Unknown refs render as plain text.
- *
- * Ports GitNexus MarkdownRenderer [[ref]] rewriting.
+ * that open the source viewer. Unknown refs render as plain text — though
+ * the server should have stripped them before they reach the client.
  */
 export function CitationRenderer({
   text,

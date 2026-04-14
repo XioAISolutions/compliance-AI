@@ -6,7 +6,8 @@ import { config } from "./config";
 
 /**
  * A structural section detected in the document.
- * Mirrors GitNexus markdown-processor's Section nodes: level, line range, parent chain.
+ * Captures the structural position of a clause: heading level, line range,
+ * parent chain, and breadcrumb path.
  */
 export interface DocumentSection {
   id: string;
@@ -108,8 +109,8 @@ function findHeadings(lines: string[]): HeadingMatch[] {
 // --- Section tree ------------------------------------------------------------
 
 /**
- * Walk the detected headings and build a parent-linked tree, GitNexus-style:
- * maintain a stack of open sections; any heading of level <= stack.top.level
+ * Walk the detected headings and build a parent-linked tree.
+ * Maintain a stack of open sections; any heading of level <= stack.top.level
  * pops until we find a proper parent.
  */
 function buildSections(
@@ -308,7 +309,7 @@ export async function loadAllSections(): Promise<DocumentSection[]> {
 
 /**
  * Build the text used for embedding. Includes section breadcrumb so retrieval
- * has hierarchical context. GitNexus text-generator pattern.
+ * has hierarchical context baked into the vector.
  */
 export function buildEmbeddingText(chunk: DocumentChunk): string {
   const breadcrumb = chunk.sectionPath.length > 0 ? chunk.sectionPath.join(" > ") : chunk.fileName;

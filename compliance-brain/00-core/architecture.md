@@ -48,8 +48,8 @@ click [[S1:§4.3]] in chat
 
 ## Knowledge graph schema
 
-Typed nodes, one generic edge table with a `type` property
-(GitNexus-style — keeps LLM-written Cypher clean):
+Typed nodes, one generic edge table with a `type` property — this shape
+keeps LLM-written Cypher clean and queries fast:
 
 - Node types: `Document`, `Section`, `Chunk`
 - Edge types:

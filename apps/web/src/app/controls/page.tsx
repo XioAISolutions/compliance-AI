@@ -35,14 +35,19 @@ export default function ControlsIndex() {
             </h2>
             <ul className="mt-4 divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
               {entries.map((e) => (
-                <li key={e.slug} className="p-4">
-                  <div className="flex items-baseline gap-3">
-                    <code className="text-sm text-neutral-500">{e.code}</code>
-                    <span className="font-medium">{e.title}</span>
-                  </div>
-                  <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                    {e.description}
-                  </p>
+                <li key={e.slug}>
+                  <Link
+                    href={`/controls/${encodeURIComponent(e.slug)}`}
+                    className="block p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900"
+                  >
+                    <div className="flex items-baseline gap-3">
+                      <code className="text-sm text-neutral-500">{e.code}</code>
+                      <span className="font-medium">{e.title}</span>
+                    </div>
+                    <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+                      {e.description}
+                    </p>
+                  </Link>
                 </li>
               ))}
             </ul>

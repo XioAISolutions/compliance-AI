@@ -12,6 +12,8 @@
     "clean": "rm -rf .next .turbo"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.0",
+    "@compliance-ai/agents": "workspace:*",
     "@compliance-ai/db": "workspace:*",
     "@compliance-ai/frameworks": "workspace:*",
     "next": "^16.0.10",

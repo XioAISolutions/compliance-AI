@@ -1,0 +1,42 @@
+{
+  "name": "compliance-ai",
+  "version": "0.0.1",
+  "private": true,
+  "description": "AI-native multi-framework compliance platform — SOC 2, GDPR, EU AI Act, ISO 27001.",
+  "homepage": "https://github.com/XioAISolutions/compliance-AI",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/XioAISolutions/compliance-AI.git"
+  },
+  "license": "Apache-2.0",
+  "author": "XioAI Solutions",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "dev:web": "turbo run dev --filter=@compliance-ai/web",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "turbo run typecheck",
+    "test": "vitest run",
+    "clean": "turbo run clean && rm -rf node_modules .turbo",
+    "db:push": "turbo run db:push --filter=@compliance-ai/db",
+    "db:generate": "turbo run db:generate --filter=@compliance-ai/db",
+    "db:migrate": "turbo run db:migrate --filter=@compliance-ai/db",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\""
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "eslint": "^9.23.0",
+    "prettier": "^3.4.0",
+    "prettier-plugin-tailwindcss": "^0.6.0",
+    "tsx": "^4.19.0",
+    "turbo": "^2.4.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.4"
+  }
+}

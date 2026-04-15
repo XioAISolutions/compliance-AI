@@ -50,6 +50,28 @@ export const EU_AI_ACT_CORE: EUAIActCatalogEntry[] = [
   },
   {
     framework: "eu-ai-act",
+    slug: "eu-ai-act.art-11",
+    code: "Art. 11",
+    article: "Art. 11",
+    riskTier: "high",
+    title: "Technical documentation",
+    description:
+      "High-risk AI providers must prepare technical documentation before placing a system on the market and keep it up to date to demonstrate compliance.",
+    annex: "Annex III",
+  },
+  {
+    framework: "eu-ai-act",
+    slug: "eu-ai-act.art-12",
+    code: "Art. 12",
+    article: "Art. 12",
+    riskTier: "high",
+    title: "Record-keeping",
+    description:
+      "High-risk AI systems must enable automatic recording of events over their lifetime to support traceability, monitoring, and incident investigation.",
+    annex: "Annex III",
+  },
+  {
+    framework: "eu-ai-act",
     slug: "eu-ai-act.art-13",
     code: "Art. 13",
     article: "Art. 13",
@@ -72,6 +94,39 @@ export const EU_AI_ACT_CORE: EUAIActCatalogEntry[] = [
   },
   {
     framework: "eu-ai-act",
+    slug: "eu-ai-act.art-15",
+    code: "Art. 15",
+    article: "Art. 15",
+    riskTier: "high",
+    title: "Accuracy, robustness, and cybersecurity",
+    description:
+      "High-risk AI systems must be designed and developed to achieve appropriate accuracy, robustness, and cybersecurity throughout their lifecycle.",
+    annex: "Annex III",
+  },
+  {
+    framework: "eu-ai-act",
+    slug: "eu-ai-act.art-16",
+    code: "Art. 16",
+    article: "Art. 16",
+    riskTier: "high",
+    title: "Obligations of providers of high-risk AI systems",
+    description:
+      "Providers of high-risk AI systems must ensure compliance, maintain quality management, keep documentation and logs, conduct conformity assessment, and take corrective action where needed.",
+    annex: "Annex III",
+  },
+  {
+    framework: "eu-ai-act",
+    slug: "eu-ai-act.art-26",
+    code: "Art. 26",
+    article: "Art. 26",
+    riskTier: "high",
+    title: "Obligations of deployers of high-risk AI systems",
+    description:
+      "Deployers of high-risk AI systems must use systems according to instructions, ensure human oversight, monitor operation, retain logs where required, and report serious incidents.",
+    annex: "Annex III",
+  },
+  {
+    framework: "eu-ai-act",
     slug: "eu-ai-act.art-50",
     code: "Art. 50",
     article: "Art. 50",
@@ -79,5 +134,16 @@ export const EU_AI_ACT_CORE: EUAIActCatalogEntry[] = [
     title: "Transparency for certain AI systems",
     description:
       "Users must be informed when interacting with an AI system. Deepfakes and AI-generated text on matters of public interest must be labelled.",
+  },
+  {
+    framework: "eu-ai-act",
+    slug: "eu-ai-act.art-72",
+    code: "Art. 72",
+    article: "Art. 72",
+    riskTier: "high",
+    title: "Post-market monitoring by providers",
+    description:
+      "Providers of high-risk AI systems must establish a post-market monitoring system to collect, document, and analyze performance and compliance data after deployment.",
+    annex: "Annex III",
   },
 ];

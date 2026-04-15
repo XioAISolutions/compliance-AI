@@ -47,6 +47,9 @@ importers:
       '@compliance-ai/agents':
         specifier: workspace:*
         version: link:../../packages/agents
+      '@compliance-ai/cognition':
+        specifier: workspace:*
+        version: link:../../packages/cognition
       '@compliance-ai/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -87,6 +90,16 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.32.0
         version: 0.32.1
+      '@compliance-ai/frameworks':
+        specifier: workspace:*
+        version: link:../frameworks
+    devDependencies:
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
+  packages/cognition:
+    dependencies:
       '@compliance-ai/frameworks':
         specifier: workspace:*
         version: link:../frameworks

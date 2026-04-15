@@ -14,7 +14,13 @@ import Anthropic from "@anthropic-ai/sdk";
 import { isFramework, type Control, type FrameworkId } from "@compliance-ai/frameworks";
 import { PERSONA_SYSTEM_PROMPTS } from "./personas/index.js";
 import { routePersona } from "./router.js";
-import type { AgentContext, AgentEvent, AgentMessage, PersonaId } from "./types.js";
+import type {
+  AgentContext,
+  AgentEvent,
+  AgentMessage,
+  PersonaId,
+  RetrievedSnippet,
+} from "./types.js";
 
 /**
  * Default model. Sonnet 4.6 balances streaming latency against compliance-grade
@@ -78,6 +84,35 @@ function renderControlContext(control: Control | null, frameworkScope: Framework
   return lines.join("\n");
 }
 
+/**
+ * Render retrieved cognition snippets into a (non-cached) context block.
+ *
+ * Why non-cached: snippets are query-dependent and change every turn. Caching
+ * them would invalidate the prefix more often than it would hit. Place this
+ * block AFTER the cached persona + control blocks so the cache cut-point sits
+ * on stable content.
+ *
+ * Citation rule mirrors ASI-Evolve's grounding instruction in
+ * `pipeline/researcher.jinja2`: tell the model to cite by title and to prefer
+ * the framework when a snippet contradicts it. Compliance-grade hallucination
+ * resistance > stylistic fidelity.
+ */
+function renderCognitionContext(snippets: RetrievedSnippet[]): string {
+  if (snippets.length === 0) return "";
+  const lines: string[] = [
+    `## Retrieved tenant context`,
+    `The following snippets are drawn from this tenant's compliance corpus (prior approved language, auditor letters, internal policy excerpts). Use them to ground your answer. When you draw on a snippet, cite it by title (e.g., "per *Title*"). If a snippet conflicts with the framework requirement, prefer the framework and flag the conflict.`,
+    ``,
+  ];
+  for (const s of snippets) {
+    lines.push(`### ${s.title}  _(relevance ${s.score.toFixed(2)})_`);
+    if (s.source) lines.push(`*source:* ${s.source}`);
+    lines.push(s.content);
+    lines.push(``);
+  }
+  return lines.join("\n");
+}
+
 let cachedClient: Anthropic | null = null;
 function client(): Anthropic {
   if (cachedClient) return cachedClient;
@@ -105,25 +140,29 @@ export async function* runAgent(
 
   const personaPrompt = PERSONA_SYSTEM_PROMPTS[decision.persona];
   const controlContext = renderControlContext(context.control, context.frameworkScope);
+  const cognitionContext = renderCognitionContext(context.retrievedSnippets ?? []);
+
+  // Two cacheable blocks (persona + control) followed by an optional non-cached
+  // cognition block. Anthropic caches up to the LAST block marked with
+  // cache_control, so the cache cut-point stays on the stable prefix even when
+  // retrieved snippets vary turn-to-turn.
+  const systemBlocks: Array<{
+    type: "text";
+    text: string;
+    cache_control?: { type: "ephemeral" };
+  }> = [
+    { type: "text", text: personaPrompt, cache_control: { type: "ephemeral" } },
+    { type: "text", text: controlContext, cache_control: { type: "ephemeral" } },
+  ];
+  if (cognitionContext) {
+    systemBlocks.push({ type: "text", text: cognitionContext });
+  }
 
   try {
     const stream = client().messages.stream({
       model: options.model ?? DEFAULT_MODEL,
       max_tokens: options.maxTokens ?? MAX_TOKENS,
-      // Two cacheable system blocks. Anthropic caches up to the LAST block
-      // marked with cache_control, so both blocks become part of the prefix.
-      system: [
-        {
-          type: "text",
-          text: personaPrompt,
-          cache_control: { type: "ephemeral" },
-        },
-        {
-          type: "text",
-          text: controlContext,
-          cache_control: { type: "ephemeral" },
-        },
-      ] as any,
+      system: systemBlocks as unknown as Anthropic.Messages.TextBlockParam[],
       messages: [
         ...history.map((m) => ({ role: m.role, content: m.content })),
         { role: "user" as const, content: userMessage },

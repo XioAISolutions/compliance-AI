@@ -1,7 +1,7 @@
 import { Ollama } from "ollama";
 import { config } from "./config";
 import { retrieve } from "./retrieval-strategies";
-import { query, type Citation } from "./citation-engine";
+import { query, countUnresolvedCitationTags, type Citation } from "./citation-engine";
 import { getMatter, effectiveMatterIds, type Matter } from "./matters";
 import { loadIntake, summarizeIntake, type Intake } from "./intake";
 import { authorityWeightFor, type DocType, type RetrievalFilter } from "./retrieval-filter";
@@ -381,9 +381,7 @@ export async function triageMatter(
     const totalCitations = answer.citations.length;
     const verifiedRate = totalCitations > 0 ? verifiedCount / totalCitations : 1;
     const judgeSupportedRate = judgedCount > 0 ? judgeSupportedCount / judgedCount : null;
-    const refPattern = /\[\[\s*S\d+\s*:\s*[^\]]+?\s*\]\]/gi;
-    const emitted = [...answer.answer.matchAll(refPattern)];
-    const invalidTagCount = Math.max(0, emitted.length - totalCitations);
+    const invalidTagCount = countUnresolvedCitationTags(answer.answer, answer.citations);
 
     causes.push({
       id: uuid(),

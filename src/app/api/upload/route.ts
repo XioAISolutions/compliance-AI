@@ -3,6 +3,7 @@ import { ingestPDF } from "@/lib/ingest";
 import { vectorStore } from "@/lib/vector-store";
 import { buildGraph, saveGraph } from "@/lib/graph";
 import { DEFAULT_MATTER_ID } from "@/lib/config";
+import { getMatter } from "@/lib/matters";
 import { DOC_TYPES, type DocType } from "@/lib/retrieval-filter";
 import { classifyDocument, extractHeadText, type ClassificationResult } from "@/lib/doc-classifier";
 
@@ -13,8 +14,18 @@ export async function POST(req: NextRequest) {
     if (!file || !file.name.toLowerCase().endsWith(".pdf"))
       return NextResponse.json({ error: "Please upload a PDF file" }, { status: 400 });
 
+    // Resolve matterId through the matter index so we never accept arbitrary
+    // strings that would let `matterPaths()` write outside the corpus tree.
+    // Unknown ids fail closed with 404 — the only admitted values are the
+    // legacy `default` matter and ids present in matters-index.json.
     const rawMatterId = formData.get("matterId");
-    const matterId = typeof rawMatterId === "string" && rawMatterId.length > 0 ? rawMatterId : DEFAULT_MATTER_ID;
+    const requestedMatterId =
+      typeof rawMatterId === "string" && rawMatterId.length > 0 ? rawMatterId : DEFAULT_MATTER_ID;
+    const matter = await getMatter(requestedMatterId);
+    if (!matter) {
+      return NextResponse.json({ error: "Matter not found" }, { status: 404 });
+    }
+    const matterId = matter.id;
     const rawDocType = formData.get("docType");
     const userDocType: DocType | null = DOC_TYPES.includes(rawDocType as DocType)
       ? (rawDocType as DocType)

@@ -161,25 +161,80 @@ function buildSections(
 
 // --- Chunking within sections ------------------------------------------------
 
-function chunkBody(body: string, maxTokens: number, overlapTokens: number): string[] {
-  const paragraphs = body.split(/\n{2,}/).map((p) => p.trim()).filter((p) => p.length > 0);
+/**
+ * Split a body into paragraphs while tracking each one's starting line offset
+ * within the body. We need the line offset so later `pageForLine()` calls get
+ * the *actual* page a chunk begins on — not the first page of its enclosing
+ * section. A section that spans several pages otherwise cites every chunk as
+ * the section's opening page, which would quietly break citation accuracy.
+ */
+interface ParagraphWithOffset {
+  text: string;
+  /** 0-based line index within the enclosing body string. */
+  lineOffset: number;
+}
+
+function splitParagraphsWithOffsets(body: string): ParagraphWithOffset[] {
+  const lines = body.split("\n");
+  const out: ParagraphWithOffset[] = [];
+  let buf: string[] = [];
+  let bufStart = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim().length === 0) {
+      if (buf.length > 0) {
+        const text = buf.join("\n").trim();
+        if (text.length > 0) out.push({ text, lineOffset: bufStart });
+      }
+      buf = [];
+      bufStart = i + 1;
+    } else {
+      if (buf.length === 0) bufStart = i;
+      buf.push(lines[i]);
+    }
+  }
+  if (buf.length > 0) {
+    const text = buf.join("\n").trim();
+    if (text.length > 0) out.push({ text, lineOffset: bufStart });
+  }
+  return out;
+}
+
+interface ChunkPiece {
+  content: string;
+  /**
+   * Body-relative line where this chunk's *new* paragraphs begin.
+   * When a chunk opens with overlap text carried over from its predecessor,
+   * we still use the first paragraph added in this chunk as the locator —
+   * the overlap is a retrieval aid, not the chunk's logical start.
+   */
+  lineOffset: number;
+}
+
+function chunkBody(body: string, maxTokens: number, overlapTokens: number): ChunkPiece[] {
+  const paragraphs = splitParagraphsWithOffsets(body);
   if (paragraphs.length === 0) return [];
-  const chunks: string[] = [];
+
+  const chunks: ChunkPiece[] = [];
   let current = "";
+  let currentLineOffset = paragraphs[0].lineOffset;
 
   for (const para of paragraphs) {
-    const combined = current ? `${current}\n\n${para}` : para;
+    const combined = current ? `${current}\n\n${para.text}` : para.text;
     if (estimateTokens(combined) > maxTokens && current) {
-      chunks.push(current.trim());
+      chunks.push({ content: current.trim(), lineOffset: currentLineOffset });
       const words = current.split(/\s+/);
       const overlapWordCount = Math.floor(overlapTokens * 0.75);
       const overlapText = words.slice(-overlapWordCount).join(" ");
-      current = overlapText ? `${overlapText}\n\n${para}` : para;
+      current = overlapText ? `${overlapText}\n\n${para.text}` : para.text;
+      // Anchor the new chunk to the paragraph that triggered the split; the
+      // overlap preface repeats prior text and would understate the page.
+      currentLineOffset = para.lineOffset;
     } else {
+      if (!current) currentLineOffset = para.lineOffset;
       current = combined;
     }
   }
-  if (current.trim()) chunks.push(current.trim());
+  if (current.trim()) chunks.push({ content: current.trim(), lineOffset: currentLineOffset });
   return chunks;
 }
 
@@ -216,6 +271,22 @@ function buildPageMap(fullText: string, totalPages: number): { lines: string[]; 
 
 // --- Main entry --------------------------------------------------------------
 
+/**
+ * Reduce an untrusted PDF filename to a filesystem-safe base. We strip to the
+ * basename to defeat path-traversal (`../../etc/passwd.pdf`), drop the `.pdf`
+ * extension, and replace any character outside `[A-Za-z0-9._-]` so the
+ * resulting filename can never point outside its intended directory.
+ */
+function sanitizeArtifactBase(fileName: string): string {
+  const basename = path.basename(fileName);
+  const withoutExt = basename.replace(/\.pdf$/i, "");
+  const cleaned = withoutExt.replace(/[^a-zA-Z0-9._-]/g, "_");
+  // Guard against names that collapse to empty (e.g. "..") or start with a
+  // dot which would create hidden files on disk.
+  const safe = cleaned.replace(/^\.+/, "_");
+  return safe.length > 0 ? safe : "document";
+}
+
 export interface IngestOptions {
   /** Matter the document belongs to. Defaults to "default" for backwards compat. */
   matterId?: string;
@@ -243,44 +314,50 @@ export async function ingestPDF(
   const sections = buildSections(documentId, lines, headings, pageForLine);
 
   // Build chunks: one section at a time, split oversize sections into sub-chunks.
+  // `bodyStartLine` is the absolute line in the source document where this
+  // body text begins — we add each chunk's body-relative `lineOffset` to it
+  // to get the chunk's true starting line, and from there its page number.
   const allChunks: DocumentChunk[] = [];
-  const sectionRanges: { section: DocumentSection | null; body: string; startLine: number }[] = [];
+  const sectionRanges: { section: DocumentSection | null; body: string; bodyStartLine: number }[] = [];
 
   if (sections.length === 0) {
     // No structure detected — treat the whole document as one implicit section.
-    sectionRanges.push({ section: null, body: lines.join("\n"), startLine: 0 });
+    sectionRanges.push({ section: null, body: lines.join("\n"), bodyStartLine: 0 });
   } else {
     // Preamble (before first heading) becomes an unattached range.
     if (sections[0].startLine > 0) {
       sectionRanges.push({
         section: null,
         body: lines.slice(0, sections[0].startLine).join("\n"),
-        startLine: 0,
+        bodyStartLine: 0,
       });
     }
     for (const sec of sections) {
+      // Section body skips the heading line itself, so its absolute start is
+      // one past `sec.startLine`.
       const body = lines.slice(sec.startLine + 1, sec.endLine + 1).join("\n");
-      sectionRanges.push({ section: sec, body, startLine: sec.startLine });
+      sectionRanges.push({ section: sec, body, bodyStartLine: sec.startLine + 1 });
     }
   }
 
-  for (const { section, body, startLine } of sectionRanges) {
+  for (const { section, body, bodyStartLine } of sectionRanges) {
     const pieces = chunkBody(body, config.chunking.size, config.chunking.overlap);
-    for (const content of pieces) {
-      if (!content.trim()) continue;
+    for (const piece of pieces) {
+      if (!piece.content.trim()) continue;
+      const absoluteLine = bodyStartLine + piece.lineOffset;
       allChunks.push({
         id: `${documentId}-${allChunks.length}`,
         documentId,
         fileName,
-        pageNumber: pageForLine(startLine),
+        pageNumber: pageForLine(absoluteLine),
         sectionId: section?.id ?? null,
         sectionHeader: section?.heading ?? null,
         sectionPath: section?.path ?? [],
         sectionNumber: section?.number ?? null,
         chunkIndex: allChunks.length,
         totalChunks: 0, // filled in after
-        content,
-        tokenEstimate: estimateTokens(content),
+        content: piece.content,
+        tokenEstimate: estimateTokens(piece.content),
         createdAt: new Date().toISOString(),
         matterId,
         docType,
@@ -294,9 +371,15 @@ export async function ingestPDF(
   // Persist chunks + sections under the matter's chunks directory. For the
   // `default` matter this is the legacy top-level chunks/ path, so existing
   // corpora keep working with no migration.
+  //
+  // Filenames from uploads are untrusted: a crafted multipart name like
+  // `../../etc/passwd.pdf` would otherwise escape `chunksDir` via `path.join`.
+  // We reduce to a basename, strip the extension, and replace any remaining
+  // filesystem-special characters so the artifact cannot leave the chunks
+  // directory regardless of what the client sends.
   const chunksDir = matterPaths(matterId).chunks;
   await fs.mkdir(chunksDir, { recursive: true });
-  const base = fileName.replace(/\.pdf$/i, "");
+  const base = sanitizeArtifactBase(fileName);
   await fs.writeFile(path.join(chunksDir, `${base}-chunks.json`), JSON.stringify(allChunks, null, 2));
   await fs.writeFile(path.join(chunksDir, `${base}-sections.json`), JSON.stringify(sections, null, 2));
 

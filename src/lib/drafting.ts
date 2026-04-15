@@ -2,7 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import { v4 as uuid } from "uuid";
 import { matterPaths } from "./config";
-import { query, type CitedAnswer } from "./citation-engine";
+import { query, countUnresolvedCitationTags, type CitedAnswer } from "./citation-engine";
 import { getMatter, effectiveMatterIds, type Matter } from "./matters";
 import { loadIntake, summarizeIntake, type Intake } from "./intake";
 import type { RetrievalFilter, DocType } from "./retrieval-filter";
@@ -303,18 +303,10 @@ function summarizeSection(answer: CitedAnswer): Omit<DraftSection, keyof DraftSe
   const judged = answer.citations.filter((c) => c.judge).length;
   const judgeSupported = answer.citations.filter((c) => c.judge?.supported).length;
 
-  // `extractAndValidateCitations` already strips invalid tags from the
-  // answer string, so invalidTagCount is the residual count of refs the
-  // LLM emitted that didn't match any SOURCE. We recompute from the final
-  // answer against the resolved citations as a sanity check.
-  const refPattern = /\[\[\s*S\d+\s*:\s*[^\]]+?\s*\]\]/gi;
-  const emittedRefs = [...answer.answer.matchAll(refPattern)];
-  const invalidTagCount = Math.max(0, emittedRefs.length - totalCitations);
-
   return {
     answer: answer.answer,
     citations: answer.citations,
-    invalidTagCount,
+    invalidTagCount: countUnresolvedCitationTags(answer.answer, answer.citations),
     verifiedRate: totalCitations > 0 ? verified / totalCitations : 1,
     judgeSupportedRate: judged > 0 ? judgeSupported / judged : null,
   };

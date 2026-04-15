@@ -153,6 +153,29 @@ async function applyJudge(citations: Citation[], mode: boolean | "weak" | undefi
   }
 }
 
+/**
+ * Count `[[Sn:ref]]` markers in a finalized answer whose `Sn` tag does not
+ * resolve to any `Citation`. `extractAndValidateCitations` deduplicates
+ * citations by tag, so downstream callers (drafting, triage) cannot simply
+ * subtract `citations.length` from the raw marker count — repeated valid
+ * citations would inflate the "unresolved" count. Exported so both call
+ * sites share a single definition.
+ */
+export function countUnresolvedCitationTags(answer: string, citations: Citation[]): number {
+  const resolved = new Set<string>();
+  const idTag = /^\[\[\s*(S\d+)\s*:/i;
+  for (const c of citations) {
+    const m = c.id.match(idTag);
+    if (m) resolved.add(m[1].toUpperCase());
+  }
+  const refPattern = /\[\[\s*(S\d+)\s*:\s*[^\]]+?\s*\]\]/gi;
+  let unresolved = 0;
+  for (const m of answer.matchAll(refPattern)) {
+    if (!resolved.has(m[1].toUpperCase())) unresolved++;
+  }
+  return unresolved;
+}
+
 async function logAudit(entry: Record<string, unknown>) {
   try {
     let log: unknown[] = [];

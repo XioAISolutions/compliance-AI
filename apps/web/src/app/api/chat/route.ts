@@ -35,12 +35,11 @@ import {
   type FrameworkId,
 } from "@compliance-ai/frameworks";
 import { getDefaultCognitionStore, type RetrievalResult } from "@compliance-ai/cognition";
+import { getSession } from "../../../lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Tenant id used while the DB layer is stubbed. Day 3 swaps this for a real tenant lookup. */
-const PREVIEW_ORG_ID = "preview";
 const DEFAULT_TOP_K = 4;
 const DEFAULT_SCORE_THRESHOLD = 0.05;
 
@@ -77,12 +76,12 @@ function findCatalogEntry(slug: string): CatalogEntry | null {
  * fields. When the DB layer is wired (Day 3), this function is replaced with a
  * row lookup keyed by (organizationId, slug).
  */
-function materializePreviewControl(entry: CatalogEntry): Control {
+function materializePreviewControl(entry: CatalogEntry, organizationId: string): Control {
   const now = new Date();
   return {
     ...entry,
     id: `preview:${entry.slug}`,
-    organizationId: PREVIEW_ORG_ID,
+    organizationId,
     ownerId: null,
     status: "not-started",
     createdAt: now,
@@ -106,6 +105,9 @@ function sseFrame(payload: unknown): string {
 }
 
 export async function POST(req: NextRequest) {
+  const session = await getSession();
+  const organizationId = session?.organizationId ?? "preview";
+
   let body: ChatRequestBody;
   try {
     body = (await req.json()) as ChatRequestBody;
@@ -125,7 +127,7 @@ export async function POST(req: NextRequest) {
         status: 404,
       });
     }
-    control = materializePreviewControl(entry);
+    control = materializePreviewControl(entry, organizationId);
   }
 
   const frameworkScope =
@@ -144,7 +146,7 @@ export async function POST(req: NextRequest) {
       const results = await store.retrieve({
         query: userMessage,
         topK: body.topK ?? DEFAULT_TOP_K,
-        organizationId: PREVIEW_ORG_ID,
+        organizationId: organizationId,
         framework: control?.framework,
         controlSlug: control?.slug,
         scoreThreshold: DEFAULT_SCORE_THRESHOLD,
@@ -159,7 +161,7 @@ export async function POST(req: NextRequest) {
   const context: AgentContext = {
     control,
     frameworkScope,
-    organizationId: PREVIEW_ORG_ID,
+    organizationId: organizationId,
     retrievedSnippets,
   };
 

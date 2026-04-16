@@ -12,18 +12,24 @@ import type { EvidenceStatus } from "@compliance-ai/prioritizer";
 import { getDefaultMatterStore } from "../../../lib/matter-store";
 import { getDefaultEvidenceStore } from "../../../lib/evidence-store";
 import { getDefaultAuditStore } from "../../../lib/audit-store";
+import { requireSession } from "../../../lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const PREVIEW_ORG_ID = "preview";
-
 export async function GET() {
+  let session;
+  try {
+    session = await requireSession();
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const matterStore = getDefaultMatterStore();
   const evidenceStore = getDefaultEvidenceStore();
   const auditStore = getDefaultAuditStore();
 
-  const matters = await matterStore.list(PREVIEW_ORG_ID);
+  const matters = await matterStore.list(session.organizationId);
 
   const summaries: MatterSummary[] = await Promise.all(
     matters.map(async (m) => {

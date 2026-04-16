@@ -1,10 +1,14 @@
 /**
- * In-memory matter store — preview mode.
+ * Matter store — interface + in-memory backend.
  *
- * Mirrors the DB schema from `packages/db/src/schema/matters.ts` but runs
- * entirely in-process. Day 3 swaps this for Drizzle + Postgres.
+ * The interface is async so the Postgres-backed implementation can satisfy
+ * it without leaking sync-vs-async concerns to callers. The in-memory
+ * backend is still used for tests and for preview mode when DATABASE_URL
+ * is unset.
  *
- * The store is a process-wide singleton (same as the cognition store).
+ * Factory (`getDefaultMatterStore`) picks the right backend based on env:
+ *   DATABASE_URL set   → Postgres-backed
+ *   DATABASE_URL unset → in-memory singleton
  */
 
 import { randomUUID } from "node:crypto";
@@ -68,15 +72,39 @@ export interface CreateMatterInput {
   taskType: TaskType;
 }
 
-class MatterStore {
+/**
+ * Contract for matter storage. Both InMemoryMatterStore and
+ * PostgresMatterStore implement this interface.
+ */
+export interface MatterStore {
+  create(input: CreateMatterInput, organizationId?: string): Promise<Matter>;
+  get(id: string): Promise<Matter | null>;
+  list(organizationId?: string): Promise<Matter[]>;
+  updateStatus(id: string, status: MatterStatus): Promise<Matter | null>;
+  addDocument(
+    matterId: string,
+    filename: string,
+    documentType: DocumentType,
+    extras?: { sha256?: string; pageCount?: number },
+  ): Promise<MatterDocument>;
+  getDocuments(matterId: string): Promise<MatterDocument[]>;
+  addChunks(
+    matterId: string,
+    docId: string,
+    chunks: Array<Omit<StoredChunk, "matterId">>,
+  ): Promise<StoredChunk[]>;
+  getChunksByDoc(docId: string): Promise<StoredChunk[]>;
+  getChunksByMatter(matterId: string): Promise<StoredChunk[]>;
+  size(): Promise<number>;
+}
+
+export class InMemoryMatterStore implements MatterStore {
   private matters = new Map<string, Matter>();
   private documents = new Map<string, MatterDocument[]>();
-  /** chunks keyed by docId. */
   private chunksByDoc = new Map<string, StoredChunk[]>();
-  /** Fast lookup: all chunks per matter (flattened across docs). */
   private chunksByMatter = new Map<string, StoredChunk[]>();
 
-  create(input: CreateMatterInput, organizationId = "preview"): Matter {
+  async create(input: CreateMatterInput, organizationId = "preview"): Promise<Matter> {
     const id = randomUUID();
     const now = new Date();
     const matter: Matter = {
@@ -95,17 +123,17 @@ class MatterStore {
     return matter;
   }
 
-  get(id: string): Matter | null {
+  async get(id: string): Promise<Matter | null> {
     return this.matters.get(id) ?? null;
   }
 
-  list(organizationId = "preview"): Matter[] {
+  async list(organizationId = "preview"): Promise<Matter[]> {
     return Array.from(this.matters.values())
       .filter((m) => m.organizationId === organizationId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
-  updateStatus(id: string, status: MatterStatus): Matter | null {
+  async updateStatus(id: string, status: MatterStatus): Promise<Matter | null> {
     const matter = this.matters.get(id);
     if (!matter) return null;
     matter.status = status;
@@ -113,12 +141,12 @@ class MatterStore {
     return matter;
   }
 
-  addDocument(
+  async addDocument(
     matterId: string,
     filename: string,
     documentType: DocumentType,
     extras: { sha256?: string; pageCount?: number } = {},
-  ): MatterDocument {
+  ): Promise<MatterDocument> {
     const doc: MatterDocument = {
       id: randomUUID(),
       matterId,
@@ -135,19 +163,15 @@ class MatterStore {
     return doc;
   }
 
-  getDocuments(matterId: string): MatterDocument[] {
+  async getDocuments(matterId: string): Promise<MatterDocument[]> {
     return this.documents.get(matterId) ?? [];
   }
 
-  /**
-   * Attach chunks to a document. Updates the document's chunkCount and
-   * maintains fast lookup by matterId.
-   */
-  addChunks(
+  async addChunks(
     matterId: string,
     docId: string,
     chunks: Array<Omit<StoredChunk, "matterId">>,
-  ): StoredChunk[] {
+  ): Promise<StoredChunk[]> {
     const stored: StoredChunk[] = chunks.map((c) => ({ ...c, matterId }));
     this.chunksByDoc.set(docId, stored);
 
@@ -155,7 +179,6 @@ class MatterStore {
     matterChunks.push(...stored);
     this.chunksByMatter.set(matterId, matterChunks);
 
-    // Update the document's chunk count.
     const docs = this.documents.get(matterId) ?? [];
     const doc = docs.find((d) => d.id === docId);
     if (doc) {
@@ -165,21 +188,52 @@ class MatterStore {
     return stored;
   }
 
-  getChunksByDoc(docId: string): StoredChunk[] {
+  async getChunksByDoc(docId: string): Promise<StoredChunk[]> {
     return this.chunksByDoc.get(docId) ?? [];
   }
 
-  getChunksByMatter(matterId: string): StoredChunk[] {
+  async getChunksByMatter(matterId: string): Promise<StoredChunk[]> {
     return this.chunksByMatter.get(matterId) ?? [];
   }
 
-  size(): number {
+  async size(): Promise<number> {
     return this.matters.size;
   }
 }
 
 let _default: MatterStore | null = null;
+let _override: MatterStore | null = null;
+
+/**
+ * Process-wide singleton. Picks Postgres backend when DATABASE_URL is set,
+ * otherwise in-memory for dev/preview. Override with `setMatterStore` for
+ * tests.
+ *
+ * Note: we import the Postgres backend lazily via require() at runtime. Only
+ * works in a Node runtime (Next.js API routes set `runtime = "nodejs"`).
+ */
 export function getDefaultMatterStore(): MatterStore {
-  if (!_default) _default = new MatterStore();
+  if (_override) return _override;
+  if (_default) return _default;
+
+  if (process.env.DATABASE_URL) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+      const mod = require("./postgres-matter-store") as typeof import("./postgres-matter-store");
+      _default = new mod.PostgresMatterStore();
+      return _default;
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("Postgres matter store unavailable, using in-memory:", err);
+    }
+  }
+
+  _default = new InMemoryMatterStore();
   return _default;
+}
+
+/** Override the default store. Used by tests. */
+export function setMatterStore(store: MatterStore | null): void {
+  _override = store;
+  if (store === null) _default = null;
 }

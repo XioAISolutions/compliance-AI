@@ -12,26 +12,50 @@ catalogs with drafter/reviewer/evidence-collector/risk-assessor personas.
 
 ## Status
 
-`v0.2.0` — Redesign landed:
+`v0.4.0` — Layers 1 + 2 shipped:
 
+- **Layer 1 — document review works end-to-end**
+  - Real PDF/DOCX/TXT upload via `@compliance-ai/ingest` (parse + chunk)
+  - Reviewer persona reads the uploaded doc and cites specific chunks
+  - Markdown rendering with inline `[c1]` citation superscripts
+  - DOCX export with title page, body, and Exhibits appendix
+- **Layer 2 — persistence across restarts**
+  - Drizzle schemas for matters, documents, chunks, audit log, evidence, auth
+  - `withOrg()` RLS helper + extended `policies.sql`
+  - Repository factory: Postgres when `DATABASE_URL` set, in-memory otherwise
+  - Migration (`packages/db/migrations/0000_*.sql`) covers 13 tables
 - Input → Context → Output three-pane layout (`/matters/[id]`)
 - OM gap memo hero flow with judge loop (drafter ↔ judge, max 3 rounds)
-- Structured citation schema (`[c1]` superscripts → hover cards → source link)
-- 6 seeded Ontario/EMD authorities (NI 45-106, OSC 45-501, NI 31-103, Securities Act 130.1, Staff Notice 45-309, NI 81-102 Part 15)
+- Structured citation schema + 6 seeded Ontario/EMD authorities
 - Matter-level jurisdiction + registration category filtering on retrieval
 - Per-matter hash-chained audit trail with CSV export + tamper verification
 - Auto-classify documents on upload (filename heuristics, 5 top types + Other)
 - Truthful inference disclosure: "Cloud inference via Anthropic with enterprise zero-retention"
-- **54 passing tests** across citations, router, cognition filtering, matter store, audit store
+- **102 passing tests** across ingest, citations, router, cognition filtering, matter + audit stores, bootstrap, withOrg
 
-See [docs/redesign.md](docs/redesign.md) for the full redesign spec.
+See [docs/redesign.md](docs/redesign.md) for the full redesign spec and
+[/root/.claude/plans/sharded-fluttering-donut.md](/root/.claude/plans/sharded-fluttering-donut.md) (if accessible) for the 4-layer plan.
 
 ## Quickstart
 
+**Preview mode (no database):**
 ```bash
 pnpm install
 pnpm --filter @compliance-ai/web dev
 # open http://localhost:3000
+```
+
+**With Postgres:**
+```bash
+export DATABASE_URL=postgres://user:pass@localhost:5432/compliance_ai
+pnpm install
+pnpm --filter @compliance-ai/db db:migrate
+pnpm --filter @compliance-ai/web dev
+```
+
+After schema migrations, apply the RLS policies:
+```bash
+psql "$DATABASE_URL" -f packages/db/rls/policies.sql
 ```
 
 1. Click **Open matters** on the home page

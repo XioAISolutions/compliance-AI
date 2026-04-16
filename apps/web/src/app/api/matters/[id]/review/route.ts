@@ -17,9 +17,10 @@ import {
   type RetrievedSnippet,
   type ReviewSubject,
 } from "@compliance-ai/agents";
-import { getDefaultCognitionStore, ONTARIO_EMD_AUTHORITIES, type RetrievalResult } from "@compliance-ai/cognition";
+import { getDefaultCognitionStore, type RetrievalResult } from "@compliance-ai/cognition";
 import { getDefaultMatterStore } from "../../../../../lib/matter-store";
 import { getDefaultAuditStore, sha256 } from "../../../../../lib/audit-store";
+import { ensureTenant } from "../../../../../lib/bootstrap";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,17 +28,6 @@ export const dynamic = "force-dynamic";
 const PREVIEW_ORG_ID = "preview";
 const DEFAULT_TOP_K = 6;
 const DEFAULT_SCORE_THRESHOLD = 0.02;
-
-let seeded = false;
-async function ensureAuthoritiesSeeded() {
-  if (seeded) return;
-  const store = getDefaultCognitionStore();
-  const size = await store.size();
-  if (size === 0) {
-    await store.addBatch(ONTARIO_EMD_AUTHORITIES);
-  }
-  seeded = true;
-}
 
 function toRetrievedSnippet(result: RetrievalResult): RetrievedSnippet {
   return {
@@ -77,9 +67,12 @@ const DOC_TYPE_LABELS: Record<string, string> = {
  * Truncates the chunk list if the total content exceeds ~25k tokens to leave
  * headroom for the persona prompt + retrieved authorities + output.
  */
-function buildReviewSubject(matterId: string, taskType: string): ReviewSubject | null {
+async function buildReviewSubject(
+  matterId: string,
+  taskType: string,
+): Promise<ReviewSubject | null> {
   const store = getDefaultMatterStore();
-  const documents = store.getDocuments(matterId);
+  const documents = await store.getDocuments(matterId);
   if (documents.length === 0) return null;
 
   const preferredType: Record<string, string[]> = {
@@ -95,7 +88,7 @@ function buildReviewSubject(matterId: string, taskType: string): ReviewSubject |
     // Most recent upload as fallback
     documents[documents.length - 1]!;
 
-  const chunks = store.getChunksByDoc(match.id);
+  const chunks = await store.getChunksByDoc(match.id);
   if (chunks.length === 0) return null;
 
   // Token budget: cap subject chunks at ~25k tokens so authorities + output
@@ -163,7 +156,7 @@ export async function POST(
 ) {
   const { id: matterId } = await params;
   const matterStore = getDefaultMatterStore();
-  const matter = matterStore.get(matterId);
+  const matter = await matterStore.get(matterId);
 
   if (!matter) {
     return new Response("Matter not found", { status: 404 });
@@ -180,13 +173,13 @@ export async function POST(
 
   // Build the review subject from the matter's uploaded document chunks.
   // If no document has been uploaded, fall through to the no-subject prompt.
-  const reviewSubject = buildReviewSubject(matterId, taskType);
+  const reviewSubject = await buildReviewSubject(matterId, taskType);
   const userMessage = reviewSubject
     ? TASK_PROMPTS_WITH_SUBJECT[taskType] ?? TASK_PROMPTS_WITH_SUBJECT["om-review"]!
     : TASK_PROMPTS_NO_SUBJECT[taskType] ?? TASK_PROMPTS_NO_SUBJECT["om-review"]!;
 
-  // Seed authorities
-  await ensureAuthoritiesSeeded();
+  // Seed authorities for this tenant (idempotent)
+  await ensureTenant(matter.organizationId);
 
   // Retrieve relevant snippets filtered by matter scope. When a subject is
   // present, use the document content as the retrieval query so authorities
@@ -212,7 +205,7 @@ export async function POST(
 
   // Write audit entry for the query
   const auditStore = getDefaultAuditStore();
-  auditStore.append(matterId, {
+  await auditStore.append(matterId, {
     matterId,
     organizationId: PREVIEW_ORG_ID,
     actor: "om-reviewer",
@@ -227,7 +220,7 @@ export async function POST(
 
   // Write audit entry for retrieval
   if (retrievedSnippets.length > 0) {
-    auditStore.append(matterId, {
+    await auditStore.append(matterId, {
       matterId,
       organizationId: PREVIEW_ORG_ID,
       actor: "system",
@@ -252,7 +245,7 @@ export async function POST(
   };
 
   // Update matter status
-  matterStore.updateStatus(matterId, "in-review");
+  await matterStore.updateStatus(matterId, "in-review");
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -281,7 +274,7 @@ export async function POST(
         }
 
         // Write generation audit entry
-        auditStore.append(matterId, {
+        await auditStore.append(matterId, {
           matterId,
           organizationId: PREVIEW_ORG_ID,
           actor: "om-reviewer",
@@ -296,7 +289,7 @@ export async function POST(
 
         // Update matter status based on verdict
         if (lastVerdict === "READY_TO_SUBMIT") {
-          matterStore.updateStatus(matterId, "complete");
+          await matterStore.updateStatus(matterId, "complete");
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

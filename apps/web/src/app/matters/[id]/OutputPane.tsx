@@ -8,6 +8,7 @@
  */
 
 import { useState } from "react";
+import { CitedMarkdown } from "./CitedMarkdown";
 
 interface Citation {
   id: string;
@@ -27,6 +28,7 @@ interface Props {
   verdict: JudgeVerdict | null;
   totalRounds: number | null;
   streaming: boolean;
+  matterId: string;
   onOpenChat: () => void;
   onStartReview: () => void;
 }
@@ -52,12 +54,47 @@ export function OutputPane({
   verdict,
   totalRounds,
   streaming,
+  matterId,
   onOpenChat,
   onStartReview,
 }: Props) {
   const [hoveredCitation, setHoveredCitation] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
-  const renderedContent = renderWithCitations(content, citations, hoveredCitation, setHoveredCitation);
+  async function exportDocx() {
+    if (exporting || !content) return;
+    setExporting(true);
+    try {
+      const res = await fetch(`/api/matters/${matterId}/export`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ format: "docx", output: content, citations }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "compliance-review.docx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      // Fall back to markdown if export fails
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("DOCX export failed:", msg);
+      const blob = new Blob([content], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "compliance-review.md";
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -86,20 +123,11 @@ export function OutputPane({
             Refine
           </button>
           <button
-            onClick={() => {
-              // Export as text file for now; Day 3 adds DOCX generation
-              const blob = new Blob([content], { type: "text/markdown" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = "compliance-review.md";
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
-            disabled={!content || streaming}
+            onClick={exportDocx}
+            disabled={!content || streaming || exporting}
             className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs text-white hover:bg-neutral-700 disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
           >
-            Export
+            {exporting ? "Exporting…" : "Export DOCX"}
           </button>
         </div>
       </div>
@@ -120,12 +148,17 @@ export function OutputPane({
           </div>
         )}
         {(content || streaming) && (
-          <div className="prose prose-sm max-w-none dark:prose-invert">
-            <div className="whitespace-pre-wrap leading-relaxed">{renderedContent}</div>
+          <>
+            <CitedMarkdown
+              content={content}
+              citations={citations}
+              hoveredCitation={hoveredCitation}
+              onHoverCitation={setHoveredCitation}
+            />
             {streaming && (
-              <span className="inline-block h-4 w-1 animate-pulse bg-neutral-400" />
+              <span className="mt-1 inline-block h-4 w-1 animate-pulse bg-neutral-400" />
             )}
-          </div>
+          </>
         )}
       </div>
 
@@ -160,47 +193,3 @@ export function OutputPane({
   );
 }
 
-/**
- * Render content with citation markers as interactive superscripts.
- * Replaces [c1], [c2], etc. with clickable links.
- */
-function renderWithCitations(
-  content: string,
-  citations: Citation[],
-  hoveredCitation: string | null,
-  setHoveredCitation: (id: string | null) => void,
-): React.ReactNode[] {
-  if (!content) return [];
-
-  const citationMap = new Map(citations.map((c) => [c.id, c]));
-  const parts = content.split(/(\[c\d+\])/g);
-
-  return parts.map((part, i) => {
-    const match = part.match(/^\[(c\d+)\]$/);
-    if (match) {
-      const citId = match[1]!;
-      const citation = citationMap.get(citId);
-      if (citation) {
-        return (
-          <sup
-            key={i}
-            className={`cursor-pointer rounded px-0.5 font-mono text-[10px] font-bold transition-colors ${
-              hoveredCitation === citId
-                ? "bg-amber-200 text-amber-900 dark:bg-amber-800 dark:text-amber-100"
-                : "text-amber-600 hover:bg-amber-100 dark:hover:bg-amber-900/50"
-            }`}
-            onMouseEnter={() => setHoveredCitation(citId)}
-            onMouseLeave={() => setHoveredCitation(null)}
-            onClick={() => {
-              document.getElementById(`citation-${citId}`)?.scrollIntoView({ behavior: "smooth" });
-            }}
-            title={`${citation.authorityId} § ${citation.section}`}
-          >
-            [{citId}]
-          </sup>
-        );
-      }
-    }
-    return <span key={i}>{part}</span>;
-  });
-}

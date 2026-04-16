@@ -12,6 +12,7 @@
  */
 
 import type { Control, FrameworkId } from "@compliance-ai/frameworks";
+import type { Citation } from "./citations.js";
 
 export type PersonaId =
   | "drafter" // produces policy / procedure language
@@ -97,16 +98,24 @@ export type JudgeVerdict = "READY_TO_SUBMIT" | "ITERATE" | "REWRITE";
 /**
  * SSE-friendly events emitted by `runAgent` (single-shot) and `runAgentLoop`
  * (loop coordinator). The loop adds `round-started`, `verdict-final`, and
- * `loop-done` on top of the single-shot event set.
+ * `loop-done` on top of the single-shot event set. Task-runners emit
+ * `prose-final` and `citations` after the loop terminates.
  *
  * Per-event UI hint:
- *   round-started   → append a new assistant bubble for `persona`
  *   persona-selected → label the current bubble
- *   text-delta      → append to current bubble's content
- *   done            → close current bubble; show usage
- *   verdict-final   → decorate the most recent judge bubble with the verdict
- *   loop-done       → terminal; end the conversation
- *   error           → surface inline; loop aborts
+ *   round-started    → (loop) new round begins; UI should reset output
+ *                      when a drafter round starts after round 1
+ *   text-delta       → append to current bubble's content
+ *   verdict-final    → decorate the most recent judge bubble with the verdict
+ *   prose-final      → REPLACE the accumulated output with the clean final
+ *                      prose (citations fence stripped). Emitted once,
+ *                      after the loop exits and model output is parsed.
+ *   citations        → the structured Citation[] extracted from the final
+ *                      output. UI renders footnote panel + interactive
+ *                      superscripts. Export route uses this for exhibits.
+ *   done             → close current bubble; show usage
+ *   loop-done        → terminal; end the conversation
+ *   error            → surface inline; loop aborts
  */
 export type AgentEvent =
   | { type: "persona-selected"; persona: PersonaId; reason: string }
@@ -114,5 +123,7 @@ export type AgentEvent =
   | { type: "done"; usage: AgentUsage }
   | { type: "round-started"; round: number; persona: PersonaId }
   | { type: "verdict-final"; verdict: JudgeVerdict }
+  | { type: "prose-final"; prose: string }
+  | { type: "citations"; citations: Citation[] }
   | { type: "loop-done"; totalRounds: number; finalVerdict: JudgeVerdict | null }
   | { type: "error"; message: string };

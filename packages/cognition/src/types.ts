@@ -55,6 +55,16 @@ export interface RetrievalQuery {
   jurisdiction?: string;
   /** Restrict to items applicable to this registration category. */
   registrationCategory?: string;
+  /**
+   * Which scoring to use. "hybrid" combines BM25 + (semantic stub) with
+   * reciprocal-rank-fusion; "bm25" and "jaccard" fall back to a single signal.
+   * Default: "hybrid".
+   *
+   * Cannibalized from GitNexus's hybrid search (BM25 + semantic + RRF).
+   * Semantic is a stub today — when embeddings land (pgvector, Day 3+),
+   * hybrid will start combining real signals. Until then, hybrid ≡ BM25.
+   */
+  searchMode?: "hybrid" | "bm25" | "jaccard";
 }
 
 export interface CognitionStore {

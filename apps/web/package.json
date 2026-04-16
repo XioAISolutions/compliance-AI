@@ -16,6 +16,7 @@
     "@auth/drizzle-adapter": "^1.7.2",
     "@compliance-ai/agents": "workspace:*",
     "@compliance-ai/approvals": "workspace:*",
+    "@compliance-ai/chat-structure": "workspace:*",
     "@compliance-ai/cognition": "workspace:*",
     "@compliance-ai/db": "workspace:*",
     "@compliance-ai/frameworks": "workspace:*",
@@ -23,13 +24,16 @@
     "@compliance-ai/prioritizer": "workspace:*",
     "docx": "^9.0.3",
     "drizzle-orm": "^0.36.0",
+    "graphology": "^0.25.4",
+    "graphology-layout-forceatlas2": "^0.10.1",
     "next": "^16.0.10",
     "next-auth": "5.0.0-beta.25",
     "postgres": "^3.4.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^9.0.1",
-    "remark-gfm": "^4.0.0"
+    "remark-gfm": "^4.0.0",
+    "sigma": "^3.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",

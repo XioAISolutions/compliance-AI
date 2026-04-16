@@ -103,8 +103,8 @@ describe("MARKETING_AUTHORITIES", () => {
 
 describe("REGULATOR_INQUIRY_AUTHORITIES", () => {
   it("contains OSC, CIRO, and FINTRAC deficiency patterns", () => {
-    expect(REGULATOR_INQUIRY_AUTHORITIES.find((a) => a.id.includes("osc-deficiency"))).toBeDefined();
-    expect(REGULATOR_INQUIRY_AUTHORITIES.find((a) => a.id.includes("ciro"))).toBeDefined();
-    expect(REGULATOR_INQUIRY_AUTHORITIES.find((a) => a.id.includes("fintrac-deficiency"))).toBeDefined();
+    expect(REGULATOR_INQUIRY_AUTHORITIES.find((a) => a.id?.includes("osc-deficiency"))).toBeDefined();
+    expect(REGULATOR_INQUIRY_AUTHORITIES.find((a) => a.id?.includes("ciro"))).toBeDefined();
+    expect(REGULATOR_INQUIRY_AUTHORITIES.find((a) => a.id?.includes("fintrac-deficiency"))).toBeDefined();
   });
 });

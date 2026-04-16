@@ -12,6 +12,14 @@
 export { parseDocument, inferMimeType } from "./parsers.js";
 export type { ParseOptions, SupportedMimeType } from "./parsers.js";
 export { chunkDocument } from "./chunker.js";
+export { classifyDocument } from "./classify.js";
+export type {
+  Classification,
+  InferredDocumentType,
+  InferredTaskType,
+  InferredJurisdiction,
+  InferredRegistrationCategory,
+} from "./classify.js";
 export type {
   DocumentChunk,
   ParsedDocument,

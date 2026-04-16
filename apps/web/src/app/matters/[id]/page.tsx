@@ -12,8 +12,8 @@
  * Audit log is a collapsible panel at the bottom.
  */
 
-import { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { InputPane } from "./InputPane";
 import { ContextPane } from "./ContextPane";
@@ -72,6 +72,9 @@ interface AuditEntry {
 export default function MatterDetailPage() {
   const params = useParams();
   const matterId = params.id as string;
+  const searchParams = useSearchParams();
+  const autoStart = searchParams.get("autoStart") === "1";
+  const autoStartFired = useRef(false);
 
   const [matter, setMatter] = useState<Matter | null>(null);
   const [documents, setDocuments] = useState<MatterDocument[]>([]);
@@ -121,6 +124,20 @@ export default function MatterDetailPage() {
   useEffect(() => {
     void fetchMatter();
   }, [fetchMatter]);
+
+  // Auto-start the review when arriving from the home-page quick-review flow
+  // (URL param autoStart=1 set by QuickReviewDropZone). Fires once after the
+  // matter data has loaded and at least one document is present.
+  useEffect(() => {
+    if (!autoStart) return;
+    if (autoStartFired.current) return;
+    if (!matter) return;
+    if (documents.length === 0) return;
+    if (streaming) return;
+    autoStartFired.current = true;
+    void startReview();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart, matter, documents.length, streaming]);
 
   async function handleDocumentUpload(file: File) {
     if (uploading) return;

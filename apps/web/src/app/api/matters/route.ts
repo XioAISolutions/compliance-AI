@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const store = getDefaultMatterStore();
-  const matters = store.list();
+  const matters = await store.list();
   return NextResponse.json(matters);
 }
 
@@ -29,6 +29,6 @@ export async function POST(req: NextRequest) {
   }
 
   const store = getDefaultMatterStore();
-  const matter = store.create(body);
+  const matter = await store.create(body);
   return NextResponse.json(matter, { status: 201 });
 }

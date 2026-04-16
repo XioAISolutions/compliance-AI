@@ -54,7 +54,7 @@ export async function POST(
 ) {
   const { id: matterId } = await params;
   const matterStore = getDefaultMatterStore();
-  const matter = matterStore.get(matterId);
+  const matter = await matterStore.get(matterId);
 
   if (!matter) {
     return NextResponse.json({ error: "Matter not found" }, { status: 404 });
@@ -83,7 +83,7 @@ export async function POST(
 
   // Audit entry for the export
   const auditStore = getDefaultAuditStore();
-  auditStore.append(matterId, {
+  await auditStore.append(matterId, {
     matterId,
     organizationId: matter.organizationId,
     actor: "user",

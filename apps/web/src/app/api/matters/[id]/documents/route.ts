@@ -40,7 +40,7 @@ export async function POST(
 ) {
   const { id: matterId } = await params;
   const matterStore = getDefaultMatterStore();
-  const matter = matterStore.get(matterId);
+  const matter = await matterStore.get(matterId);
 
   if (!matter) {
     return NextResponse.json({ error: "Matter not found" }, { status: 404 });
@@ -86,17 +86,17 @@ export async function POST(
   const documentType = classifyDocument(file.name);
   const pageCount = parsed.pages?.length;
 
-  const doc = matterStore.addDocument(matterId, file.name, documentType, {
+  const doc = await matterStore.addDocument(matterId, file.name, documentType, {
     sha256: fileHash,
     ...(pageCount !== undefined ? { pageCount } : {}),
   });
 
   const chunks = chunkDocument(parsed, doc.id);
-  const stored = matterStore.addChunks(matterId, doc.id, chunks);
+  const stored = await matterStore.addChunks(matterId, doc.id, chunks);
 
   // Write audit trail entry for the upload + chunking
   const auditStore = getDefaultAuditStore();
-  auditStore.append(matterId, {
+  await auditStore.append(matterId, {
     matterId,
     organizationId: matter.organizationId,
     actor: "system",

@@ -36,6 +36,29 @@ export interface RetrievedSnippet {
   score: number;
 }
 
+/**
+ * A chunk of the document that the reviewer is REVIEWING (not retrieving for
+ * grounding — this is the subject of the review). The reviewer persona cites
+ * back to these chunks by `chunkId` the same way it cites retrieved authority
+ * snippets, but the semantic role is different: the subject is the target of
+ * the review, authorities are the rules used to evaluate it.
+ */
+export interface ReviewSubjectChunk {
+  chunkId: string;
+  ordinal: number;
+  /** 1-indexed page number if the source is paged (PDF). */
+  page?: number;
+  content: string;
+}
+
+export interface ReviewSubject {
+  documentId: string;
+  documentType: string;
+  title: string;
+  /** Document chunks in ordinal order. */
+  chunks: ReviewSubjectChunk[];
+}
+
 export interface AgentContext {
   /** The control the user is reasoning about. May be null for cross-cutting questions. */
   control: Control | null;
@@ -45,6 +68,13 @@ export interface AgentContext {
   organizationId: string;
   /** Optional cognition-store snippets to ground this turn. */
   retrievedSnippets?: RetrievedSnippet[];
+  /**
+   * Optional document under review. When set, the reviewer persona inspects
+   * these chunks against the retrieved authority snippets. Use this for OM
+   * review, KYC gap checks, marketing sign-off — any task where there's a
+   * concrete document being evaluated.
+   */
+  reviewSubject?: ReviewSubject;
 }
 
 export interface AgentMessage {

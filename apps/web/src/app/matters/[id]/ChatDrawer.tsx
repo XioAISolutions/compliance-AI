@@ -10,6 +10,8 @@
  */
 
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface Message {
   role: "user" | "assistant";
@@ -136,7 +138,15 @@ export function ChatDrawer({ open, onClose, matterId }: Props) {
                   : "bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-200"
               }`}
             >
-              <span className="whitespace-pre-wrap">{msg.content || "…"}</span>
+              {msg.role === "user" ? (
+                <span className="whitespace-pre-wrap">{msg.content}</span>
+              ) : msg.content ? (
+                <div className="prose prose-xs max-w-none dark:prose-invert [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                </div>
+              ) : (
+                <span>…</span>
+              )}
             </div>
           </div>
         ))}

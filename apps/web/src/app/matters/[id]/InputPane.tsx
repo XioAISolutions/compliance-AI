@@ -62,10 +62,11 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 interface Props {
   matter: Matter;
   documents: MatterDocument[];
-  onDocumentUpload: (filename: string) => void;
+  onDocumentUpload: (file: File) => void;
+  uploading?: boolean;
 }
 
-export function InputPane({ matter, documents, onDocumentUpload }: Props) {
+export function InputPane({ matter, documents, onDocumentUpload, uploading }: Props) {
   const [dragOver, setDragOver] = useState(false);
 
   function handleDrop(e: React.DragEvent) {
@@ -73,14 +74,14 @@ export function InputPane({ matter, documents, onDocumentUpload }: Props) {
     setDragOver(false);
     const files = Array.from(e.dataTransfer.files);
     for (const file of files) {
-      onDocumentUpload(file.name);
+      onDocumentUpload(file);
     }
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     for (const file of files) {
-      onDocumentUpload(file.name);
+      onDocumentUpload(file);
     }
   }
 
@@ -114,9 +115,14 @@ export function InputPane({ matter, documents, onDocumentUpload }: Props) {
             {documents.map((doc) => (
               <li
                 key={doc.id}
-                className="flex items-center justify-between rounded-md border border-neutral-200 px-3 py-2 text-xs dark:border-neutral-800"
+                className="flex items-center justify-between gap-2 rounded-md border border-neutral-200 px-3 py-2 text-xs dark:border-neutral-800"
               >
-                <span className="truncate font-medium">{doc.filename}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{doc.filename}</p>
+                  <p className="mt-0.5 text-[10px] text-neutral-400">
+                    {doc.chunkCount} chunk{doc.chunkCount === 1 ? "" : "s"} indexed
+                  </p>
+                </div>
                 <span className="shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-500 dark:bg-neutral-800">
                   {DOC_TYPE_LABELS[doc.documentType] ?? doc.documentType}
                 </span>
@@ -129,26 +135,37 @@ export function InputPane({ matter, documents, onDocumentUpload }: Props) {
         <label
           onDragOver={(e) => {
             e.preventDefault();
-            setDragOver(true);
+            if (!uploading) setDragOver(true);
           }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
-          className={`mt-2 flex cursor-pointer flex-col items-center rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
-            dragOver
+          className={`mt-2 flex flex-col items-center rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
+            uploading
+              ? "cursor-wait border-neutral-200 opacity-60 dark:border-neutral-800"
+              : "cursor-pointer"
+          } ${
+            dragOver && !uploading
               ? "border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-950/30"
               : "border-neutral-300 hover:border-neutral-400 dark:border-neutral-700"
           }`}
         >
           <span className="text-sm text-neutral-500">
-            Drop files here or{" "}
-            <span className="font-medium text-neutral-700 dark:text-neutral-300">browse</span>
+            {uploading ? (
+              <>Uploading & chunking…</>
+            ) : (
+              <>
+                Drop files here or{" "}
+                <span className="font-medium text-neutral-700 dark:text-neutral-300">browse</span>
+              </>
+            )}
           </span>
-          <span className="mt-1 text-xs text-neutral-400">PDF, DOCX, TXT</span>
+          <span className="mt-1 text-xs text-neutral-400">PDF, DOCX, TXT, MD (max 25 MB)</span>
           <input
             type="file"
             multiple
-            accept=".pdf,.docx,.doc,.txt"
+            accept=".pdf,.docx,.doc,.txt,.md"
             onChange={handleFileSelect}
+            disabled={uploading}
             className="hidden"
           />
         </label>

@@ -14,6 +14,7 @@ import { NextRequest } from "next/server";
 import {
   runAgentLoop,
   type AgentContext,
+  type PersonaId,
   type RetrievedSnippet,
   type ReviewSubject,
 } from "@compliance-ai/agents";
@@ -21,6 +22,10 @@ import { getDefaultCognitionStore, type RetrievalResult } from "@compliance-ai/c
 import { getDefaultMatterStore } from "../../../../../lib/matter-store";
 import { getDefaultAuditStore, sha256 } from "../../../../../lib/audit-store";
 import { ensureTenant } from "../../../../../lib/bootstrap";
+import {
+  getDefaultEvidenceStore,
+  extractEvidenceRequests,
+} from "../../../../../lib/evidence-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,6 +46,22 @@ function toRetrievedSnippet(result: RetrievalResult): RetrievedSnippet {
 
 function sseFrame(payload: unknown): string {
   return `data: ${JSON.stringify(payload)}\n\n`;
+}
+
+/** Map matter task type → the drafter persona that specializes in it. */
+function personaForTask(taskType: string): PersonaId {
+  switch (taskType) {
+    case "om-review":
+      return "om-reviewer";
+    case "kyc-gap-check":
+      return "kyc-reviewer";
+    case "marketing-signoff":
+      return "marketing-reviewer";
+    case "response-memo":
+      return "response-memo-drafter";
+    default:
+      return "om-reviewer";
+  }
 }
 
 const DOC_TYPE_LABELS: Record<string, string> = {
@@ -257,6 +278,7 @@ export async function POST(
       try {
         const generator = runAgentLoop(context, userMessage, {
           maxRounds: 3,
+          drafterPersona: personaForTask(taskType),
         });
 
         for await (const event of generator) {
@@ -277,7 +299,7 @@ export async function POST(
         await auditStore.append(matterId, {
           matterId,
           organizationId: PREVIEW_ORG_ID,
-          actor: "om-reviewer",
+          actor: personaForTask(taskType),
           action: "generation",
           inputHash: sha256(userMessage),
           authoritiesUsed: retrievedSnippets.map((s) => s.id),
@@ -286,6 +308,33 @@ export async function POST(
           inputContent: `${rounds} round(s) via judge loop`,
           outputContent: fullOutput.slice(0, 2000),
         });
+
+        // Auto-generate evidence requests from PARTIAL / MISSING checklist rows
+        const evidenceStore = getDefaultEvidenceStore();
+        const extracted = extractEvidenceRequests(fullOutput);
+        for (const req of extracted) {
+          await evidenceStore.create(
+            {
+              matterId,
+              ...req,
+            },
+            matter.organizationId,
+          );
+        }
+        if (extracted.length > 0) {
+          await auditStore.append(matterId, {
+            matterId,
+            organizationId: PREVIEW_ORG_ID,
+            actor: "system",
+            action: "retrieval",
+            inputHash: sha256(fullOutput),
+            authoritiesUsed: [],
+            outputHash: sha256(extracted.map((r) => r.title).join(",")),
+            judgeVerdict: null,
+            inputContent: `Auto-extracted ${extracted.length} evidence requests from review output`,
+            outputContent: extracted.map((r) => `- ${r.title}`).join("\n"),
+          });
+        }
 
         // Update matter status based on verdict
         if (lastVerdict === "READY_TO_SUBMIT") {

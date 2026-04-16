@@ -12,7 +12,7 @@ catalogs with drafter/reviewer/evidence-collector/risk-assessor personas.
 
 ## Status
 
-`v0.4.0` — Layers 1 + 2 shipped:
+`v0.6.0` — Layers 1 + 2 + 3 shipped:
 
 - **Layer 1 — document review works end-to-end**
   - Real PDF/DOCX/TXT upload via `@compliance-ai/ingest` (parse + chunk)
@@ -23,15 +23,22 @@ catalogs with drafter/reviewer/evidence-collector/risk-assessor personas.
   - Drizzle schemas for matters, documents, chunks, audit log, evidence, auth
   - `withOrg()` RLS helper + extended `policies.sql`
   - Repository factory: Postgres when `DATABASE_URL` set, in-memory otherwise
-  - Migration (`packages/db/migrations/0000_*.sql`) covers 13 tables
+  - Migration covering 13 tables
+- **Layer 3 — all four flows + evidence + risk queue**
+  - Four specialized personas: OM review, KYC/AML gap check, Marketing sign-off, Response memo drafter
+  - `drafterPersona` loop option so each task takes the right persona slot
+  - Extended seed authorities: FINTRAC / PCMLTFA / NI 31-103 Part 13 / NI 81-102 Part 15 / OSC SN 33-316 + regulator deficiency patterns (16 authorities total)
+  - Evidence management: per-matter items with `missing → requested → present → approved` state machine
+  - Auto-generated evidence requests from PARTIAL/MISSING checklist rows in reviewer output
+  - `/queue` — prioritized cross-matter work list via `@compliance-ai/prioritizer` (classical scoring + UCB1 island diversity)
+  - QUBO/QAOA sidecar slot reserved for a future quantum backend
 - Input → Context → Output three-pane layout (`/matters/[id]`)
 - OM gap memo hero flow with judge loop (drafter ↔ judge, max 3 rounds)
-- Structured citation schema + 6 seeded Ontario/EMD authorities
+- Structured citation schema
 - Matter-level jurisdiction + registration category filtering on retrieval
 - Per-matter hash-chained audit trail with CSV export + tamper verification
-- Auto-classify documents on upload (filename heuristics, 5 top types + Other)
 - Truthful inference disclosure: "Cloud inference via Anthropic with enterprise zero-retention"
-- **102 passing tests** across ingest, citations, router, cognition filtering, matter + audit stores, bootstrap, withOrg
+- **144 passing tests** across ingest, citations, router, cognition filtering, authorities, stores, bootstrap, withOrg, optimizer, risk-queue
 
 See [docs/redesign.md](docs/redesign.md) for the full redesign spec and
 [/root/.claude/plans/sharded-fluttering-donut.md](/root/.claude/plans/sharded-fluttering-donut.md) (if accessible) for the 4-layer plan.

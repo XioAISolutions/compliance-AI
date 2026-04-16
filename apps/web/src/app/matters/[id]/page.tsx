@@ -20,6 +20,7 @@ import { ContextPane } from "./ContextPane";
 import { OutputPane } from "./OutputPane";
 import { ChatDrawer } from "./ChatDrawer";
 import { AuditLog } from "./AuditLog";
+import { EvidencePanel, type EvidenceItem } from "./EvidencePanel";
 
 type JudgeVerdict = "READY_TO_SUBMIT" | "ITERATE" | "REWRITE";
 
@@ -89,18 +90,26 @@ export default function MatterDetailPage() {
   const [auditVerified, setAuditVerified] = useState(true);
   const [showAudit, setShowAudit] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
 
   const fetchMatter = useCallback(async () => {
     try {
-      const res = await fetch(`/api/matters/${matterId}`);
-      if (res.ok) {
-        const data = await res.json();
+      const [matterRes, evidenceRes] = await Promise.all([
+        fetch(`/api/matters/${matterId}`),
+        fetch(`/api/matters/${matterId}/evidence`),
+      ]);
+      if (matterRes.ok) {
+        const data = await matterRes.json();
         setMatter(data.matter);
         setDocuments(data.documents ?? []);
         setAuthorities(data.authorities ?? []);
         setExcluded(data.excluded ?? []);
         setAuditEntries(data.auditEntries ?? []);
         setAuditVerified(data.auditVerified ?? true);
+      }
+      if (evidenceRes.ok) {
+        const items = (await evidenceRes.json()) as EvidenceItem[];
+        setEvidence(items);
       }
     } catch {
       // Will be handled by the UI showing empty state
@@ -261,6 +270,13 @@ export default function MatterDetailPage() {
                   authorities={authorities}
                   excluded={excluded}
                   loading={loadingContext}
+                />
+              </div>
+              <div className="mt-6">
+                <EvidencePanel
+                  items={evidence}
+                  matterId={matterId}
+                  onRefresh={fetchMatter}
                 />
               </div>
             </>

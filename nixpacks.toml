@@ -1,0 +1,30 @@
+# Nixpacks build config for Railway.
+#
+# We're a pnpm workspace monorepo. Nixpacks' default Next.js detection
+# doesn't handle workspace-scoped builds well, so we override the phases
+# explicitly:
+#   - setup    → pnpm + node 20 (engines: ">=20")
+#   - install  → install at the workspace root so transitive deps land
+#   - build    → build the web app only (turbo handles upstream deps)
+#   - start    → next start on the web app
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "pnpm-9_x"]
+
+[phases.install]
+cmds = [
+  "corepack enable",
+  "pnpm install --frozen-lockfile",
+]
+
+[phases.build]
+cmds = [
+  "pnpm --filter @compliance-ai/web build",
+]
+
+[start]
+cmd = "pnpm --filter @compliance-ai/web start"
+
+[variables]
+NEXT_TELEMETRY_DISABLED = "1"
+NODE_ENV = "production"

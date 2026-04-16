@@ -1,5 +1,6 @@
 export type { CognitionItem, CognitionStore, RetrievalQuery, RetrievalResult } from "./types.js";
 export { InMemoryCognitionStore } from "./in-memory.js";
+export { ONTARIO_EMD_AUTHORITIES } from "./authorities.js";
 
 import { InMemoryCognitionStore } from "./in-memory.js";
 import type { CognitionStore } from "./types.js";

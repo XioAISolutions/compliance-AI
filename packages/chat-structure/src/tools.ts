@@ -97,7 +97,7 @@ export function parseToolCalls(raw: string): ParsedToolCallsResult {
     const openAt = raw.indexOf(OPEN, i);
     if (openAt === -1) break;
     // Parse tool name
-    let j = openAt + OPEN.length;
+    const j = openAt + OPEN.length;
     let nameEnd = j;
     while (nameEnd < raw.length && /[a-z_]/.test(raw[nameEnd]!)) nameEnd++;
     const toolName = raw.slice(j, nameEnd);

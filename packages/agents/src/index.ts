@@ -14,7 +14,14 @@
 
 export * from "./types.js";
 export { routePersona, type RoutingDecision } from "./router.js";
-export { runAgent, type RunAgentOptions } from "./run.js";
+export {
+  resolveModelProvider,
+  runAgent,
+  type ModelProvider,
+  type ModelProviderConfig,
+  type ModelProviderEnv,
+  type RunAgentOptions,
+} from "./run.js";
 export { runAgentLoop, type RunAgentLoopOptions } from "./loop.js";
 export { PERSONA_SYSTEM_PROMPTS, PERSONA_LABELS, parseVerdict } from "./personas/index.js";
 export {

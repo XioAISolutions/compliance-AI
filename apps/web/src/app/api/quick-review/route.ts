@@ -139,7 +139,9 @@ export async function POST(req: NextRequest) {
       matterId: matter.id,
       matter,
       documentId: doc.id,
+      document: doc,
       classification,
+      redirectTo: `/matters/${matter.id}?autoStart=1`,
     },
     { status: 201 },
   );

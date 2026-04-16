@@ -7,6 +7,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { resolveModelProvider } from "@compliance-ai/agents";
 import { getDefaultCognitionStore } from "@compliance-ai/cognition";
 
 export const runtime = "nodejs";
@@ -19,7 +20,7 @@ interface HealthReport {
     cognition: { ok: boolean; securitiesSize?: number; infosecSize?: number; error?: string };
     database: { ok: boolean; configured: boolean; error?: string };
     auth: { configured: boolean };
-    provider: { llmProvider: string; model: string };
+    provider: { llmProvider: string; model: string; configured: boolean; baseUrl?: string };
   };
   version: string;
   timestamp: string;
@@ -35,15 +36,9 @@ export async function GET() {
       cognition: { ok: false },
       database: { ok: false, configured: Boolean(process.env.DATABASE_URL) },
       auth: { configured: Boolean(process.env.NEXTAUTH_SECRET) },
-      provider: {
-        llmProvider: process.env.LLM_PROVIDER === "openai" ? "openai" : "ollama",
-        model:
-          process.env.LLM_PROVIDER === "openai"
-            ? (process.env.OPENAI_MODEL ?? "gpt-5.4-mini")
-            : (process.env.OLLAMA_MODEL ?? process.env.OLLAMA_CHAT_MODEL ?? "llama3.1"),
-      },
+      provider: providerCheck(),
     },
-    version: "0.8.0",
+    version: process.env.NEXT_PUBLIC_APP_VERSION ?? "0.9.0-demo-cockpit",
     timestamp: new Date().toISOString(),
   };
 
@@ -86,8 +81,25 @@ export async function GET() {
 
   // Overall status
   const allOk =
-    report.checks.cognition.ok && report.checks.database.ok;
+    report.checks.cognition.ok && report.checks.database.ok && report.checks.provider.configured;
   report.status = allOk ? "ok" : "degraded";
 
   return NextResponse.json(report, { status: allOk ? 200 : 503 });
+}
+
+function providerCheck(): HealthReport["checks"]["provider"] {
+  const provider = resolveModelProvider();
+  const configured =
+    provider.provider === "openai"
+      ? Boolean(process.env.OPENAI_API_KEY)
+      : provider.provider === "anthropic"
+        ? Boolean(process.env.ANTHROPIC_API_KEY)
+        : true;
+
+  return {
+    llmProvider: provider.provider,
+    model: provider.model,
+    configured,
+    ...(provider.baseUrl ? { baseUrl: provider.baseUrl } : {}),
+  };
 }

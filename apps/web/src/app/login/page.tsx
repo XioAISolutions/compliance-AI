@@ -48,7 +48,7 @@ function LoginForm() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
+      <h1 className="text-2xl font-semibold">Sign in</h1>
       <p className="mt-2 text-sm text-neutral-500">
         XIO Compliance Brain
       </p>
@@ -83,7 +83,7 @@ function LoginForm() {
       </form>
 
       <p className="mt-8 text-center text-[10px] text-neutral-400">
-        Cloud inference via Anthropic with enterprise zero-retention.
+        Hosted preview uses sample documents. Private installs can run local Ollama.
       </p>
     </main>
   );

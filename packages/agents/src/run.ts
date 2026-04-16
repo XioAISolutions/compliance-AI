@@ -1,13 +1,17 @@
 /**
- * Agent runner — bridges router + persona prompts to the Anthropic API.
+ * Agent runner — bridges router + persona prompts to the configured LLM.
  *
  * Yields a typed AsyncGenerator<AgentEvent> that the API route forwards as SSE.
  * Caller is responsible for SSE framing — keeps this package transport-agnostic
  * (could be reused by a CLI, a worker, a test harness).
  *
- * Caching strategy: persona prompt + control context are marked `cache_control:
- * ephemeral`. The user message is NOT cached (it changes every turn). This means
- * turn 2+ in a session pays ~10% of the system-prompt tokens.
+ * Provider strategy:
+ *   - OpenAI for the hosted preview (`LLM_PROVIDER=openai`)
+ *   - Ollama for private/local installs (`LLM_PROVIDER=ollama`)
+ *   - Anthropic retained as a backwards-compatible legacy provider
+ *
+ * Anthropic keeps prompt caching on stable persona/control blocks. OpenAI and
+ * Ollama receive the same blocks flattened into one system message.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -19,25 +23,102 @@ import type {
   AgentContext,
   AgentEvent,
   AgentMessage,
+  AgentUsage,
   PersonaId,
   RetrievedSnippet,
   ReviewSubject,
 } from "./types.js";
 
-/**
- * Default model. Sonnet 4.6 balances streaming latency against compliance-grade
- * accuracy. Swap to `claude-opus-4-6` for high-stakes drafting if needed.
- */
-const DEFAULT_MODEL = "claude-sonnet-4-6";
+export type ModelProvider = "anthropic" | "openai" | "ollama";
+
+export interface ModelProviderEnv {
+  [key: string]: string | undefined;
+  ANTHROPIC_API_KEY?: string;
+  LLM_PROVIDER?: string;
+  OLLAMA_API_KEY?: string;
+  OLLAMA_BASE_URL?: string;
+  OLLAMA_CHAT_MODEL?: string;
+  OLLAMA_MODEL?: string;
+  OPENAI_API_KEY?: string;
+  OPENAI_BASE_URL?: string;
+  OPENAI_MODEL?: string;
+}
+
+export interface ModelProviderConfig {
+  provider: ModelProvider;
+  model: string;
+  baseUrl?: string;
+}
+
+const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
+const DEFAULT_OPENAI_MODEL = "gpt-5.4-mini";
+const DEFAULT_OLLAMA_MODEL = "llama3.1:8b";
 const MAX_TOKENS = 4096;
 
 export interface RunAgentOptions {
   /** Override the heuristic router with an explicit persona. */
   forcePersona?: PersonaId;
+  /** Override env-based provider resolution. */
+  provider?: ModelProvider;
   /** Override the default model id. */
   model?: string;
   /** Override max output tokens. */
   maxTokens?: number;
+}
+
+function hasValue(value: string | undefined): boolean {
+  return Boolean(value && value.trim().length > 0);
+}
+
+function normalizeProvider(value: string | undefined): ModelProvider | null {
+  if (!value) return null;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "anthropic" || normalized === "openai" || normalized === "ollama") {
+    return normalized;
+  }
+  throw new Error(
+    `Unsupported LLM_PROVIDER "${value}". Expected one of: openai, ollama, anthropic.`,
+  );
+}
+
+function normalizeBaseUrl(baseUrl: string, suffix = "/v1"): string {
+  const trimmed = baseUrl.trim().replace(/\/+$/, "");
+  return trimmed.endsWith(suffix) ? trimmed : `${trimmed}${suffix}`;
+}
+
+export function resolveModelProvider(
+  env: ModelProviderEnv = process.env,
+  options: Pick<RunAgentOptions, "model" | "provider"> = {},
+): ModelProviderConfig {
+  const provider =
+    options.provider ??
+    normalizeProvider(env.LLM_PROVIDER) ??
+    (hasValue(env.OPENAI_API_KEY)
+      ? "openai"
+      : hasValue(env.ANTHROPIC_API_KEY)
+        ? "anthropic"
+        : "ollama");
+
+  if (provider === "openai") {
+    return {
+      provider,
+      model: options.model ?? env.OPENAI_MODEL ?? DEFAULT_OPENAI_MODEL,
+      baseUrl: normalizeBaseUrl(env.OPENAI_BASE_URL ?? "https://api.openai.com/v1", ""),
+    };
+  }
+
+  if (provider === "ollama") {
+    return {
+      provider,
+      model: options.model ?? env.OLLAMA_MODEL ?? env.OLLAMA_CHAT_MODEL ?? DEFAULT_OLLAMA_MODEL,
+      baseUrl: normalizeBaseUrl(env.OLLAMA_BASE_URL ?? "http://localhost:11434"),
+    };
+  }
+
+  return {
+    provider,
+    model: options.model ?? DEFAULT_ANTHROPIC_MODEL,
+  };
 }
 
 /**
@@ -157,6 +238,191 @@ function client(): Anthropic {
   return cachedClient;
 }
 
+function renderSystemPrompt(
+  blocks: Array<{ text: string }>,
+): string {
+  return blocks.map((block) => block.text.trim()).filter(Boolean).join("\n\n");
+}
+
+function openAiCompatibleAuthHeaders(config: ModelProviderConfig): Record<string, string> {
+  if (config.provider === "openai") {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "OPENAI_API_KEY is not set. Add it to your environment or set LLM_PROVIDER=ollama for local review.",
+      );
+    }
+    return { Authorization: `Bearer ${apiKey}` };
+  }
+
+  const apiKey = process.env.OLLAMA_API_KEY;
+  return apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
+}
+
+function parseOpenAiUsage(usage: unknown): AgentUsage | null {
+  if (!usage || typeof usage !== "object") return null;
+  const record = usage as Record<string, unknown>;
+  return {
+    inputTokens: typeof record.prompt_tokens === "number" ? record.prompt_tokens : 0,
+    outputTokens: typeof record.completion_tokens === "number" ? record.completion_tokens : 0,
+    cacheReadTokens: 0,
+  };
+}
+
+async function* readOpenAiCompatibleStream(
+  body: ReadableStream<Uint8Array>,
+): AsyncGenerator<AgentEvent> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let usage: AgentUsage | null = null;
+
+  function* parseFrame(frame: string): Generator<AgentEvent> {
+    const dataLines = frame
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        if (line.startsWith("data:")) return line.slice(5).trim();
+        if (line.startsWith("{")) return line;
+        return "";
+      })
+      .filter(Boolean);
+
+    for (const data of dataLines) {
+      if (data === "[DONE]") continue;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(data);
+      } catch {
+        continue;
+      }
+      const record = parsed as Record<string, unknown>;
+      const parsedUsage = parseOpenAiUsage(record.usage);
+      if (parsedUsage) usage = parsedUsage;
+
+      const choices = record.choices;
+      if (!Array.isArray(choices) || choices.length === 0) continue;
+      const choice = choices[0] as Record<string, unknown>;
+      const delta =
+        choice.delta && typeof choice.delta === "object"
+          ? (choice.delta as Record<string, unknown>)
+          : null;
+      const content = delta?.content ?? (choice.message as Record<string, unknown> | undefined)?.content;
+      if (typeof content === "string" && content.length > 0) {
+        yield { type: "text-delta", delta: content };
+      }
+    }
+  }
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const frames = buffer.split(/\r?\n\r?\n/);
+    buffer = frames.pop() ?? "";
+    for (const frame of frames) {
+      yield* parseFrame(frame);
+    }
+  }
+
+  buffer += decoder.decode();
+  if (buffer.trim()) {
+    yield* parseFrame(buffer);
+  }
+
+  yield {
+    type: "done",
+    usage: usage ?? { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
+  };
+}
+
+async function* runOpenAiCompatible(
+  config: ModelProviderConfig,
+  systemPrompt: string,
+  history: AgentMessage[],
+  userMessage: string,
+  maxTokens: number,
+): AsyncGenerator<AgentEvent> {
+  const baseUrl = config.baseUrl ?? "https://api.openai.com/v1";
+  const payload: Record<string, unknown> = {
+    model: config.model,
+    messages: [
+      { role: "system", content: systemPrompt },
+      ...history.map((m) => ({ role: m.role, content: m.content })),
+      { role: "user", content: userMessage },
+    ],
+    stream: true,
+  };
+
+  if (config.provider === "openai") {
+    payload.max_completion_tokens = maxTokens;
+    payload.stream_options = { include_usage: true };
+  } else {
+    payload.max_tokens = maxTokens;
+  }
+
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...openAiCompatibleAuthHeaders(config),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const details = await res.text().catch(() => "");
+    throw new Error(
+      `${config.provider} chat completion failed (${res.status}): ${details.slice(0, 500)}`,
+    );
+  }
+  if (!res.body) {
+    throw new Error(`${config.provider} chat completion returned an empty stream.`);
+  }
+
+  yield* readOpenAiCompatibleStream(res.body);
+}
+
+async function* runAnthropic(
+  systemBlocks: Array<{
+    type: "text";
+    text: string;
+    cache_control?: { type: "ephemeral" };
+  }>,
+  history: AgentMessage[],
+  userMessage: string,
+  model: string,
+  maxTokens: number,
+): AsyncGenerator<AgentEvent> {
+  const stream = client().messages.stream({
+    model,
+    max_tokens: maxTokens,
+    system: systemBlocks as unknown as Anthropic.Messages.TextBlockParam[],
+    messages: [
+      ...history.map((m) => ({ role: m.role, content: m.content })),
+      { role: "user" as const, content: userMessage },
+    ],
+  });
+
+  for await (const event of stream) {
+    if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+      yield { type: "text-delta", delta: event.delta.text };
+    }
+  }
+
+  const finalMessage = await stream.finalMessage();
+  yield {
+    type: "done",
+    usage: {
+      inputTokens: finalMessage.usage.input_tokens,
+      outputTokens: finalMessage.usage.output_tokens,
+      cacheReadTokens:
+        (finalMessage.usage as { cache_read_input_tokens?: number }).cache_read_input_tokens ?? 0,
+    },
+  };
+}
+
 export async function* runAgent(
   context: AgentContext,
   history: AgentMessage[],
@@ -196,32 +462,27 @@ export async function* runAgent(
   }
 
   try {
-    const stream = client().messages.stream({
-      model: options.model ?? DEFAULT_MODEL,
-      max_tokens: options.maxTokens ?? MAX_TOKENS,
-      system: systemBlocks as unknown as Anthropic.Messages.TextBlockParam[],
-      messages: [
-        ...history.map((m) => ({ role: m.role, content: m.content })),
-        { role: "user" as const, content: userMessage },
-      ],
+    const provider = resolveModelProvider(process.env, {
+      model: options.model,
+      provider: options.provider,
     });
-
-    for await (const event of stream) {
-      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-        yield { type: "text-delta", delta: event.delta.text };
-      }
+    if (provider.provider === "anthropic") {
+      yield* runAnthropic(
+        systemBlocks,
+        history,
+        userMessage,
+        provider.model,
+        options.maxTokens ?? MAX_TOKENS,
+      );
+    } else {
+      yield* runOpenAiCompatible(
+        provider,
+        renderSystemPrompt(systemBlocks),
+        history,
+        userMessage,
+        options.maxTokens ?? MAX_TOKENS,
+      );
     }
-
-    const finalMessage = await stream.finalMessage();
-    yield {
-      type: "done",
-      usage: {
-        inputTokens: finalMessage.usage.input_tokens,
-        outputTokens: finalMessage.usage.output_tokens,
-        cacheReadTokens:
-          (finalMessage.usage as { cache_read_input_tokens?: number }).cache_read_input_tokens ?? 0,
-      },
-    };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     yield { type: "error", message };

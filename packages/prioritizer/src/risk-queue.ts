@@ -64,7 +64,7 @@ function worstEvidenceStatus(counts: Record<EvidenceStatus, number>): EvidenceSt
   return "approved";
 }
 
-export interface QueueItem extends PrioritizedItem<MatterSummary> {}
+export type QueueItem = PrioritizedItem<MatterSummary>;
 
 /**
  * Build the prioritized queue with UCB1 island diversity. Partitions matters

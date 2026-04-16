@@ -42,7 +42,7 @@ export default function LaunchChecklistPage() {
         <Link href="/demo" className="text-sm text-neutral-500 hover:underline">
           ← demo command center
         </Link>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight">Launch checklist</h1>
+        <h1 className="mt-3 text-3xl font-semibold">Launch checklist</h1>
         <p className="mt-2 text-neutral-600 dark:text-neutral-400">
           Use this to run the product demo without breaking the current scaffold.
         </p>

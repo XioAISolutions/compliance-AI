@@ -10,14 +10,14 @@ export default function RiskQueuePage() {
         <Link href="/demo" className="text-sm text-neutral-500 hover:underline">
           ← demo command center
         </Link>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight">Prioritized risk queue</h1>
+        <h1 className="mt-3 text-3xl font-semibold">Prioritized risk queue</h1>
         <p className="mt-2 text-neutral-600 dark:text-neutral-400">
           This is the first buyer-facing queue: one list, cross-framework, already sorted by review urgency.
         </p>
       </header>
 
       <div className="overflow-hidden rounded-2xl border border-neutral-200 dark:border-neutral-800">
-        <div className="grid grid-cols-[110px_100px_1.2fr_1fr_120px] gap-3 border-b border-neutral-200 bg-neutral-50 px-4 py-3 text-xs font-medium uppercase tracking-wide text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="grid grid-cols-[110px_100px_1.2fr_1fr_120px] gap-3 border-b border-neutral-200 bg-neutral-50 px-4 py-3 text-xs font-medium uppercase text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900">
           <div>Priority</div>
           <div>Framework</div>
           <div>Control</div>

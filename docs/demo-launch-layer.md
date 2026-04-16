@@ -1,64 +1,68 @@
-# Compliance-AI launch demo layer
+# Compliance-AI demo cockpit layer
 
-This branch adds a standalone demo surface without replacing the current scaffold.
+The demo layer is now a single cockpit at `/demo`, not a standalone obsolete
+surface. It has two tabs:
 
-## Routes
+- **Securities Review** - primary path for offering memoranda, KYC/AML files,
+  marketing material, and regulator-response memos.
+- **Infosec GRC** - secondary path using deterministic assessment, controls,
+  evidence, and risk queue logic.
 
-- `/demo` — command center with readiness score, talk track, top findings, and interactive assessment runner.
-- `/demo/risk-queue` — cross-framework prioritized work queue.
-- `/demo/evidence` — evidence request pack generated from the top findings.
-- `/demo/launch-checklist` — operator checklist for demo validation and next production steps.
-- `/api/demo/assessment` — deterministic preview assessment endpoint used by the command center.
+## Securities path
 
-## Why this is safe
+1. Drop a TXT/PDF/DOCX into the quick-review zone.
+2. `/api/quick-review` parses, chunks, classifies, creates a matter, stores the
+   document, and appends an audit entry.
+3. The client navigates to `/matters/[id]?autoStart=1`.
+4. Review streams into the output pane with citation superscripts, a footnote
+   panel, judge verdicts, and export actions.
+5. Transcript and graph tabs expose the agent timeline and evidence map.
+6. Handoff export produces a native JSON bundle plus sanitized CRUMB-style text.
 
-- No database migration required.
-- No QPanda/OriginQ runtime required.
-- No dependency on another XIO repo.
-- No existing app route is replaced.
-- Demo logic lives under `apps/web/src/lib/demo` and can be deleted or promoted later.
+## Infosec path
 
-## Product story
+The second tab reuses `apps/web/src/lib/demo`:
 
-The demo uses the existing framework catalogs and turns them into a buyer-visible workflow:
+- deterministic assessment
+- evidence requests
+- control queue scoring
+- launch checklist
+- shared queue/approval/audit patterns
 
-1. Company profile intake.
-2. Framework scope selection.
-3. Risk and evidence scoring.
-4. Prioritized control queue.
-5. Evidence request pack.
-6. Control workspace handoff into the existing chat + judge loop.
+This proves the compliance engine generalizes, while the live talk track stays
+on the stronger securities story.
 
-## QPanda / OriginQ integration point
+## Public contract
 
-The file `apps/web/src/lib/demo/optimizer.ts` is the seam for the future quantum optimization sidecar.
+- `POST /api/quick-review`
+- `POST /api/matters/[id]/review`
+- `POST /api/matters/[id]/chat`
+- `GET /api/agents`
+- `GET /api/matters/[id]/transcript?fmt=jsonl|json`
+- `GET /api/matters/[id]/graph`
+- `GET /api/matters/[id]/handoff?fmt=json|crumb`
+- `GET /api/healthcheck`
 
-Today it uses deterministic classical scoring so demos work anywhere. Later, the same input contract can be sent to a Python QPanda sidecar for QUBO/QAOA-style risk prioritization experiments.
+## Smoke contract
 
-Do not put QPanda in the main Next.js runtime. Keep it as an optional service behind the optimizer contract.
-
-## Demo validation
+Before deploy, these must pass:
 
 ```bash
 pnpm install
-pnpm --filter @compliance-ai/web dev
-# open http://localhost:3000/demo
+pnpm test
+pnpm -r typecheck
+pnpm --filter @compliance-ai/web build
+pnpm smoke:demo
 ```
 
-Suggested flow:
+`pnpm smoke:demo` validates `/`, `/demo`, `/matters`, `/queue`, `/approvals`,
+`/controls`, `/api/healthcheck`, `/api/agents`, and a synthetic quick-review
+upload that creates a matter, transcript, graph, and handoff.
 
-1. Open `/demo`.
-2. Run the interactive assessment.
-3. Open `/demo/risk-queue`.
-4. Open `/demo/evidence`.
-5. Open a control from either page.
-6. Use the existing compliance chat panel.
-7. Toggle `Iterate with judge` for review-ready draft behavior.
+## Runtime posture
 
-## Production follow-up
-
-- Persist assessment runs and generated findings.
-- Swap demo profile for tenant onboarding data.
-- Add pgvector-backed cognition retrieval.
-- Add file upload/import for policies, auditor letters, and evidence.
-- Add optional QPanda/OriginQ optimizer sidecar after the deterministic queue is proven useful.
+- Hosted preview uses OpenAI when `LLM_PROVIDER=openai` and `OPENAI_API_KEY` are set.
+- Private/local installs can use Ollama with `LLM_PROVIDER=ollama`.
+- Legacy Anthropic deployments still work with `LLM_PROVIDER=anthropic`.
+- No QPanda/OriginQ runtime is required; deterministic prioritization remains
+  the active queue engine.

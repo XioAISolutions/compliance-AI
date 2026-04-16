@@ -51,7 +51,7 @@ export function DemoCockpitTabs({ result }: { result: DemoAssessmentResult }) {
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
               <Step label="1" title="Classify" body="Matter scope is inferred from the uploaded file." />
               <Step label="2" title="Review" body="The judge loop streams a citation-backed draft." />
-              <Step label="3" title="Handoff" body="Transcript, graph, and CRUMB export travel with the matter." />
+              <Step label="3" title="Handoff" body="Transcript, graph, and export pack travel with the matter." />
             </div>
           </div>
           <aside className="rounded-lg border border-neutral-200 p-5 dark:border-neutral-800">

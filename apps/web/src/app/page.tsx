@@ -5,7 +5,7 @@ export default function Home() {
   return (
     <main className="mx-auto max-w-4xl px-6 py-12">
       <div className="mb-8">
-        <h1 className="text-4xl font-semibold tracking-tight">XIO Compliance Brain</h1>
+        <h1 className="text-4xl font-semibold">XIO Compliance Brain</h1>
         <p className="mt-3 text-lg text-neutral-600 dark:text-neutral-400">
           Private compliance review workbench for lawyers and regulated firms.
         </p>

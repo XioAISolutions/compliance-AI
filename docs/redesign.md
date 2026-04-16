@@ -1,4 +1,9 @@
-# Product redesign: input → context → output
+# Product redesign: input -> context -> output
+
+Status: implemented and superseded by the `/demo` cockpit layer. This document
+is kept as the historical redesign rationale; current deploy/runbook details
+live in `README.md`, `docs/demo-launch-layer.md`, and
+`.claude-handoff/codex-railway-deploy.md`.
 
 ## Why
 
@@ -15,12 +20,11 @@ Two strategic problems on top of that:
    `Offering memo`, `KYC/AML file`, sample PDFs are OSC authority rules).
    The repo is a SOC 2 / GDPR / EU AI Act / ISO 27001 catalog. One of these
    has to become the product; the other gets deferred.
-2. **A load-bearing claim is false.** The UI says "All processing runs
+2. **A load-bearing claim was false.** The UI said "All processing runs
    locally. No data leaves this device. Runtime: local-first model." The
-   code calls the Anthropic API
-   ([`packages/agents/src/run.ts:29`](../packages/agents/src/run.ts#L29)).
-   For the exact buyer who cares most about privacy, this reads as either
-   dishonesty or carelessness the moment they look past the marquee.
+   app now uses explicit provider disclosure: hosted preview can use OpenAI,
+   private installs can use Ollama, and legacy Anthropic deployments remain
+   supported.
 
 ## Pick the wedge
 
@@ -145,9 +149,9 @@ footnote markers preserved.
 
 ### Fix now
 
-- Replace the privacy tagline with the truth ("Cloud inference on Anthropic
-  with enterprise zero-retention on your documents") **or** ship a
-  local-inference toggle (Ollama + Qwen/Llama) before repeating the claim
+- Replace the privacy tagline with the truth: hosted preview can use OpenAI
+  with sample documents, private installs can use local Ollama, and legacy
+  Anthropic deployments remain supported
 - Wire the matter jurisdiction + registration fields to actually filter
   retrieval — they're tags today
 
@@ -217,12 +221,12 @@ All issues implemented in a single branch (`claude/product-redesign`).
 
 **Tests:** 54 passing across 6 files (citations, router, cognition filtering, authorities seed, matter store, audit store)
 
-### What still lives on `demo/product-launch-layer` (not in this branch)
+### What was retired
 
-The mock chrome (graph counters, resolved counters, Hybrid/Authority/Jurisdiction chips,
-18-option taxonomy, false "on-device" claim) lives exclusively on the `demo/product-launch-layer`
-branch. The new `/matters` surface replaces it entirely. The demo branch should be
-considered obsolete and archived or deleted.
+The old standalone demo chrome, fake graph counters, resolved counters,
+Hybrid/Authority/Jurisdiction chips, 18-option taxonomy, and false "on-device"
+claim were retired. The `/demo` cockpit and `/matters` workspace are now the
+active demo surfaces.
 
 ## What this doc is not
 

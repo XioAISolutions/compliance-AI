@@ -31,7 +31,7 @@
  * with `loop-done` so the UI can close the bubble cleanly.
  */
 
-import { runAgent } from "./run.js";
+import { runAgent, type ModelProvider } from "./run.js";
 import { parseVerdict } from "./personas/judge.js";
 import type { AgentContext, AgentEvent, AgentMessage, JudgeVerdict, PersonaId } from "./types.js";
 
@@ -44,6 +44,8 @@ export interface RunAgentLoopOptions {
   maxRounds?: number;
   /** Override default model id (passed through to runAgent). */
   model?: string;
+  /** Override env-based provider resolution (passed through to runAgent). */
+  provider?: ModelProvider;
   /** Override max output tokens (passed through to runAgent). */
   maxTokens?: number;
   /**
@@ -88,6 +90,7 @@ export async function* runAgentLoop(
     for await (const ev of runAgent(context, history, pendingUserMessage, {
       forcePersona: drafterPersona,
       model: options.model,
+      provider: options.provider,
       maxTokens: options.maxTokens,
     })) {
       if (ev.type === "text-delta") draftBuffer += ev.delta;
@@ -113,6 +116,7 @@ export async function* runAgentLoop(
     for await (const ev of runAgent(context, history, judgePrompt, {
       forcePersona: "judge",
       model: options.model,
+      provider: options.provider,
       maxTokens: options.maxTokens,
     })) {
       if (ev.type === "text-delta") judgeBuffer += ev.delta;

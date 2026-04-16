@@ -6,7 +6,7 @@
 #   - setup    → pnpm + node 20 (engines: ">=20")
 #   - install  → install at the workspace root so transitive deps land
 #   - build    → build the web app only (turbo handles upstream deps)
-#   - start    → next start on the web app
+#   - start    → root start script binds Next to 0.0.0.0 for Railway
 
 [phases.setup]
 nixPkgs = ["nodejs_20", "pnpm-9_x"]
@@ -23,7 +23,7 @@ cmds = [
 ]
 
 [start]
-cmd = "pnpm --filter @compliance-ai/web start"
+cmd = "pnpm start"
 
 [variables]
 NEXT_TELEMETRY_DISABLED = "1"

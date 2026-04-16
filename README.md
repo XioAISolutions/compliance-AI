@@ -1,138 +1,134 @@
 # XIO Compliance Brain
 
-Citation-first securities compliance workbench.
+Demo-ready compliance cockpit for securities review, infosec GRC, evidence,
+approval, transcript, graph, and handoff workflows.
 
-**Primary surface:** Canadian securities compliance — offering memorandum review,
-KYC/AML gap checks, marketing material sign-off, response memos. Grounded in
-NI 45-106, OSC Rule 45-501, NI 31-103, Securities Act (Ontario), and CSA staff
-notices.
+The primary demo path is `/demo`:
 
-**Infosec surface (separate):** SOC 2 · GDPR · EU AI Act · ISO 27001 control
-catalogs with drafter/reviewer/evidence-collector/risk-assessor personas.
+1. Drop an offering memorandum, TXT, PDF, or DOCX.
+2. Quick review parses, chunks, classifies, creates a matter, and writes audit.
+3. The matter page opens with `?autoStart=1`.
+4. Review streams into the output pane with structured `[c1]` citations.
+5. Evidence requests, risk queue items, approvals, transcript events, and graph
+   context become available from the same matter.
+6. Export a native JSON bundle or a sanitized CRUMB-style handoff pack.
 
-## Status
+## Current Layer
 
-`v0.8.0` — Layers 1 + 2 + 3 + 4 shipped. Full 4-layer plan complete.
+`v0.9.0-demo-cockpit`
 
-- **Layer 1 — document review works end-to-end**
-  - Real PDF/DOCX/TXT upload via `@compliance-ai/ingest` (parse + chunk)
-  - Reviewer persona reads the uploaded doc and cites specific chunks
-  - Markdown rendering with inline `[c1]` citation superscripts
-  - DOCX export with title page, body, and Exhibits appendix
-- **Layer 2 — persistence across restarts**
-  - Drizzle schemas for matters, documents, chunks, audit log, evidence, auth
-  - `withOrg()` RLS helper + extended `policies.sql`
-  - Repository factory: Postgres when `DATABASE_URL` set, in-memory otherwise
-  - Migration covering 13 tables
-- **Layer 3 — all four flows + evidence + risk queue**
-  - Four specialized personas: OM review, KYC/AML gap check, Marketing sign-off, Response memo drafter
-  - `drafterPersona` loop option so each task takes the right persona slot
-  - Extended seed authorities: FINTRAC / PCMLTFA / NI 31-103 Part 13 / NI 81-102 Part 15 / OSC SN 33-316 + regulator deficiency patterns (16 authorities total)
-  - Evidence management: per-matter items with `missing → requested → present → approved` state machine
-  - Auto-generated evidence requests from PARTIAL/MISSING checklist rows in reviewer output
-  - `/queue` — prioritized cross-matter work list via `@compliance-ai/prioritizer` (classical scoring + UCB1 island diversity)
-  - QUBO/QAOA sidecar slot reserved for a future quantum backend
-- Input → Context → Output three-pane layout (`/matters/[id]`)
-- OM gap memo hero flow with judge loop (drafter ↔ judge, max 3 rounds)
-- Structured citation schema
-- Matter-level jurisdiction + registration category filtering on retrieval
-- Per-matter hash-chained audit trail with CSV export + tamper verification
-- Truthful inference disclosure: "Cloud inference via Anthropic with enterprise zero-retention"
-- **Layer 4 — production-ready auth + onboarding + approvals + ops**
-  - NextAuth v5 wiring with Drizzle adapter (`@auth/drizzle-adapter`); Credentials + optional GitHub / Google OAuth
-  - Graceful auth fallback: preview mode (`NEXTAUTH_SECRET` unset) returns a synthetic session so the demo still works
-  - `/login`, `/onboarding`, `/approvals` routes + middleware gating `/matters`, `/queue`, `/approvals`, `/onboarding`
-  - `POST /api/onboarding/complete` creates the organization row, links the user with `role=owner`, seeds the tenant's authority corpus
-  - `@compliance-ai/approvals` package — request/approve/reject/withdraw state machine with CCO sign-off, every event written to the audit chain
-  - `/api/approvals` API with role-gated PATCH (owner/admin only for review actions)
-  - `/api/healthcheck` returns per-subsystem status (cognition + database + auth) for Railway / ops probes
-  - Replaced every `PREVIEW_ORG_ID = "preview"` with `session.organizationId`; preview sentinel now flows from `getSession()` fallback
-  - Tightened `.env.example` with documented sections (Postgres, LLM, Auth + OAuth, integrations)
-- **158 passing tests** across ingest, citations, router, cognition filtering, authorities, stores (matter/audit/evidence/approvals), bootstrap, withOrg, optimizer, risk-queue, auth
+- `/demo` is the cockpit, with Securities Review first and Infosec GRC second.
+- `/api/quick-review` accepts uploads and returns `{ matterId, classification, documentId }`.
+- `/api/matters/[id]/chat` runs matter-scoped follow-up without crossing matters or surfaces.
+- `/api/agents` exposes the demo agent registry and timeline participant map.
+- `/api/matters/[id]/transcript?fmt=jsonl|json` exports stable transcript events.
+- `/api/matters/[id]/graph` returns a pure evidence graph from matter context.
+- `/api/matters/[id]/handoff` exports the `MatterContextBundle` plus CRUMB-style text.
+- `/api/healthcheck` reports cognition, database, auth, provider, version, and uptime.
+- `scripts/smoke-demo.mjs` checks `/`, `/demo`, `/matters`, `/queue`, `/approvals`,
+  `/controls`, `/api/healthcheck`, `/api/agents`, and a synthetic quick-review upload.
 
-See [docs/redesign.md](docs/redesign.md) for the full redesign spec and
-[/root/.claude/plans/sharded-fluttering-donut.md](/root/.claude/plans/sharded-fluttering-donut.md) (if accessible) for the 4-layer plan.
+## Provider Modes
+
+The agent runner supports three provider modes:
+
+- Hosted preview: `LLM_PROVIDER=openai`, `OPENAI_API_KEY`, optional `OPENAI_MODEL`.
+- Private/local: `LLM_PROVIDER=ollama`, `OLLAMA_BASE_URL`, optional `OLLAMA_CHAT_MODEL`.
+- Legacy: `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`.
+
+If `LLM_PROVIDER` is unset, the runtime picks OpenAI when `OPENAI_API_KEY` exists,
+Anthropic when only `ANTHROPIC_API_KEY` exists, and otherwise local Ollama.
 
 ## Quickstart
 
-**Preview mode (no database):**
 ```bash
 pnpm install
 pnpm --filter @compliance-ai/web dev
-# open http://localhost:3000
 ```
 
-**With Postgres:**
+Open `http://localhost:3000/demo`.
+
+For persisted production mode:
+
 ```bash
 export DATABASE_URL=postgres://user:pass@localhost:5432/compliance_ai
-pnpm install
 pnpm --filter @compliance-ai/db db:migrate
+psql "$DATABASE_URL" -f packages/db/rls/policies.sql
 pnpm --filter @compliance-ai/web dev
 ```
 
-After schema migrations, apply the RLS policies:
+Preview mode is intentional when `DATABASE_URL` and `NEXTAUTH_SECRET` are unset:
+the app uses in-memory stores and a synthetic preview session for anonymous demos.
+
+## Railway
+
+Railway uses:
+
+- `railway.json` healthcheck: `/api/healthcheck`
+- `nixpacks.toml` build: `pnpm --filter @compliance-ai/web build`
+- root start command: `pnpm start`, which binds Next to `0.0.0.0`
+
+Minimum hosted preview variables:
+
 ```bash
-psql "$DATABASE_URL" -f packages/db/rls/policies.sql
+LLM_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-5.4-mini
+NEXTAUTH_URL=https://compliance-ai-preview-production.up.railway.app
 ```
 
-1. Click **Open matters** on the home page
-2. Create a new matter (Ontario / EMD / Review offering memo)
-3. Upload your OM PDF
-4. Click **Start review** — the OM reviewer runs through the judge loop
-5. Export the deliverable as Markdown
+Add `DATABASE_URL` and `NEXTAUTH_SECRET` when persistence and real auth are required.
 
-The infosec control catalog is still available at `/controls`.
-
-## Running tests
+## Verification
 
 ```bash
+pnpm install
 pnpm test
+pnpm -r typecheck
+pnpm --filter @compliance-ai/web build
+pnpm smoke:demo
 ```
 
-## Monorepo layout
+`pnpm smoke:demo` expects a running app at `http://127.0.0.1:3000`, or set
+`DEMO_BASE_URL` to test a deployed URL.
 
+## Monorepo Layout
+
+```text
+apps/web
+  src/app/demo                    cockpit
+  src/app/matters                 matter workspace, timeline, graph
+  src/app/api/quick-review        upload -> classify -> matter
+  src/app/api/matters/[id]        review, chat, transcript, graph, handoff
+  src/lib/matter-context.ts       MatterContextBundle / DemoCasePack export
+  src/lib/evidence-graph.ts       pure graph builder
+
+packages/agents                   personas, provider runtime, citations, judge loop
+packages/chat-structure           registry, mentions, typed tools, transcripts
+packages/cognition                seeded stores and BM25 + RRF hybrid retrieval
+packages/ingest                   PDF/DOCX/TXT parse, chunk, classify
+packages/approvals                approval state machine
+packages/db                       Drizzle schema, migrations, RLS
+
+docs/compliance-handoff.md        PDF source
+output/pdf/compliance-ai-demo-handoff.pdf
+scripts/smoke-demo.mjs
 ```
-apps/
-  web/                    Next.js 16 web app
-    src/app/
-      matters/            Input → Context → Output layout
-      controls/           Infosec control catalog (separate surface)
-      api/matters/        Matter CRUD + OM review SSE endpoint
-      api/chat/           Legacy chat endpoint (still works)
-    src/lib/
-      matter-store.ts     In-memory matter store (Day 3 → Postgres)
-      audit-store.ts      Hash-chained audit log (Day 3 → Postgres)
-packages/
-  agents/                 Personas + router + loop + citations
-    src/personas/         drafter, reviewer, evidence-collector, risk-assessor, judge, om-reviewer
-    src/citations.ts      Structured citation parser + validator
-  cognition/              RAG store interface + in-memory backend + seed authorities
-    src/authorities.ts    Ontario/EMD authority seed data (6 rules)
-  frameworks/             Control discriminated union + seed catalogs
-  db/                     Drizzle schema (orgs, users, controls, matters, audit_log) + RLS
-docs/
-  redesign.md             Product redesign spec
-  build-plan.md           Original 5-day roadmap
-```
 
-## Design decisions
+## Design Decisions
 
-**Input → Context → Output.** The chat-centric UI confused clients. The
-redesign makes the deliverable the hero: a gap memo, checklist, or redline —
-not a conversation transcript. Chat is demoted to a refinement drawer.
+The product surface is one cockpit, not competing demos. Securities review is
+the primary wedge because the drop-document-to-cited-review story is concrete.
+Infosec remains visible as the second surface to prove the architecture
+generalizes without stealing the main path.
 
-**Structured citations.** The model emits `[c1]` markers inline and a JSON
-`citations` block. The parser cross-checks markers against the array, validates
-chunk IDs against the cognition store, and renders hover cards in the UI.
+Adjacent repo ideas were cannibalized natively:
 
-**Matter-level filtering.** Jurisdiction + registration category on a matter
-filter retrieval: an EMD matter never retrieves IIROC dealer-member rules.
-
-**Hash-chained audit trail.** Every query, retrieval, generation, and verdict
-writes a row with `prevRowHash` linking to the prior entry. Tamper-detectable.
-
-**Truthful inference disclosure.** The UI says "Cloud inference via Anthropic
-with enterprise zero-retention on your documents." No false "on-device" claims.
+- The Brain inspired `MatterContextBundle` / demo case pack exports.
+- CRUMB inspired the sanitized handoff renderer without adding a runtime repo dependency.
+- PenguinWalkOS inspired the smoke contract for route and quick-review readiness.
+- Claude Octopus is installed globally for orchestration skills, but the app does not
+  depend on Octopus at runtime.
 
 ## License
 

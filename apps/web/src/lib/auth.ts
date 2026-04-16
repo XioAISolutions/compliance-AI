@@ -51,7 +51,7 @@ export async function getSession(): Promise<Session | null> {
   }
   try {
     // Dynamic import keeps NextAuth out of the bundle when auth is disabled.
-    const { auth } = await import("../auth.js");
+    const { auth } = await import("../auth");
     const nextAuthSession = await auth();
     if (!nextAuthSession?.user) return null;
     const u = nextAuthSession.user as {

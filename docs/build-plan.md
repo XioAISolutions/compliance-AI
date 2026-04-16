@@ -26,8 +26,8 @@ The `/controls` page works without a database (reads catalog from code).
     `the-brain/agents/awesome-openclaw-agents/agents/compliance/`
   - Define `Agent` type `{ id, persona, systemPrompt, tools }`
   - Router: given user message + current control context → pick agent
-- `apps/web/src/app/api/chat/route.ts`: SSE stream using Anthropic SDK or Vercel
-  AI SDK, bound to routed agent
+- `apps/web/src/app/api/chat/route.ts`: SSE stream using the configured provider
+  (`openai`, `ollama`, or legacy `anthropic`), bound to the routed agent
 - UI: `/controls/[slug]/chat` with streaming transcript
 
 ## Day 3 — Evidence vault
@@ -57,7 +57,9 @@ The `/controls` page works without a database (reads catalog from code).
 1. **Greenfield, not fork.** Every file earned its way in.
 2. **Framework-agnostic data model.** Adding ISO 42001 later is a seed file, not
    a schema migration.
-3. **Local-first, server-enhanced.** Evidence works offline; syncs when online.
+3. **Provider-explicit.** Hosted preview can use OpenAI; private installs can
+   use local Ollama. Do not claim on-device processing unless the deploy is
+   actually running Ollama.
 4. **Controls are the spine.** Evidence, agents, approvals, audit — everything
    routes through Control.
 5. **Don't over-engineer Day 1.** The repo should compile today, not solve 2027.

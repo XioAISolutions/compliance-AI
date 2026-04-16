@@ -11,7 +11,7 @@ export default function EvidencePackPage() {
         <Link href="/demo" className="text-sm text-neutral-500 hover:underline">
           ← demo command center
         </Link>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight">Evidence pack</h1>
+        <h1 className="mt-3 text-3xl font-semibold">Evidence pack</h1>
         <p className="mt-2 text-neutral-600 dark:text-neutral-400">
           Buyer-friendly evidence requests generated from the highest priority findings.
         </p>

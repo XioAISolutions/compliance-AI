@@ -12,7 +12,7 @@ catalogs with drafter/reviewer/evidence-collector/risk-assessor personas.
 
 ## Status
 
-`v0.6.0` — Layers 1 + 2 + 3 shipped:
+`v0.8.0` — Layers 1 + 2 + 3 + 4 shipped. Full 4-layer plan complete.
 
 - **Layer 1 — document review works end-to-end**
   - Real PDF/DOCX/TXT upload via `@compliance-ai/ingest` (parse + chunk)
@@ -38,7 +38,17 @@ catalogs with drafter/reviewer/evidence-collector/risk-assessor personas.
 - Matter-level jurisdiction + registration category filtering on retrieval
 - Per-matter hash-chained audit trail with CSV export + tamper verification
 - Truthful inference disclosure: "Cloud inference via Anthropic with enterprise zero-retention"
-- **144 passing tests** across ingest, citations, router, cognition filtering, authorities, stores, bootstrap, withOrg, optimizer, risk-queue
+- **Layer 4 — production-ready auth + onboarding + approvals + ops**
+  - NextAuth v5 wiring with Drizzle adapter (`@auth/drizzle-adapter`); Credentials + optional GitHub / Google OAuth
+  - Graceful auth fallback: preview mode (`NEXTAUTH_SECRET` unset) returns a synthetic session so the demo still works
+  - `/login`, `/onboarding`, `/approvals` routes + middleware gating `/matters`, `/queue`, `/approvals`, `/onboarding`
+  - `POST /api/onboarding/complete` creates the organization row, links the user with `role=owner`, seeds the tenant's authority corpus
+  - `@compliance-ai/approvals` package — request/approve/reject/withdraw state machine with CCO sign-off, every event written to the audit chain
+  - `/api/approvals` API with role-gated PATCH (owner/admin only for review actions)
+  - `/api/healthcheck` returns per-subsystem status (cognition + database + auth) for Railway / ops probes
+  - Replaced every `PREVIEW_ORG_ID = "preview"` with `session.organizationId`; preview sentinel now flows from `getSession()` fallback
+  - Tightened `.env.example` with documented sections (Postgres, LLM, Auth + OAuth, integrations)
+- **158 passing tests** across ingest, citations, router, cognition filtering, authorities, stores (matter/audit/evidence/approvals), bootstrap, withOrg, optimizer, risk-queue, auth
 
 See [docs/redesign.md](docs/redesign.md) for the full redesign spec and
 [/root/.claude/plans/sharded-fluttering-donut.md](/root/.claude/plans/sharded-fluttering-donut.md) (if accessible) for the 4-layer plan.

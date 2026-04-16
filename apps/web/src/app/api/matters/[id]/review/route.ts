@@ -26,11 +26,11 @@ import {
   getDefaultEvidenceStore,
   extractEvidenceRequests,
 } from "../../../../../lib/evidence-store";
+import { requireSession } from "../../../../../lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const PREVIEW_ORG_ID = "preview";
 const DEFAULT_TOP_K = 6;
 const DEFAULT_SCORE_THRESHOLD = 0.02;
 
@@ -176,6 +176,15 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: matterId } = await params;
+
+  let session;
+  try {
+    session = await requireSession();
+  } catch {
+    return new Response("Unauthorized", { status: 401 });
+  }
+  const organizationId = session.organizationId;
+
   const matterStore = getDefaultMatterStore();
   const matter = await matterStore.get(matterId);
 
@@ -214,7 +223,7 @@ export async function POST(
     const results = await cognitionStore.retrieve({
       query: retrievalQuery,
       topK: DEFAULT_TOP_K,
-      organizationId: PREVIEW_ORG_ID,
+      organizationId: organizationId,
       scoreThreshold: DEFAULT_SCORE_THRESHOLD,
       jurisdiction: matter.jurisdiction,
       registrationCategory: matter.registrationCategory,
@@ -228,7 +237,7 @@ export async function POST(
   const auditStore = getDefaultAuditStore();
   await auditStore.append(matterId, {
     matterId,
-    organizationId: PREVIEW_ORG_ID,
+    organizationId: organizationId,
     actor: "om-reviewer",
     action: "query",
     inputHash: sha256(userMessage),
@@ -243,7 +252,7 @@ export async function POST(
   if (retrievedSnippets.length > 0) {
     await auditStore.append(matterId, {
       matterId,
-      organizationId: PREVIEW_ORG_ID,
+      organizationId: organizationId,
       actor: "system",
       action: "retrieval",
       inputHash: sha256(userMessage),
@@ -260,7 +269,7 @@ export async function POST(
   const context: AgentContext = {
     control: null,
     frameworkScope: [],
-    organizationId: PREVIEW_ORG_ID,
+    organizationId: organizationId,
     retrievedSnippets,
     ...(reviewSubject ? { reviewSubject } : {}),
   };
@@ -298,7 +307,7 @@ export async function POST(
         // Write generation audit entry
         await auditStore.append(matterId, {
           matterId,
-          organizationId: PREVIEW_ORG_ID,
+          organizationId: organizationId,
           actor: personaForTask(taskType),
           action: "generation",
           inputHash: sha256(userMessage),
@@ -324,7 +333,7 @@ export async function POST(
         if (extracted.length > 0) {
           await auditStore.append(matterId, {
             matterId,
-            organizationId: PREVIEW_ORG_ID,
+            organizationId: organizationId,
             actor: "system",
             action: "retrieval",
             inputHash: sha256(fullOutput),

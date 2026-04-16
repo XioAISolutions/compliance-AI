@@ -18,7 +18,8 @@ export type PersonaId =
   | "reviewer" // critiques drafts against framework intent
   | "evidence-collector" // identifies what evidence satisfies a control
   | "risk-assessor" // surfaces residual risk + compensating controls
-  | "judge"; // verdict-only persona used by the loop coordinator
+  | "judge" // verdict-only persona used by the loop coordinator
+  | "om-reviewer"; // reviews offering memoranda against securities rules
 
 /**
  * A snippet retrieved from the cognition store and injected into the agent's

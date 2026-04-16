@@ -14,6 +14,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { isFramework, type Control, type FrameworkId } from "@compliance-ai/frameworks";
 import { PERSONA_SYSTEM_PROMPTS } from "./personas/index.js";
 import { routePersona } from "./router.js";
+import { CITATION_INSTRUCTION } from "./citations.js";
 import type {
   AgentContext,
   AgentEvent,
@@ -101,15 +102,17 @@ function renderCognitionContext(snippets: RetrievedSnippet[]): string {
   if (snippets.length === 0) return "";
   const lines: string[] = [
     `## Retrieved tenant context`,
-    `The following snippets are drawn from this tenant's compliance corpus (prior approved language, auditor letters, internal policy excerpts). Use them to ground your answer. When you draw on a snippet, cite it by title (e.g., "per *Title*"). If a snippet conflicts with the framework requirement, prefer the framework and flag the conflict.`,
+    `The following snippets are drawn from this tenant's compliance corpus (authority rules, prior approved language, auditor letters, internal policy excerpts). Use them to ground your answer. If a snippet conflicts with the framework requirement, prefer the framework and flag the conflict.`,
     ``,
   ];
   for (const s of snippets) {
-    lines.push(`### ${s.title}  _(relevance ${s.score.toFixed(2)})_`);
+    lines.push(`### ${s.title}  [docId: ${s.id}]  _(relevance ${s.score.toFixed(2)})_`);
     if (s.source) lines.push(`*source:* ${s.source}`);
     lines.push(s.content);
     lines.push(``);
   }
+  lines.push(``);
+  lines.push(CITATION_INSTRUCTION);
   return lines.join("\n");
 }
 

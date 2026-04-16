@@ -67,6 +67,12 @@ export class InMemoryCognitionStore implements CognitionStore {
       if (query.organizationId && item.organizationId !== query.organizationId) continue;
       if (query.framework && item.framework !== query.framework) continue;
       if (query.controlSlug && item.controlSlug !== query.controlSlug) continue;
+      if (query.jurisdiction && item.jurisdiction && item.jurisdiction !== query.jurisdiction) continue;
+      if (
+        query.registrationCategory &&
+        item.registrationCategories?.length &&
+        !item.registrationCategories.includes(query.registrationCategory)
+      ) continue;
 
       const itemTokens = tokenize(`${item.title} ${item.content}`);
       const score = jaccard(queryTokens, itemTokens);

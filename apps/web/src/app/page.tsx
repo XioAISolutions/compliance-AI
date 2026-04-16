@@ -19,6 +19,20 @@ export default function Home() {
 
       <nav className="mt-10 space-y-3">
         <Link
+          href="/queue"
+          className="flex items-center gap-3 rounded-lg border border-neutral-300 px-5 py-3 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-amber-600 text-xs font-bold text-white">
+            Q
+          </span>
+          <div>
+            <span className="text-sm font-medium">Today&apos;s queue</span>
+            <p className="text-xs text-neutral-500">
+              Prioritized matters — what needs attention now
+            </p>
+          </div>
+        </Link>
+        <Link
           href="/matters"
           className="flex items-center gap-3 rounded-lg border border-neutral-300 px-5 py-3 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
         >

@@ -1,9 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { ONTARIO_EMD_AUTHORITIES } from "../authorities";
+import {
+  ONTARIO_EMD_AUTHORITIES,
+  FINTRAC_KYC_AUTHORITIES,
+  MARKETING_AUTHORITIES,
+  REGULATOR_INQUIRY_AUTHORITIES,
+} from "../authorities";
 
 describe("ONTARIO_EMD_AUTHORITIES seed data", () => {
-  it("contains the expected number of authority items", () => {
-    expect(ONTARIO_EMD_AUTHORITIES.length).toBe(6);
+  it("contains the expected number of authority items (OM + KYC + marketing + regulator patterns)", () => {
+    // 6 original OM authorities + 4 FINTRAC/KYC + 3 marketing + 3 regulator patterns = 16
+    expect(ONTARIO_EMD_AUTHORITIES.length).toBe(16);
   });
 
   it("every item has required fields", () => {
@@ -63,5 +69,42 @@ describe("ONTARIO_EMD_AUTHORITIES seed data", () => {
     );
     // At minimum: NI 45-106, OSC 45-501, NI 31-103, Securities Act 130.1, Staff Notice
     expect(emdItems.length).toBeGreaterThanOrEqual(5);
+  });
+});
+
+describe("FINTRAC_KYC_AUTHORITIES", () => {
+  it("contains PCMLTFA identification rule", () => {
+    expect(FINTRAC_KYC_AUTHORITIES.find((a) => a.id === "auth-pcmltfa-6.2")).toBeDefined();
+  });
+
+  it("contains suitability rule and OSC SN 33-316 guidance", () => {
+    expect(FINTRAC_KYC_AUTHORITIES.find((a) => a.id === "auth-ni-31-103-13.3-suitability")).toBeDefined();
+    expect(FINTRAC_KYC_AUTHORITIES.find((a) => a.id === "auth-osc-sn-33-316-suitability")).toBeDefined();
+  });
+
+  it("applies to EMD, PM, and IIROC categories", () => {
+    const pcmltfa = FINTRAC_KYC_AUTHORITIES.find((a) => a.id === "auth-pcmltfa-6.2")!;
+    expect(pcmltfa.registrationCategories).toContain("emd");
+    expect(pcmltfa.registrationCategories).toContain("pm");
+    expect(pcmltfa.registrationCategories).toContain("iiroc");
+  });
+});
+
+describe("MARKETING_AUTHORITIES", () => {
+  it("contains NI 31-103 s. 13.18 misleading communications", () => {
+    expect(MARKETING_AUTHORITIES.find((a) => a.id === "auth-ni-31-103-13.18")).toBeDefined();
+  });
+
+  it("contains NI 81-102 Part 15 prohibited representations and standards", () => {
+    expect(MARKETING_AUTHORITIES.find((a) => a.id === "auth-ni-81-102-15.2")).toBeDefined();
+    expect(MARKETING_AUTHORITIES.find((a) => a.id === "auth-ni-81-102-15.3")).toBeDefined();
+  });
+});
+
+describe("REGULATOR_INQUIRY_AUTHORITIES", () => {
+  it("contains OSC, CIRO, and FINTRAC deficiency patterns", () => {
+    expect(REGULATOR_INQUIRY_AUTHORITIES.find((a) => a.id.includes("osc-deficiency"))).toBeDefined();
+    expect(REGULATOR_INQUIRY_AUTHORITIES.find((a) => a.id.includes("ciro"))).toBeDefined();
+    expect(REGULATOR_INQUIRY_AUTHORITIES.find((a) => a.id.includes("fintrac-deficiency"))).toBeDefined();
   });
 });

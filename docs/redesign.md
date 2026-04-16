@@ -165,16 +165,64 @@ footnote markers preserved.
 
 ## Priority map (for issues)
 
-| Priority | Issue                                                                    |
-| -------- | ------------------------------------------------------------------------ |
-| P0       | Remove false "local-first / on-device" claim from UI                     |
-| P0       | Delete mock chrome (graph, resolved, filter chips) and compress taxonomy |
-| P0       | Separate the securities surface from the infosec catalog                 |
-| P1       | Implement Input → Context → Output layout                                |
-| P1       | OM gap memo hero flow (spec: this doc, "Hero flow")                      |
-| P1       | Structured citation schema with hover + open-in-source                   |
-| P2       | Matter-level jurisdiction + registration filter retrieval                |
-| P2       | Per-matter audit / evidence log surfaced in UI                           |
+| Priority | Issue                                                                    | Status |
+| -------- | ------------------------------------------------------------------------ | ------ |
+| P0       | Remove false "local-first / on-device" claim from UI (#6)                | DONE   |
+| P0       | Delete mock chrome (graph, resolved, filter chips) and compress taxonomy (#7, #8) | DONE   |
+| P0       | Separate the securities surface from the infosec catalog (#9)            | DONE   |
+| P1       | Implement Input → Context → Output layout (#10)                          | DONE   |
+| P1       | OM gap memo hero flow (spec: this doc, "Hero flow") (#11)                | DONE   |
+| P1       | Structured citation schema with hover + open-in-source (#12)             | DONE   |
+| P2       | Matter-level jurisdiction + registration filter retrieval (#13)           | DONE   |
+| P2       | Per-matter audit / evidence log surfaced in UI (#14)                      | DONE   |
+
+## Implementation summary
+
+All issues implemented in a single branch (`claude/product-redesign`).
+
+### What shipped
+
+**Core types & schemas:**
+- `Citation` type + parser + validator (`packages/agents/src/citations.ts`)
+- `om-reviewer` persona added to `PersonaId` union, router, and registry
+- `matters` + `matter_documents` + `audit_log` DB schemas
+- `jurisdictionEnum`, `registrationCategoryEnum`, `matterStatusEnum`, `taskTypeEnum`, `documentTypeEnum` enums
+
+**Agent changes:**
+- OM reviewer persona with full structured output spec (`packages/agents/src/personas/om-reviewer.ts`)
+- Citation instruction block auto-injected when snippets are present (`run.ts`)
+- Router routes to `om-reviewer` for OM/securities/NI 45-106 keyword patterns
+
+**Cognition:**
+- `jurisdiction` + `registrationCategories` fields on `CognitionItem`
+- `jurisdiction` + `registrationCategory` filters on `RetrievalQuery`
+- In-memory store honors new filters
+- 6 seeded Ontario/EMD authorities (`packages/cognition/src/authorities.ts`)
+
+**Web app:**
+- `/matters` — matter list + create form (jurisdiction, registration, task type)
+- `/matters/[id]` — three-pane layout: InputPane / ContextPane / OutputPane
+- InputPane: matter scope chips, document drop zone with auto-classify
+- ContextPane: auto-loaded authorities with "Show details" toggle + exclusion reasons
+- OutputPane: streaming output, citation superscripts with hover cards, judge verdict, export
+- ChatDrawer: refinement drawer (chat demoted from stage to drawer)
+- AuditLog: per-matter hash-chained audit trail with expand/collapse, CSV export, chain verification
+- Home page: "XIO Compliance Brain" with securities-first positioning, infosec visually demoted
+- Layout: truthful inference disclosure, no false "on-device" claims
+
+**API routes:**
+- `GET/POST /api/matters` — matter CRUD
+- `GET/PATCH /api/matters/[id]` — detail with auto-loaded authorities + audit trail
+- `POST /api/matters/[id]/review` — OM review via judge loop with audit trail wiring
+
+**Tests:** 54 passing across 6 files (citations, router, cognition filtering, authorities seed, matter store, audit store)
+
+### What still lives on `demo/product-launch-layer` (not in this branch)
+
+The mock chrome (graph counters, resolved counters, Hybrid/Authority/Jurisdiction chips,
+18-option taxonomy, false "on-device" claim) lives exclusively on the `demo/product-launch-layer`
+branch. The new `/matters` surface replaces it entirely. The demo branch should be
+considered obsolete and archived or deleted.
 
 ## What this doc is not
 

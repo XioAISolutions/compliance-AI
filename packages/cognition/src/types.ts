@@ -27,6 +27,10 @@ export interface CognitionItem {
   content: string;
   /** Free-form provenance — "auditor letter 2025-Q3", "policy v2 by jdoe", etc. */
   source?: string;
+  /** Jurisdiction scope — e.g. "ontario", "federal". Filters retrieval per matter. */
+  jurisdiction?: string;
+  /** Registration categories this item applies to — e.g. ["emd", "pm"]. */
+  registrationCategories?: string[];
   createdAt?: Date;
 }
 
@@ -47,6 +51,10 @@ export interface RetrievalQuery {
   controlSlug?: string;
   /** Restrict to items in this tenant. */
   organizationId?: string;
+  /** Restrict to items matching this jurisdiction. */
+  jurisdiction?: string;
+  /** Restrict to items applicable to this registration category. */
+  registrationCategory?: string;
 }
 
 export interface CognitionStore {

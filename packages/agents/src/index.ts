@@ -18,6 +18,13 @@ export { runAgent, type RunAgentOptions } from "./run.js";
 export { runAgentLoop, type RunAgentLoopOptions } from "./loop.js";
 export { PERSONA_SYSTEM_PROMPTS, PERSONA_LABELS, parseVerdict } from "./personas/index.js";
 export {
+  parseModelOutput,
+  validateCitations,
+  CITATION_INSTRUCTION,
+  type Citation,
+  type ParsedOutput,
+} from "./citations.js";
+export {
   ucb1Score,
   ucb1Pick,
   islandPick,

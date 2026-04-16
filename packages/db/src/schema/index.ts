@@ -4,3 +4,5 @@ export * from "./users.js";
 export * from "./controls.js";
 export * from "./control_revisions.js";
 export * from "./cognition_items.js";
+export * from "./matters.js";
+export * from "./audit_log.js";

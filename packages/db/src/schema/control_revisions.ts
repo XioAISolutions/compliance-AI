@@ -26,6 +26,7 @@ export const personaIdEnum = pgEnum("persona_id", [
   "evidence-collector",
   "risk-assessor",
   "judge",
+  "om-reviewer",
 ]);
 
 export const controlRevisions = pgTable(

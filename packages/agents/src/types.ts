@@ -19,7 +19,10 @@ export type PersonaId =
   | "evidence-collector" // identifies what evidence satisfies a control
   | "risk-assessor" // surfaces residual risk + compensating controls
   | "judge" // verdict-only persona used by the loop coordinator
-  | "om-reviewer"; // reviews offering memoranda against securities rules
+  | "om-reviewer" // reviews offering memoranda against securities rules
+  | "kyc-reviewer" // reviews client KYC files for NI 31-103 / FINTRAC gaps
+  | "marketing-reviewer" // reviews marketing materials for NI 81-102 / 13.18
+  | "response-memo-drafter"; // drafts responses to regulator inquiries
 
 /**
  * A snippet retrieved from the cognition store and injected into the agent's

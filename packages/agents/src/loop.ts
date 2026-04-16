@@ -33,7 +33,7 @@
 
 import { runAgent } from "./run.js";
 import { parseVerdict } from "./personas/judge.js";
-import type { AgentContext, AgentEvent, AgentMessage, JudgeVerdict } from "./types.js";
+import type { AgentContext, AgentEvent, AgentMessage, JudgeVerdict, PersonaId } from "./types.js";
 
 export interface RunAgentLoopOptions {
   /**
@@ -46,6 +46,13 @@ export interface RunAgentLoopOptions {
   model?: string;
   /** Override max output tokens (passed through to runAgent). */
   maxTokens?: number;
+  /**
+   * Which persona takes the "drafter" slot in the loop. Defaults to
+   * "drafter" for backwards compatibility, but callers running specialized
+   * task reviews (OM, KYC, marketing, response memo) should pass the
+   * corresponding persona so the judge audits THEIR output.
+   */
+  drafterPersona?: PersonaId;
 }
 
 /**
@@ -64,6 +71,7 @@ export async function* runAgentLoop(
   options: RunAgentLoopOptions = {},
 ): AsyncGenerator<AgentEvent> {
   const maxRounds = options.maxRounds ?? 4;
+  const drafterPersona: PersonaId = options.drafterPersona ?? "drafter";
 
   const history: AgentMessage[] = [];
   let pendingUserMessage = initialUserMessage;
@@ -74,11 +82,11 @@ export async function* runAgentLoop(
     round++;
 
     // -------- DRAFTER round --------
-    yield { type: "round-started", round, persona: "drafter" };
+    yield { type: "round-started", round, persona: drafterPersona };
     let draftBuffer = "";
     let drafterErrored = false;
     for await (const ev of runAgent(context, history, pendingUserMessage, {
-      forcePersona: "drafter",
+      forcePersona: drafterPersona,
       model: options.model,
       maxTokens: options.maxTokens,
     })) {

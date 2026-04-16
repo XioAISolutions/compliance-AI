@@ -59,6 +59,9 @@ importers:
       '@compliance-ai/ingest':
         specifier: workspace:*
         version: link:../../packages/ingest
+      '@compliance-ai/prioritizer':
+        specifier: workspace:*
+        version: link:../../packages/prioritizer
       docx:
         specifier: ^9.0.3
         version: 9.6.1
@@ -163,6 +166,16 @@ importers:
       '@types/pdf-parse':
         specifier: ^1.1.4
         version: 1.1.5
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
+  packages/prioritizer:
+    dependencies:
+      '@compliance-ai/agents':
+        specifier: workspace:*
+        version: link:../agents
+    devDependencies:
       typescript:
         specifier: ^5.7.0
         version: 5.9.3

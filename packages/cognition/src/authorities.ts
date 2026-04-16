@@ -11,6 +11,255 @@
 
 import type { CognitionItem } from "./types.js";
 
+/**
+ * FINTRAC / KYC authorities — applicable to EMDs, PMs, and IIROC members.
+ */
+export const FINTRAC_KYC_AUTHORITIES: CognitionItem[] = [
+  {
+    id: "auth-pcmltfa-6.2",
+    organizationId: "preview",
+    title: "PCMLTFA s. 6.2 — Ascertaining the Identity of Clients",
+    source: "Proceeds of Crime (Money Laundering) and Terrorist Financing Act",
+    jurisdiction: "ontario",
+    registrationCategories: ["emd", "pm", "iiroc"],
+    content: `Section 6.2 — Identification requirements
+A reporting entity shall ascertain the identity of every person with whom it enters into a business relationship, in accordance with the prescribed methods and within the prescribed timeframes.
+
+Required information for individuals:
+(a) Name, address, date of birth
+(b) Occupation
+(c) Nature of the principal business
+
+Ascertaining methods (Regulation s. 64):
+1. Government-issued photo ID method — see the ID in person or through accepted verification methods
+2. Credit file method — verify name, address, and date of birth match an existing credit file
+3. Dual-process method — two independent reliable sources
+
+Timing: identity must be ascertained at or before the first transaction, and in any event no later than 30 days after the account is opened.`,
+  },
+  {
+    id: "auth-fintrac-guideline-6",
+    organizationId: "preview",
+    title: "FINTRAC Guideline 6G — Record Keeping and Client Identification for Securities Dealers",
+    source: "FINTRAC Guideline 6G",
+    jurisdiction: "ontario",
+    registrationCategories: ["emd", "pm", "iiroc"],
+    content: `Client records to be kept by securities dealers:
+- Client information record (CIR) including all PCMLTFA s. 6.2 fields
+- Beneficial ownership information for corporate/trust clients — 25% threshold
+- Politically Exposed Person (PEP) determination — domestic, foreign, or head of international organization
+- Source of funds and source of wealth documentation
+- Ongoing monitoring records — transaction reviews, KYC updates
+- Enhanced Due Diligence (EDD) for high-risk clients
+
+PEP requirements:
+- Screen at onboarding and periodically thereafter
+- Senior officer approval required for account opening when a PEP is identified
+- EDD including source of wealth verification and ongoing enhanced monitoring
+
+Retention: all records must be kept for at least 5 years from last activity.`,
+  },
+  {
+    id: "auth-ni-31-103-13.3-suitability",
+    organizationId: "preview",
+    title: "NI 31-103 s. 13.3 — Suitability Determination",
+    source: "National Instrument 31-103 Registration Requirements",
+    jurisdiction: "ontario",
+    registrationCategories: ["emd", "pm", "iiroc"],
+    content: `Section 13.3 — Suitability determination
+(1) Before a registrant makes a recommendation or accepts an instruction to buy, sell, or hold a security, the registrant must determine, on a reasonable basis, that the action is suitable for the client by reference to the client's:
+(a) personal circumstances (age, financial circumstances, investment objectives, time horizon, liquidity needs)
+(b) investment knowledge
+(c) financial situation (net worth, net income, net financial assets)
+(d) risk profile (willingness AND ability to accept risk)
+(e) concentration of holdings
+(f) liquidity of holdings
+
+(4) A registrant must revisit the suitability determination:
+(a) when the client transfers assets in
+(b) at least once every 36 months for a managed account
+(c) at least once every 12 months for an advisory account if the registrant is aware of material changes
+(d) promptly after becoming aware of a material change in client circumstances or the account
+
+(5) The "put client's interest first" principle applies: where two otherwise suitable options exist, the registrant must put the client's interest ahead of its own or its affiliates'.`,
+  },
+  {
+    id: "auth-osc-sn-33-316-suitability",
+    organizationId: "preview",
+    title: "OSC Staff Notice 33-316 — Suitability Best Practices",
+    source: "Ontario Securities Commission Staff Notice 33-316",
+    jurisdiction: "ontario",
+    registrationCategories: ["emd", "pm"],
+    content: `Staff Notice 33-316 — Common suitability deficiencies observed in compliance reviews
+
+1. Generic KYC information: "conservative" without basis, "professional" as occupation, "moderate" risk tolerance without supporting factors.
+
+2. Inconsistency between KYC factors: e.g., "low risk tolerance" with "growth" investment objective and "speculative" product purchased.
+
+3. Inadequate suitability reviews: especially after KYC updates suggesting a less aggressive profile.
+
+4. Concentration not assessed: holdings over 25% in a single issuer or illiquid product without documented rationale.
+
+5. Put-client's-interest-first failures: choosing higher-commission products over otherwise-suitable lower-cost alternatives.
+
+Best practices:
+- Document the suitability analysis per trade (not just "suitable")
+- Refresh KYC when the client reports material changes
+- Escalate unusual client direction to compliance rather than executing blindly
+- Keep contemporaneous notes of client conversations`,
+  },
+];
+
+/**
+ * NI 81-102 Part 15 sales-communication and marketing authorities.
+ */
+export const MARKETING_AUTHORITIES: CognitionItem[] = [
+  {
+    id: "auth-ni-31-103-13.18",
+    organizationId: "preview",
+    title: "NI 31-103 s. 13.18 — Misleading Communications",
+    source: "National Instrument 31-103 Registration Requirements",
+    jurisdiction: "ontario",
+    registrationCategories: ["emd", "pm", "iiroc", "issuer"],
+    content: `Section 13.18 — Misleading communications
+(1) A registrant must not make a statement to a client, or in a sales communication, that:
+(a) is untrue or misleading
+(b) omits a material fact the omission of which makes the statement misleading
+(c) would reasonably be considered to mislead
+
+(2) A registrant must not offer any inducement to a client to enter into a transaction other than a temporary investment in an asset.
+
+(3) No registrant shall represent or imply that:
+(a) a security or investment is guaranteed or will achieve a particular result unless the guarantee is clearly disclosed in writing and the guarantor is identified
+(b) a regulatory authority has endorsed or approved any security or product`,
+  },
+  {
+    id: "auth-ni-81-102-15.2",
+    organizationId: "preview",
+    title: "NI 81-102 s. 15.2 — Prohibited Representations",
+    source: "National Instrument 81-102 Investment Funds",
+    jurisdiction: "ontario",
+    registrationCategories: ["emd", "pm"],
+    content: `Section 15.2 — Prohibited representations in sales communications
+
+A sales communication must not:
+(a) contain an untrue statement of material fact
+(b) omit a material fact necessary to prevent a statement from being misleading
+(c) present performance data not calculated per Part 15
+(d) state or imply that a securities regulatory authority has passed upon the merits of the securities offered
+(e) include unsubstantiated performance claims or predictions
+(f) compare performance of two products without adjusting for material differences (fees, risk, time period)
+
+Note: Part 15 principles are routinely applied by securities regulators to marketing materials in exempt distributions, not only to investment funds.`,
+  },
+  {
+    id: "auth-ni-81-102-15.3",
+    organizationId: "preview",
+    title: "NI 81-102 s. 15.3 — Sales Communication Standards",
+    source: "National Instrument 81-102 Investment Funds",
+    jurisdiction: "ontario",
+    registrationCategories: ["emd", "pm"],
+    content: `Section 15.3 — Sales communication standards
+
+(1) A sales communication must not be misleading.
+
+(2) A sales communication must be consistent with the disclosure in the fund's prospectus or offering memorandum.
+
+(3) Performance data presented in a sales communication must be:
+(a) calculated using the total return formula in s. 15.9
+(b) presented net of all fees and expenses
+(c) accompanied by performance for each of the 1-, 3-, 5-, and 10-year periods (where available)
+(d) accompanied by the statement: "Past performance does not guarantee future results"
+
+(4) If performance data is shown for a period shorter than 1 year, a statement that the data is for a period less than 1 year and should not be annualized must accompany the performance.
+
+(5) Forward-looking information must include cautionary language identifying the statement as forward-looking, a description of material factors and assumptions, and a statement that actual results may vary materially.`,
+  },
+];
+
+/**
+ * Exemplar regulator deficiency letter snippets for the response-memo drafter.
+ * These are paraphrased patterns, not actual letters — they give the drafter
+ * concrete language to cite against.
+ */
+export const REGULATOR_INQUIRY_AUTHORITIES: CognitionItem[] = [
+  {
+    id: "auth-osc-deficiency-pattern-suitability",
+    organizationId: "preview",
+    title: "OSC Compliance Field Review — Suitability Deficiencies (Pattern)",
+    source: "OSC Staff Notice 33-747 Compliance Field Reviews (summary)",
+    jurisdiction: "ontario",
+    registrationCategories: ["emd", "pm"],
+    content: `Common OSC deficiency patterns in suitability reviews:
+
+1. KYC-KYP mismatch:
+"Our review found that trades in high-risk securities were executed in accounts where the client's documented risk tolerance was 'low' or 'moderate'. Please explain how suitability was determined in these cases and describe your remediation."
+
+2. Stale KYC:
+"We identified N accounts where the KYC information had not been updated for more than 12 months despite material changes in the client's circumstances (e.g., retirement, job change). Please provide your policy for refreshing KYC and evidence of compliance."
+
+3. Inadequate suitability documentation:
+"The trade tickets we reviewed did not contain contemporaneous suitability documentation. Please describe the firm's policy and provide a sample of recent trade documentation showing the suitability analysis."
+
+4. Concentration risk:
+"Accounts A, B, and C held more than 40% in a single illiquid security without any documented concentration-risk analysis. Please explain."
+
+Expected response elements:
+- Admission or factual disagreement (with supporting documentation)
+- Remedial plan with timeline (usually 60-90 days)
+- Ongoing monitoring process
+- Training commitment`,
+  },
+  {
+    id: "auth-ciro-finding-trade-surveillance",
+    organizationId: "preview",
+    title: "CIRO (IIROC) Compliance Examination — Trade Surveillance Findings (Pattern)",
+    source: "CIRO/IIROC dealer member examination reports (summary)",
+    jurisdiction: "ontario",
+    registrationCategories: ["iiroc"],
+    content: `Common CIRO (formerly IIROC) findings in trade surveillance examinations:
+
+1. Inadequate alert triage:
+"The firm's trade-surveillance system generated N alerts in the review period. Of these, M were not reviewed within the firm's stated SLA. Please describe your alert-triage process and proposed remediation."
+
+2. Insufficient written rationale for closed alerts:
+"Alerts closed as 'false positive' or 'no action' did not contain sufficient contemporaneous rationale for the closure decision. Please update the firm's surveillance procedures."
+
+3. Missing escalation:
+"Alerts indicating potential market manipulation (layering, spoofing, wash trades) were closed without documented escalation to compliance or legal. Please describe your escalation criteria."
+
+4. Policy-practice gap:
+"The firm's written surveillance policy references systems and thresholds that are no longer in use. Please reconcile the policy with current practice."`,
+  },
+  {
+    id: "auth-fintrac-deficiency-kyc",
+    organizationId: "preview",
+    title: "FINTRAC Compliance Examination — KYC Record Deficiencies (Pattern)",
+    source: "FINTRAC compliance examination report summaries",
+    jurisdiction: "ontario",
+    registrationCategories: ["emd", "pm", "iiroc"],
+    content: `Common FINTRAC findings in securities-dealer examinations:
+
+1. Incomplete client identification:
+"Of N files sampled, M did not contain evidence that identity was ascertained using one of the prescribed methods within 30 days of account opening. Please provide remediation."
+
+2. Missing PEP determination:
+"No documented PEP screening was on file for N accounts opened in the review period. FINTRAC expects documented evidence of screening at onboarding and periodic re-screening."
+
+3. Inadequate beneficial ownership:
+"For N corporate accounts, the beneficial ownership information obtained was either not current, not to the 25% threshold, or missing directors."
+
+4. No ongoing monitoring records:
+"The firm did not maintain evidence of ongoing monitoring or periodic KYC reviews for existing clients."
+
+Standard FINTRAC remediation expectations:
+- Full file re-papering within 60-120 days
+- Updated written compliance program referencing deficiencies
+- Training refresh for customer-facing staff
+- Internal testing/audit of remediation effectiveness`,
+  },
+];
+
 export const ONTARIO_EMD_AUTHORITIES: CognitionItem[] = [
   {
     id: "auth-ni-45-106-2.9",
@@ -140,4 +389,7 @@ Key areas of concern identified by staff reviews:
 
 Note: While NI 81-102 applies primarily to investment funds, the principles in Part 15 regarding misleading sales communications are often applied by regulators as a benchmark for marketing materials used in connection with exempt distributions.`,
   },
+  ...FINTRAC_KYC_AUTHORITIES,
+  ...MARKETING_AUTHORITIES,
+  ...REGULATOR_INQUIRY_AUTHORITIES,
 ];

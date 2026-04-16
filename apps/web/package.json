@@ -18,6 +18,7 @@
     "@compliance-ai/db": "workspace:*",
     "@compliance-ai/frameworks": "workspace:*",
     "@compliance-ai/ingest": "workspace:*",
+    "@compliance-ai/prioritizer": "workspace:*",
     "docx": "^9.0.3",
     "drizzle-orm": "^0.36.0",
     "next": "^16.0.10",

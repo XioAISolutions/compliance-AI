@@ -36,7 +36,24 @@ const KEYWORDS: Record<PersonaId, RegExp[]> = {
     /\b(review|check|assess)\b.*\b(offering|OM|memorandum|prospectus)\b/i,
     /\b(NI\s*45-106|45-106|OSC\s+Rule\s+45-501)\b/i,
     /\b(disclosure|disclosures)\b.*\b(check|review|gap|missing)\b/i,
-    /\b(securities)\b.*\b(compliance|review|check)\b/i,
+  ],
+  "kyc-reviewer": [
+    /\b(KYC|know[- ]your[- ]client|AML|anti[- ]money[- ]laundering)\b/i,
+    /\b(client\s+file|account\s+opening|relationship\s+disclosure)\b/i,
+    /\b(FINTRAC|PCMLTFA|PEP|politically\s+exposed)\b/i,
+    /\b(suitability)\b.*\b(review|check|assess|file)\b/i,
+    /\b(NI\s*31-103\s+Part\s+13)\b/i,
+  ],
+  "marketing-reviewer": [
+    /\b(marketing|sales\s+communication|pitch\s+deck|brochure|one-?pager)\b/i,
+    /\b(NI\s*81-102|81-102)\b/i,
+    /\b(marketing|advertisement|sales)\b.*\b(review|check|sign[- ]off|approve)\b/i,
+    /\b(misleading|prohibited\s+representation|performance\s+claim)\b/i,
+  ],
+  "response-memo-drafter": [
+    /\b(deficiency|inquiry|regulator|regulatory)\b.*\b(letter|response|memo)\b/i,
+    /\b(respond|draft\s+response|reply)\b.*\b(OSC|CIRO|IIROC|FINTRAC|AMF|regulator)\b/i,
+    /\b(OSC|CIRO|IIROC|FINTRAC|AMF)\b.*\b(letter|inquiry|review|audit)\b/i,
   ],
   // Judge is never selected by the heuristic router — it's invoked only by
   // the loop coordinator (`runAgentLoop`) which forces the persona explicitly.
@@ -56,6 +73,9 @@ export function routePersona(userMessage: string): RoutingDecision {
     "evidence-collector": 0,
     "risk-assessor": 0,
     "om-reviewer": 0,
+    "kyc-reviewer": 0,
+    "marketing-reviewer": 0,
+    "response-memo-drafter": 0,
     judge: 0, // Never picked by router; kept here so the Record is exhaustive.
   };
 

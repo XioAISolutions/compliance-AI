@@ -1,14 +1,7 @@
-/**
- * GET  /api/matters/[id]/transcript        → JSON timeline
- * GET  /api/matters/[id]/transcript?fmt=jsonl → raw JSONL (download)
- *
- * Per-matter timeline of agent + user turns, used by the Timeline tab in
- * the Output pane. JSONL export is the format a human reviewer can diff
- * / replay.
- */
-
-import { NextRequest } from "next/server";
-import { getDefaultTranscriptStore } from "@compliance-ai/chat-structure";
+import { NextRequest, NextResponse } from "next/server";
+import { getDefaultTranscriptStore, toJsonl } from "@compliance-ai/chat-structure";
+import { buildTranscriptEvents, transcriptJsonl } from "../../../../../lib/matter-context";
+import { getDefaultMatterStore } from "../../../../../lib/matter-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,23 +11,33 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const fmt = req.nextUrl.searchParams.get("fmt");
-  const store = getDefaultTranscriptStore();
+  const matter = await getDefaultMatterStore().get(id);
+  if (!matter) {
+    return NextResponse.json({ error: "Matter not found" }, { status: 404 });
+  }
 
-  if (fmt === "jsonl") {
-    const jsonl = store.toJsonl(id);
-    return new Response(jsonl, {
+  const turns = getDefaultTranscriptStore().getByMatter(id);
+  const events = await buildTranscriptEvents(id);
+  const format = req.nextUrl.searchParams.get("fmt");
+
+  if (format === "jsonl") {
+    const shape = req.nextUrl.searchParams.get("shape");
+    const body =
+      shape === "events"
+        ? transcriptJsonl(events)
+        : turns.length > 0
+          ? `${toJsonl(turns)}\n`
+          : transcriptJsonl(events);
+
+    return new Response(body, {
       headers: {
         "Content-Type": "application/x-ndjson; charset=utf-8",
-        "Content-Disposition": `attachment; filename="matter-${id}-transcript.jsonl"`,
+        "Content-Disposition": `attachment; filename="${id}-transcript.jsonl"`,
       },
     });
   }
 
-  const turns = store.getByMatter(id);
-  return new Response(JSON.stringify({ turns }), {
-    headers: { "Content-Type": "application/json" },
-  });
+  return NextResponse.json({ turns, events });
 }
 
 export async function DELETE(

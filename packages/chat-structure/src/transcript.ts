@@ -88,3 +88,7 @@ export function getDefaultTranscriptStore(): TranscriptStore {
 export function setDefaultTranscriptStore(store: TranscriptStore): void {
   _default = store;
 }
+
+export function toJsonl<T>(records: T[]): string {
+  return records.map((record) => JSON.stringify(record)).join("\n");
+}

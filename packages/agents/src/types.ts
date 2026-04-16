@@ -122,6 +122,12 @@ export type AgentEvent =
   | { type: "text-delta"; delta: string }
   | { type: "done"; usage: AgentUsage }
   | { type: "round-started"; round: number; persona: PersonaId }
+  | {
+      type: "citations";
+      citations: Citation[];
+      orphanedMarkers: string[];
+      unusedCitations: string[];
+    }
   | { type: "verdict-final"; verdict: JudgeVerdict }
   | { type: "prose-final"; prose: string }
   | { type: "citations"; citations: Citation[] }

@@ -294,9 +294,7 @@ export default function MatterDetailPage() {
           >
             {showAudit ? "Hide audit trail" : "Audit trail"} ({auditEntries.length})
           </button>
-          <span className="text-xs text-neutral-400">
-            Cloud inference · Anthropic zero-retention
-          </span>
+          <span className="text-xs text-neutral-400">Demo preview. Use sample documents only.</span>
         </div>
       </header>
 

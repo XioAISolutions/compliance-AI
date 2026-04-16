@@ -9,12 +9,14 @@
 
 export * from "./types.js";
 export {
+  AGENT_REGISTRY,
   PARTICIPANTS,
   getParticipant,
   isParticipantId,
   toStatusView,
 } from "./registry.js";
 export {
+  MAX_AGENT_HOPS,
   parseMentions,
   createLoopGuard,
   guardBumpAgentHop,
@@ -36,6 +38,7 @@ export {
   InMemoryTranscriptStore,
   getDefaultTranscriptStore,
   setDefaultTranscriptStore,
+  toJsonl,
   type AppendInput,
   type TranscriptStore,
 } from "./transcript.js";

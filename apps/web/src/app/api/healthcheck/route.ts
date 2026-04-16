@@ -16,9 +16,10 @@ interface HealthReport {
   status: "ok" | "degraded" | "down";
   uptime: number;
   checks: {
-    cognition: { ok: boolean; size?: number; error?: string };
+    cognition: { ok: boolean; securitiesSize?: number; infosecSize?: number; error?: string };
     database: { ok: boolean; configured: boolean; error?: string };
     auth: { configured: boolean };
+    provider: { llmProvider: string; model: string };
   };
   version: string;
   timestamp: string;
@@ -34,6 +35,13 @@ export async function GET() {
       cognition: { ok: false },
       database: { ok: false, configured: Boolean(process.env.DATABASE_URL) },
       auth: { configured: Boolean(process.env.NEXTAUTH_SECRET) },
+      provider: {
+        llmProvider: process.env.LLM_PROVIDER === "openai" ? "openai" : "ollama",
+        model:
+          process.env.LLM_PROVIDER === "openai"
+            ? (process.env.OPENAI_MODEL ?? "gpt-5.4-mini")
+            : (process.env.OLLAMA_MODEL ?? process.env.OLLAMA_CHAT_MODEL ?? "llama3.1"),
+      },
     },
     version: "0.8.0",
     timestamp: new Date().toISOString(),
@@ -41,9 +49,13 @@ export async function GET() {
 
   // Cognition check
   try {
-    const store = getDefaultCognitionStore();
-    const size = await store.size();
-    report.checks.cognition = { ok: true, size };
+    const securities = getDefaultCognitionStore("securities");
+    const infosec = getDefaultCognitionStore("infosec");
+    report.checks.cognition = {
+      ok: true,
+      securitiesSize: await securities.size(),
+      infosecSize: await infosec.size(),
+    };
   } catch (err) {
     report.checks.cognition = {
       ok: false,

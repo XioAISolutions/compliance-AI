@@ -7,7 +7,8 @@
  * Shows the judge-loop verdict inline. Provides export controls.
  */
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { CitedMarkdown } from "./CitedMarkdown";
 
 interface Citation {
@@ -31,6 +32,32 @@ interface Props {
   matterId: string;
   onOpenChat: () => void;
   onStartReview: () => void;
+  onExported?: () => void;
+}
+
+type ActiveTab = "output" | "transcript" | "graph";
+
+interface TranscriptEvent {
+  id: string;
+  type: "audit" | "agent" | "tool" | "approval";
+  actor: string;
+  action: string;
+  content: string;
+  createdAt: string;
+}
+
+interface EvidenceGraphNode {
+  id: string;
+  type: "matter" | "document" | "chunk" | "authority" | "evidence" | "audit";
+  label: string;
+  detail?: string;
+}
+
+interface EvidenceGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  label: string;
 }
 
 const VERDICT_STYLES: Record<JudgeVerdict, { bg: string; label: string }> = {
@@ -57,9 +84,54 @@ export function OutputPane({
   matterId,
   onOpenChat,
   onStartReview,
+  onExported,
 }: Props) {
   const [hoveredCitation, setHoveredCitation] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [activeTab, setActiveTab] = useState<ActiveTab>("output");
+  const [transcript, setTranscript] = useState<TranscriptEvent[]>([]);
+  const [loadingTranscript, setLoadingTranscript] = useState(false);
+  const [graph, setGraph] = useState<{ nodes: EvidenceGraphNode[]; edges: EvidenceGraphEdge[] }>({
+    nodes: [],
+    edges: [],
+  });
+  const [loadingGraph, setLoadingGraph] = useState(false);
+
+  const displayContent = useMemo(() => stripCitationFence(content), [content]);
+
+  useEffect(() => {
+    if (activeTab !== "transcript" || loadingTranscript || transcript.length > 0) return;
+    let cancelled = false;
+    setLoadingTranscript(true);
+    void fetch(`/api/matters/${matterId}/transcript`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body: { events?: TranscriptEvent[] } | null) => {
+        if (!cancelled) setTranscript(body?.events ?? []);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingTranscript(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, loadingTranscript, matterId, transcript.length]);
+
+  useEffect(() => {
+    if (activeTab !== "graph" || loadingGraph || graph.nodes.length > 0) return;
+    let cancelled = false;
+    setLoadingGraph(true);
+    void fetch(`/api/matters/${matterId}/graph`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body: { nodes?: EvidenceGraphNode[]; edges?: EvidenceGraphEdge[] } | null) => {
+        if (!cancelled) setGraph({ nodes: body?.nodes ?? [], edges: body?.edges ?? [] });
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingGraph(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, graph.nodes.length, loadingGraph, matterId]);
 
   async function exportDocx() {
     if (exporting || !content) return;
@@ -80,6 +152,7 @@ export function OutputPane({
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      onExported?.();
     } catch (err) {
       // Fall back to markdown if export fails
       const msg = err instanceof Error ? err.message : String(err);
@@ -94,6 +167,21 @@ export function OutputPane({
     } finally {
       setExporting(false);
     }
+  }
+
+  async function exportCrumbHandoff() {
+    const res = await fetch(`/api/matters/${matterId}/handoff`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "compliance-handoff.crumb";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    onExported?.();
   }
 
   return (
@@ -129,12 +217,30 @@ export function OutputPane({
           >
             {exporting ? "Exporting…" : "Export DOCX"}
           </button>
+          <button
+            onClick={() => void exportCrumbHandoff()}
+            className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
+          >
+            Export handoff
+          </button>
         </div>
+      </div>
+
+      <div className="mt-3 flex gap-1 border-b border-neutral-200 pb-3 text-xs dark:border-neutral-800">
+        <TabButton active={activeTab === "output"} onClick={() => setActiveTab("output")}>
+          Output
+        </TabButton>
+        <TabButton active={activeTab === "transcript"} onClick={() => setActiveTab("transcript")}>
+          Transcript
+        </TabButton>
+        <TabButton active={activeTab === "graph"} onClick={() => setActiveTab("graph")}>
+          Graph
+        </TabButton>
       </div>
 
       {/* Main output area */}
       <div className="flex-1 overflow-y-auto pt-4">
-        {!content && !streaming && (
+        {activeTab === "output" && !content && !streaming && (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <p className="text-neutral-400">
               Upload a document and start a review to see the output here.
@@ -147,10 +253,10 @@ export function OutputPane({
             </button>
           </div>
         )}
-        {(content || streaming) && (
+        {activeTab === "output" && (content || streaming) && (
           <>
             <CitedMarkdown
-              content={content}
+              content={displayContent}
               citations={citations}
               hoveredCitation={hoveredCitation}
               onHoverCitation={setHoveredCitation}
@@ -160,10 +266,16 @@ export function OutputPane({
             )}
           </>
         )}
+        {activeTab === "transcript" && (
+          <TranscriptPanel events={transcript} loading={loadingTranscript} matterId={matterId} />
+        )}
+        {activeTab === "graph" && (
+          <GraphPanel graph={graph} loading={loadingGraph} />
+        )}
       </div>
 
       {/* Citations footnotes */}
-      {citations.length > 0 && (
+      {activeTab === "output" && citations.length > 0 && (
         <div className="mt-4 border-t border-neutral-200 pt-3 dark:border-neutral-800">
           <h3 className="text-xs font-semibold text-neutral-400">
             Citations ({citations.length})
@@ -193,3 +305,113 @@ export function OutputPane({
   );
 }
 
+function stripCitationFence(value: string): string {
+  return value.replace(/```citations\s*\n[\s\S]*?\n```/g, "").trim();
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-md px-3 py-1.5 font-medium ${
+        active
+          ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900"
+          : "text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TranscriptPanel({
+  events,
+  loading,
+  matterId,
+}: {
+  events: TranscriptEvent[];
+  loading: boolean;
+  matterId: string;
+}) {
+  if (loading) return <p className="text-sm text-neutral-400">Loading transcript…</p>;
+  if (events.length === 0) {
+    return <p className="text-sm text-neutral-400">No transcript events recorded yet.</p>;
+  }
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Matter transcript</h3>
+        <a
+          href={`/api/matters/${matterId}/transcript?fmt=jsonl`}
+          className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
+        >
+          Download JSONL
+        </a>
+      </div>
+      <ol className="space-y-2">
+        {events.map((event) => (
+          <li key={event.id} className="border-l-2 border-neutral-200 pl-3 dark:border-neutral-800">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+              <span className="font-medium text-neutral-700 dark:text-neutral-300">{event.actor}</span>
+              <span>{event.action}</span>
+              <span>{new Date(event.createdAt).toLocaleString()}</span>
+            </div>
+            <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-neutral-700 dark:text-neutral-300">
+              {event.content}
+            </p>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function GraphPanel({
+  graph,
+  loading,
+}: {
+  graph: { nodes: EvidenceGraphNode[]; edges: EvidenceGraphEdge[] };
+  loading: boolean;
+}) {
+  if (loading) return <p className="text-sm text-neutral-400">Loading evidence graph…</p>;
+  if (graph.nodes.length === 0) {
+    return <p className="text-sm text-neutral-400">No graph data recorded yet.</p>;
+  }
+
+  const visibleEdges = graph.edges.slice(0, 18);
+  return (
+    <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+      <div className="min-h-[360px] rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          {graph.nodes.slice(0, 18).map((node) => (
+            <div key={node.id} className="rounded-md border border-neutral-200 p-3 dark:border-neutral-800">
+              <div className="text-[10px] font-semibold uppercase text-neutral-400">{node.type}</div>
+              <div className="mt-1 line-clamp-2 text-sm font-medium">{node.label}</div>
+              {node.detail && <p className="mt-1 line-clamp-3 text-xs text-neutral-500">{node.detail}</p>}
+            </div>
+          ))}
+        </div>
+      </div>
+      <aside className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
+        <h3 className="text-sm font-semibold">Edges</h3>
+        <ul className="mt-3 space-y-2 text-xs text-neutral-500">
+          {visibleEdges.map((edge) => (
+            <li key={edge.id}>
+              <span className="font-medium text-neutral-700 dark:text-neutral-300">{edge.label}</span>{" "}
+              {edge.source.slice(0, 10)} → {edge.target.slice(0, 10)}
+            </li>
+          ))}
+        </ul>
+      </aside>
+    </div>
+  );
+}

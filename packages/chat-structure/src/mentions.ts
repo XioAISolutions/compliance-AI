@@ -17,6 +17,7 @@ import { isParticipantId, PARTICIPANTS } from "./registry.js";
 import type { ParticipantId } from "./types.js";
 
 const MENTION_RE = /(^|\s)@([a-zA-Z0-9_-]+)/g;
+export const MAX_AGENT_HOPS = 4;
 
 export interface ParseMentionsResult {
   /** Input text with @mentions preserved (for rendering the raw content). */
@@ -75,7 +76,7 @@ export interface LoopGuard {
   hopsUsed: number;
 }
 
-export function createLoopGuard(maxHops = 6): LoopGuard {
+export function createLoopGuard(maxHops = MAX_AGENT_HOPS): LoopGuard {
   return { maxHops, hopsUsed: 0 };
 }
 

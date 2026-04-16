@@ -8,7 +8,12 @@
  * descriptions), rewritten in TS so our UI can static-analyze it.
  */
 
-import type { Participant, ParticipantId, ParticipantStatus } from "./types.js";
+import type {
+  AgentRegistryEntry,
+  Participant,
+  ParticipantId,
+  ParticipantStatus,
+} from "./types.js";
 
 /**
  * The static registry. Status is not stored here — it's ambient runtime
@@ -83,8 +88,8 @@ export const PARTICIPANTS: Record<ParticipantId, Participant> = {
     description:
       "Reviews sales communications against NI 81-102 Part 15 and CSA Staff Notice 81-330.",
   },
-  "response-drafter": {
-    id: "response-drafter",
+  "response-memo-drafter": {
+    id: "response-memo-drafter",
     name: "Response Drafter",
     color: "violet",
     initials: "RE",
@@ -113,3 +118,55 @@ export function toStatusView(
     status: statuses[p.id] ?? (p.id === "user" ? "offline" : "online"),
   }));
 }
+
+export const AGENT_REGISTRY: AgentRegistryEntry[] = [
+  {
+    id: "om-reviewer",
+    label: "OM Reviewer",
+    surface: "securities",
+    task: "Offering memorandum review",
+    description: PARTICIPANTS["om-reviewer"].description,
+  },
+  {
+    id: "kyc-reviewer",
+    label: "KYC Reviewer",
+    surface: "securities",
+    task: "KYC/AML gap check",
+    description: PARTICIPANTS["kyc-reviewer"].description,
+  },
+  {
+    id: "marketing-reviewer",
+    label: "Marketing Reviewer",
+    surface: "securities",
+    task: "Marketing sign-off",
+    description: PARTICIPANTS["marketing-reviewer"].description,
+  },
+  {
+    id: "response-memo-drafter",
+    label: "Response Drafter",
+    surface: "securities",
+    task: "Regulator response memo",
+    description: PARTICIPANTS["response-memo-drafter"].description,
+  },
+  {
+    id: "evidence-collector",
+    label: "Evidence Collector",
+    surface: "infosec",
+    task: "Evidence requests",
+    description: PARTICIPANTS["evidence-collector"].description,
+  },
+  {
+    id: "risk-assessor",
+    label: "Risk Assessor",
+    surface: "infosec",
+    task: "Risk triage",
+    description: PARTICIPANTS["risk-assessor"].description,
+  },
+  {
+    id: "judge",
+    label: "Compliance Judge",
+    surface: "securities",
+    task: "Approval gate",
+    description: PARTICIPANTS.judge.description,
+  },
+];

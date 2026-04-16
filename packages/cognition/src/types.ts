@@ -43,6 +43,8 @@ export interface RetrievalResult {
 export interface RetrievalQuery {
   query: string;
   topK?: number;
+  /** Retrieval mode. `hybrid` combines lexical overlap with BM25-style term weighting. */
+  searchMode?: "hybrid" | "bm25" | "jaccard";
   /** Drop results below this score. */
   scoreThreshold?: number;
   /** Restrict to items tagged with one of these frameworks. */

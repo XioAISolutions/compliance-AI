@@ -26,7 +26,7 @@ export type ParticipantId =
   | "om-reviewer"
   | "kyc-reviewer"
   | "marketing-reviewer"
-  | "response-drafter";
+  | "response-memo-drafter";
 
 /** Visual + descriptive metadata used by the timeline UI. */
 export interface Participant {
@@ -113,3 +113,36 @@ export type ToolName =
   | "flag_gap"
   | "request_review"
   | "hand_off";
+
+export type DemoSurface = "securities" | "infosec";
+
+export interface AgentRegistryEntry {
+  id: Exclude<ParticipantId, "user">;
+  label: string;
+  surface: DemoSurface;
+  task: string;
+  description: string;
+}
+
+export type ToolCall = ToolCallRecord;
+export type ToolCallName = ToolName;
+
+export interface AgentTurn {
+  id: string;
+  role: "system" | "user" | "assistant" | "tool";
+  agent?: Exclude<ParticipantId, "user"> | "system";
+  content: string;
+  createdAt: string;
+  toolCalls?: ToolCall[];
+}
+
+export interface TranscriptEvent {
+  id: string;
+  matterId: string;
+  type: "audit" | "agent" | "tool" | "approval";
+  actor: string;
+  action: string;
+  content: string;
+  createdAt: string;
+  metadata?: Record<string, unknown>;
+}

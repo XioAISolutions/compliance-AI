@@ -45,13 +45,12 @@ export function ChatDrawer({ open, onClose, matterId }: Props) {
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
 
     try {
-      const res = await fetch("/api/chat", {
+      const res = await fetch(`/api/matters/${matterId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: text,
           history: messages.map((m) => ({ role: m.role, content: m.content })),
-          mode: "single",
         }),
       });
 

@@ -184,6 +184,33 @@ describe("InMemoryCognitionStore", () => {
     expect(results.length).toBeLessThanOrEqual(3);
   });
 
+  it("supports explicit hybrid retrieval", async () => {
+    await store.addBatch([
+      {
+        id: "weak-overlap",
+        title: "Offering memorandum",
+        content: "General securities notes.",
+        organizationId: "org-1",
+      },
+      {
+        id: "strong-bm25",
+        title: "NI 45-106 disclosure",
+        content: "Offering memorandum disclosure disclosure disclosure risk factors rights action.",
+        organizationId: "org-1",
+      },
+    ]);
+
+    const results = await store.retrieve({
+      query: "offering memorandum disclosure risk factors",
+      organizationId: "org-1",
+      searchMode: "hybrid",
+      topK: 1,
+    });
+
+    expect(results[0]!.item.id).toBe("strong-bm25");
+    expect(results[0]!.score).toBeGreaterThan(0);
+  });
+
   it("removes items", async () => {
     await store.add({ id: "rm-me", title: "Removable", content: "Content", organizationId: "org-1" });
     expect(await store.size()).toBe(1);

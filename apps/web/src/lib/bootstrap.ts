@@ -11,6 +11,7 @@
 
 import {
   getDefaultCognitionStore,
+  type CognitionSurface,
   ONTARIO_EMD_AUTHORITIES,
 } from "@compliance-ai/cognition";
 
@@ -20,12 +21,16 @@ const _seeded = new Set<string>();
  * Ensure the given tenant has baseline seed data. Safe to call on every
  * request — the first call does the work, subsequent calls short-circuit.
  */
-export async function ensureTenant(organizationId = "preview"): Promise<void> {
-  if (_seeded.has(organizationId)) return;
+export async function ensureTenant(
+  organizationId = "preview",
+  surface: CognitionSurface = "securities",
+): Promise<void> {
+  const key = `${surface}:${organizationId}`;
+  if (_seeded.has(key)) return;
 
-  const cognition = getDefaultCognitionStore();
+  const cognition = getDefaultCognitionStore(surface);
   const existing = await cognition.size();
-  if (existing === 0) {
+  if (surface === "securities" && existing === 0) {
     // Tag every seed item with the tenant id so retrieval filtering works.
     const items = ONTARIO_EMD_AUTHORITIES.map((item) => ({
       ...item,
@@ -34,7 +39,7 @@ export async function ensureTenant(organizationId = "preview"): Promise<void> {
     await cognition.addBatch(items);
   }
 
-  _seeded.add(organizationId);
+  _seeded.add(key);
 }
 
 /** Reset the in-memory seeded set. Test-only. */

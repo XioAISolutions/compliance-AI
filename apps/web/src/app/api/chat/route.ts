@@ -142,13 +142,14 @@ export async function POST(req: NextRequest) {
   let retrievedSnippets: RetrievedSnippet[] = [];
   if (body.retrieve !== false) {
     try {
-      const store = getDefaultCognitionStore();
+      const store = getDefaultCognitionStore("infosec");
       const results = await store.retrieve({
         query: userMessage,
         topK: body.topK ?? DEFAULT_TOP_K,
         organizationId: organizationId,
         framework: control?.framework,
         controlSlug: control?.slug,
+        searchMode: "hybrid",
         scoreThreshold: DEFAULT_SCORE_THRESHOLD,
       });
       retrievedSnippets = results.map(toRetrievedSnippet);

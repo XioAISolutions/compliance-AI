@@ -60,7 +60,7 @@ export async function GET(
 
   // Seed authorities and retrieve those matching the matter's scope
   await ensureTenant(matter.organizationId);
-  const cognitionStore = getDefaultCognitionStore();
+  const cognitionStore = getDefaultCognitionStore("securities");
   const allItems = await cognitionStore.getAll();
 
   // Filter authorities by jurisdiction + registration category

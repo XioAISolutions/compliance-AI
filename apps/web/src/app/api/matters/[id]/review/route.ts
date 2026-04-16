@@ -27,6 +27,11 @@ import {
   extractEvidenceRequests,
 } from "../../../../../lib/evidence-store";
 import { requireSession } from "../../../../../lib/auth";
+import {
+  applyEvent,
+  finalizeReview,
+  newReviewStreamState,
+} from "../../../../../lib/review-stream";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -280,9 +285,7 @@ export async function POST(
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const encoder = new TextEncoder();
-      let fullOutput = "";
-      let lastVerdict: string | null = null;
-      let rounds = 0;
+      const state = newReviewStreamState();
 
       try {
         const generator = runAgentLoop(context, userMessage, {
@@ -290,21 +293,40 @@ export async function POST(
           drafterPersona: personaForTask(taskType),
         });
 
+        // Stream events through. Track state for the post-loop finalization
+        // step — the UI mirrors this same state via its own handler, so the
+        // server and client agree on "what is the current drafter round's
+        // output" without coordinating mid-stream.
+        //
+        // IMPORTANT: `loop-done` is the terminal signal the UI uses to stop
+        // reading. We must emit `prose-final` and `citations` BEFORE the
+        // loop-done passes through so the UI can replace its accumulated
+        // stream with the clean final version before closing the reader.
         for await (const event of generator) {
-          controller.enqueue(encoder.encode(sseFrame(event)));
-
-          // Track output and verdict for audit
-          if (event.type === "text-delta") {
-            fullOutput += event.delta;
-          } else if (event.type === "verdict-final") {
-            lastVerdict = event.verdict;
-          } else if (event.type === "loop-done") {
-            rounds = event.totalRounds;
-            if (event.finalVerdict) lastVerdict = event.finalVerdict;
+          if (event.type === "loop-done") {
+            // Hold the loop-done event until after we've parsed + emitted
+            // the finalize events.
+            applyEvent(state, event);
+            const { prose, citations } = finalizeReview(state);
+            controller.enqueue(
+              encoder.encode(sseFrame({ type: "prose-final", prose })),
+            );
+            controller.enqueue(
+              encoder.encode(sseFrame({ type: "citations", citations })),
+            );
+            controller.enqueue(encoder.encode(sseFrame(event)));
+            continue;
           }
+          controller.enqueue(encoder.encode(sseFrame(event)));
+          applyEvent(state, event);
         }
 
-        // Write generation audit entry
+        const { prose, citations } = finalizeReview(state);
+
+        // Write the generation audit entry using the CLEAN final prose so
+        // regulators see the final deliverable, not the reasoning transcript.
+        // The fullOutput transcript stays within the reviewer's working
+        // memory and is never persisted.
         await auditStore.append(matterId, {
           matterId,
           organizationId: organizationId,
@@ -312,15 +334,18 @@ export async function POST(
           action: "generation",
           inputHash: sha256(userMessage),
           authoritiesUsed: retrievedSnippets.map((s) => s.id),
-          outputHash: sha256(fullOutput),
-          judgeVerdict: lastVerdict,
-          inputContent: `${rounds} round(s) via judge loop`,
-          outputContent: fullOutput.slice(0, 2000),
+          outputHash: sha256(prose),
+          judgeVerdict: state.lastVerdict,
+          inputContent: `${state.totalRounds} round(s) via judge loop · ${citations.length} citation(s)`,
+          outputContent: prose.slice(0, 2000),
         });
 
-        // Auto-generate evidence requests from PARTIAL / MISSING checklist rows
+        // Auto-generate evidence requests from the FINAL draft's checklist
+        // (not the concatenated transcript). A round-1 draft that flagged
+        // MISSING items which round-2 resolved should NOT create evidence
+        // requests for stale findings.
         const evidenceStore = getDefaultEvidenceStore();
-        const extracted = extractEvidenceRequests(fullOutput);
+        const extracted = extractEvidenceRequests(prose);
         for (const req of extracted) {
           await evidenceStore.create(
             {
@@ -336,7 +361,7 @@ export async function POST(
             organizationId: organizationId,
             actor: "system",
             action: "retrieval",
-            inputHash: sha256(fullOutput),
+            inputHash: sha256(prose),
             authoritiesUsed: [],
             outputHash: sha256(extracted.map((r) => r.title).join(",")),
             judgeVerdict: null,
@@ -346,7 +371,7 @@ export async function POST(
         }
 
         // Update matter status based on verdict
-        if (lastVerdict === "READY_TO_SUBMIT") {
+        if (state.lastVerdict === "READY_TO_SUBMIT") {
           await matterStore.updateStatus(matterId, "complete");
         }
       } catch (err) {

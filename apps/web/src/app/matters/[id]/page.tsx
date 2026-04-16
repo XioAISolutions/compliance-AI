@@ -75,6 +75,13 @@ export default function MatterDetailPage() {
   const searchParams = useSearchParams();
   const autoStart = searchParams.get("autoStart") === "1";
   const autoStartFired = useRef(false);
+  /**
+   * Which persona is actively emitting text-deltas right now. Set by
+   * round-started events. Used to filter judge deltas out of the output
+   * pane — the deliverable is the drafter's work, not the reasoning
+   * transcript.
+   */
+  const currentPersonaRef = useRef<string | null>(null);
 
   const [matter, setMatter] = useState<Matter | null>(null);
   const [documents, setDocuments] = useState<MatterDocument[]>([]);
@@ -171,6 +178,7 @@ export default function MatterDetailPage() {
     setCitations([]);
     setVerdict(null);
     setTotalRounds(null);
+    currentPersonaRef.current = null;
 
     try {
       const res = await fetch(`/api/matters/${matterId}/review`, {
@@ -202,15 +210,37 @@ export default function MatterDetailPage() {
           try {
             const event = JSON.parse(raw.slice(6)) as Record<string, unknown>;
 
-            if (event.type === "text-delta" && typeof event.delta === "string") {
-              setOutput((prev) => prev + event.delta);
+            if (event.type === "round-started") {
+              const persona = event.persona as string;
+              const round = event.round as number;
+              currentPersonaRef.current = persona;
+              // On a new drafter round (R2+), the previously-streamed draft
+              // is now stale — the judge said ITERATE and the drafter is
+              // producing a revised version. Clear the pane so the user
+              // sees the NEW draft cleanly, not stacked on the old one.
+              if (persona !== "judge" && round > 1) {
+                setOutput("");
+                setCitations([]);
+              }
+            } else if (event.type === "text-delta" && typeof event.delta === "string") {
+              // Only the drafter's output is the deliverable. The judge's
+              // rationale appears as a verdict badge, not as prose in the
+              // output pane.
+              if (currentPersonaRef.current !== "judge") {
+                setOutput((prev) => prev + event.delta);
+              }
             } else if (event.type === "verdict-final") {
               setVerdict(event.verdict as JudgeVerdict);
+            } else if (event.type === "prose-final" && typeof event.prose === "string") {
+              // Replace the accumulated stream with the canonical final
+              // prose (citations JSON fence stripped). Emitted once after
+              // the loop exits.
+              setOutput(event.prose);
+            } else if (event.type === "citations" && Array.isArray(event.citations)) {
+              setCitations(event.citations as Citation[]);
             } else if (event.type === "loop-done") {
               setTotalRounds(event.totalRounds as number);
               if (event.finalVerdict) setVerdict(event.finalVerdict as JudgeVerdict);
-            } else if (event.type === "citations" && Array.isArray(event.citations)) {
-              setCitations(event.citations as Citation[]);
             }
           } catch {
             // skip malformed

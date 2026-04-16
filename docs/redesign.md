@@ -281,6 +281,101 @@ The `/matters/[id]` page now has three tabs: **Output** (the deliverable),
 **Transcript** (the reply-threaded multi-persona timeline with a JSONL
 download), and **Graph** (the evidence graph with a 360° context panel).
 
+## v0.4 follow-on — real ingestion + Word export + recommendations
+
+v0.3 got the surface right (multi-persona timeline, evidence graph, hybrid
+retrieval) but the end-to-end flow still had three prototype-grade gaps:
+
+1. **Uploads were filename-only.** A user dropping a PDF got a filename
+   chip and an auto-classification regex. No content flowed through the
+   pipeline, so citations came out of the seeded authorities alone.
+2. **Exports were markdown blobs.** Issue #11 spec called for "Word
+   memo with cited rule extracts appended as exhibits."
+3. **No recommender.** `packages/agents/src/sampler.ts` had working UCB1
+   + island-sampling primitives but zero UI surface.
+
+v0.4 closes all three.
+
+### Ingestion pipeline (`packages/ingestion`)
+
+- `parseDocumentFromBuffer(buffer, filename)` — PDF parsing via
+  `pdf-parse` with page-offset tracking; falls back to UTF-8 text on
+  parse failures so non-PDF inputs don't hard-fail the upload.
+- `chunkDocument(parsedDoc, docId, options?)` — legal-prose-aware
+  chunker. Splits on paragraph boundaries first, then packs paragraphs
+  into ~target-char windows with adjustable overlap. Oversized
+  paragraphs get sentence-split. Every chunk carries `{id, docId,
+  index, page, charStart, charEnd, content}`.
+- `classifyDocument({filename, firstPagePreview})` — content rules
+  (strength 3-5 for OM / KYC / marketing / authority / staff-notice
+  signals in the first-page text) outrank filename rules (strength
+  2-3). Returns `{ type, confidence, signal }` so the UI can display
+  the basis for a classification.
+
+The upload endpoint (`POST /api/matters/[id]/documents`) accepts
+multipart form data, runs the pipeline, persists chunks to the
+securities cognition corpus tagged with the matter's jurisdiction +
+registration, and writes a hash-chained audit row (`action: "upload"`).
+A 25 MB cap prevents runaway uploads from stalling the process.
+
+### Evidence graph gains Chunk nodes
+
+`EvidenceGraphInput` takes an optional `chunks[]`; each chunk becomes
+a node with a `contains` edge from its parent document. The citation →
+chunk resolution runs when a citation's `chunkId` matches a known
+chunk, producing a new `cites` edge so the graph finally answers "where
+did this citation come from?" end-to-end.
+
+### Word export (`POST /api/matters/[id]/export`)
+
+Uses the `docx` npm package to generate a Word document with:
+
+1. Cover page — matter title, jurisdiction / registration / task
+   triptych, date, verdict badge, lead persona.
+2. Body — the streamed output, Markdown headings promoted to Word
+   headings, `[cN]` markers rendered as `FootnoteReferenceRun`s.
+3. Exhibits — one Heading 2 per citation with the full authority
+   section, italic quote, and chunk/page provenance.
+4. Provenance block — matter ID, output hash, citations hash, export
+   timestamp, inference disclosure. The block is self-contained so the
+   export can be verified against the audit log.
+
+Footnote bodies pair the authority + section + page + truncated quote.
+Rule extracts live in the Exhibits section at full length.
+
+### UCB1 "work on next" dashboard
+
+`apps/web/src/lib/recommender.ts` wires the existing `ucb1Pick` +
+`islandPick` primitives to the matter store:
+
+- Urgency score combines staleness (`updatedAt`), age (`createdAt`),
+  in-review status, unresolved judge verdicts (`ITERATE` / `REWRITE`),
+  and "docs uploaded, no review yet".
+- UCB1 exploration constant is sqrt(2) (textbook Auer et al. 2002).
+- Optional island sampling by `taskType` keeps the queue balanced —
+  one kind of review can't crowd out the others.
+
+`GET /api/matters/recommend?topK=3&balance=1&surface=0` returns the
+ranked list with reason pills. The `/matters` index renders the top 3
+as cards; clicking a card bumps the surface count so the ranking drifts
+toward never-seen candidates next time the page loads.
+
+### New packages, routes, files
+
+- `packages/ingestion/` — PDF parser + chunker + classifier + types
+- `apps/web/src/lib/recommender.ts`
+- `apps/web/src/app/api/matters/[id]/documents/route.ts` — multipart upload
+- `apps/web/src/app/api/matters/[id]/chunks/route.ts` — chunk enumeration for graph
+- `apps/web/src/app/api/matters/[id]/export/route.ts` — Word export
+- `apps/web/src/app/api/matters/recommend/route.ts` — UCB1 top-N
+
+### Tests
+
+- `packages/ingestion/src/__tests__/{pdf,chunk,classify}.test.ts` — 20 tests
+- `apps/web/src/lib/__tests__/recommender.test.ts` — 8 tests
+- Evidence graph `chunks` tests — 3 new
+- Total: **147 passing** (up from 116).
+
 ## What this doc is not
 
 Not an architecture redesign. The agents, judge loop, cognition store, and

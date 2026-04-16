@@ -17,6 +17,7 @@ import type { TranscriptTurn, ToolCallRecord, CiteAuthorityArgs } from "@complia
 export type GraphNodeKind =
   | "matter"
   | "document"
+  | "chunk"
   | "authority"
   | "citation"
   | "agent-turn"
@@ -53,14 +54,32 @@ export interface EvidenceGraph {
 
 export interface EvidenceGraphInput {
   matter: { id: string; title: string; status?: string };
-  documents: Array<{ id: string; filename: string; documentType: string }>;
+  documents: Array<{
+    id: string;
+    filename: string;
+    documentType: string;
+    chunkCount?: number;
+  }>;
   authorities: Array<{ id: string; title: string; source?: string }>;
   transcript: TranscriptTurn[];
+  /**
+   * Optional chunk list (populated when the caller has the retrieved
+   * snippets to-hand). Each chunk gets a node and a `contains` edge back
+   * to its document.
+   */
+  chunks?: Array<{
+    id: string;
+    docId: string;
+    title?: string;
+    page?: number;
+    preview?: string;
+  }>;
 }
 
 const NODE_COLOR: Record<GraphNodeKind, string> = {
   matter: "#0ea5e9",     // sky-500
   document: "#6366f1",   // indigo-500
+  chunk: "#818cf8",      // indigo-400 (lighter than document)
   authority: "#14b8a6",  // teal-500
   citation: "#f59e0b",   // amber-500
   "agent-turn": "#a855f7", // purple-500
@@ -70,6 +89,7 @@ const NODE_COLOR: Record<GraphNodeKind, string> = {
 const NODE_SIZE: Record<GraphNodeKind, number> = {
   matter: 18,
   document: 12,
+  chunk: 6,
   authority: 14,
   citation: 7,
   "agent-turn": 10,
@@ -101,10 +121,10 @@ export function buildEvidenceGraph(input: EvidenceGraphInput): EvidenceGraph {
       id: `doc:${doc.id}`,
       kind: "document",
       label: doc.filename,
-      detail: doc.documentType,
+      detail: doc.documentType + (doc.chunkCount ? ` · ${doc.chunkCount} chunks` : ""),
       color: NODE_COLOR.document,
       size: NODE_SIZE.document,
-      metadata: { documentType: doc.documentType },
+      metadata: { documentType: doc.documentType, chunkCount: doc.chunkCount ?? 0 },
     });
     edges.push({
       id: `e:${input.matter.id}-contains-${doc.id}`,
@@ -112,6 +132,30 @@ export function buildEvidenceGraph(input: EvidenceGraphInput): EvidenceGraph {
       target: `doc:${doc.id}`,
       kind: "contains",
     });
+  }
+
+  // --- Chunk nodes (optional) ------------------------------------------
+  const chunkIds = new Set<string>();
+  for (const chunk of input.chunks ?? []) {
+    const cid = `chunk:${chunk.id}`;
+    chunkIds.add(chunk.id);
+    nodes.push({
+      id: cid,
+      kind: "chunk",
+      label: chunk.title ?? `chunk · p.${chunk.page ?? "?"}`,
+      detail: chunk.preview?.slice(0, 120),
+      color: NODE_COLOR.chunk,
+      size: NODE_SIZE.chunk,
+      metadata: { page: chunk.page, preview: chunk.preview },
+    });
+    if (input.documents.some((d) => d.id === chunk.docId)) {
+      edges.push({
+        id: `e:doc-contains-chunk:${chunk.id}`,
+        source: `doc:${chunk.docId}`,
+        target: cid,
+        kind: "contains",
+      });
+    }
   }
 
   // --- Authority nodes --------------------------------------------------
@@ -182,6 +226,17 @@ export function buildEvidenceGraph(input: EvidenceGraphInput): EvidenceGraph {
               id: `e:cites:${tc.args.id}`,
               source: cid,
               target: `auth:${tc.args.authorityId}`,
+              kind: "cites",
+            });
+          }
+          // Citation → Chunk edge (if the cited chunkId resolves to a
+          // real chunk node). This answers the question: "which paragraph
+          // of which uploaded document did this citation actually come from?"
+          if (tc.args.chunkId && chunkIds.has(tc.args.chunkId)) {
+            edges.push({
+              id: `e:cite-chunk:${tc.args.id}`,
+              source: cid,
+              target: `chunk:${tc.args.chunkId}`,
               kind: "cites",
             });
           }

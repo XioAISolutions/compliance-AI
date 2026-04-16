@@ -91,19 +91,36 @@ class MatterStore {
     return matter;
   }
 
-  addDocument(matterId: string, filename: string, documentType: DocumentType): MatterDocument {
+  addDocument(
+    matterId: string,
+    filename: string,
+    documentType: DocumentType,
+    opts: { chunkCount?: number } = {},
+  ): MatterDocument {
     const doc: MatterDocument = {
       id: randomUUID(),
       matterId,
       filename,
       documentType,
-      chunkCount: 0,
+      chunkCount: opts.chunkCount ?? 0,
       createdAt: new Date(),
     };
     const docs = this.documents.get(matterId) ?? [];
     docs.push(doc);
     this.documents.set(matterId, docs);
     return doc;
+  }
+
+  /** Update the chunk count on an existing document (after async ingestion). */
+  setDocumentChunkCount(docId: string, chunkCount: number): MatterDocument | null {
+    for (const docs of this.documents.values()) {
+      const match = docs.find((d) => d.id === docId);
+      if (match) {
+        match.chunkCount = chunkCount;
+        return match;
+      }
+    }
+    return null;
   }
 
   getDocuments(matterId: string): MatterDocument[] {

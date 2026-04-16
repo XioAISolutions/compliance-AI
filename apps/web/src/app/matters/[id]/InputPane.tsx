@@ -62,26 +62,35 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 interface Props {
   matter: Matter;
   documents: MatterDocument[];
-  onDocumentUpload: (filename: string) => void;
+  onDocumentUpload: (file: File) => Promise<void> | void;
 }
 
 export function InputPane({ matter, documents, onDocumentUpload }: Props) {
   const [dragOver, setDragOver] = useState(false);
+  const [uploading, setUploading] = useState<string[]>([]);
+
+  async function runUploads(files: File[]) {
+    if (files.length === 0) return;
+    setUploading((prev) => [...prev, ...files.map((f) => f.name)]);
+    try {
+      for (const file of files) {
+        await onDocumentUpload(file);
+      }
+    } finally {
+      setUploading((prev) => prev.filter((n) => !files.some((f) => f.name === n)));
+    }
+  }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragOver(false);
-    const files = Array.from(e.dataTransfer.files);
-    for (const file of files) {
-      onDocumentUpload(file.name);
-    }
+    void runUploads(Array.from(e.dataTransfer.files));
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    for (const file of files) {
-      onDocumentUpload(file.name);
-    }
+    void runUploads(Array.from(e.target.files ?? []));
+    // Reset input so re-selecting the same file re-triggers the handler
+    e.target.value = "";
   }
 
   return (
@@ -116,9 +125,33 @@ export function InputPane({ matter, documents, onDocumentUpload }: Props) {
                 key={doc.id}
                 className="flex items-center justify-between rounded-md border border-neutral-200 px-3 py-2 text-xs dark:border-neutral-800"
               >
-                <span className="truncate font-medium">{doc.filename}</span>
-                <span className="shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-500 dark:bg-neutral-800">
-                  {DOC_TYPE_LABELS[doc.documentType] ?? doc.documentType}
+                <span className="min-w-0 flex-1 truncate font-medium" title={doc.filename}>
+                  {doc.filename}
+                </span>
+                <div className="ml-2 flex shrink-0 items-center gap-1.5">
+                  {doc.chunkCount > 0 && (
+                    <span className="text-[10px] text-neutral-400" title="Indexed chunks">
+                      {doc.chunkCount} chunk{doc.chunkCount === 1 ? "" : "s"}
+                    </span>
+                  )}
+                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-500 dark:bg-neutral-800">
+                    {DOC_TYPE_LABELS[doc.documentType] ?? doc.documentType}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        {uploading.length > 0 && (
+          <ul className="mt-2 space-y-1.5">
+            {uploading.map((name) => (
+              <li
+                key={name}
+                className="flex items-center justify-between rounded-md border border-dashed border-blue-300 px-3 py-2 text-xs dark:border-blue-900"
+              >
+                <span className="min-w-0 flex-1 truncate">{name}</span>
+                <span className="ml-2 animate-pulse text-[10px] text-blue-600 dark:text-blue-400">
+                  parsing & chunking…
                 </span>
               </li>
             ))}

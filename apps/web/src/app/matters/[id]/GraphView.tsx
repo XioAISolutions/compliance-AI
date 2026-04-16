@@ -25,11 +25,19 @@ interface DocumentLite {
   id: string;
   filename: string;
   documentType: string;
+  chunkCount?: number;
 }
 interface AuthorityLite {
   id: string;
   title: string;
   source?: string;
+}
+interface ChunkLite {
+  id: string;
+  docId: string;
+  title?: string;
+  page?: number;
+  preview?: string;
 }
 
 interface Props {
@@ -37,17 +45,24 @@ interface Props {
   documents: DocumentLite[];
   authorities: AuthorityLite[];
   transcript: TranscriptTurn[];
+  chunks?: ChunkLite[];
 }
 
-export function GraphView({ matter, documents, authorities, transcript }: Props) {
+export function GraphView({
+  matter,
+  documents,
+  authorities,
+  transcript,
+  chunks = [],
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sigmaRef = useRef<Sigma | null>(null);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   const graph: EvidenceGraph = useMemo(
-    () => buildEvidenceGraph({ matter, documents, authorities, transcript }),
-    [matter, documents, authorities, transcript],
+    () => buildEvidenceGraph({ matter, documents, authorities, transcript, chunks }),
+    [matter, documents, authorities, transcript, chunks],
   );
 
   useEffect(() => {
@@ -167,6 +182,7 @@ export function GraphView({ matter, documents, authorities, transcript }: Props)
       <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-neutral-500">
         <LegendDot color="#0ea5e9" label="matter" />
         <LegendDot color="#6366f1" label="document" />
+        <LegendDot color="#818cf8" label="chunk" />
         <LegendDot color="#14b8a6" label="authority" />
         <LegendDot color="#f59e0b" label="citation" />
         <LegendDot color="#a855f7" label="agent turn" />

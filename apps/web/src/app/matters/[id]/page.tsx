@@ -102,6 +102,9 @@ export default function MatterDetailPage() {
 
   const [tab, setTab] = useState<Tab>("output");
   const [transcript, setTranscript] = useState<TranscriptTurn[]>([]);
+  const [chunks, setChunks] = useState<
+    Array<{ id: string; docId: string; title?: string; page?: number; preview?: string }>
+  >([]);
   // Forces Timeline / GraphView to refetch when the loop ends.
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -136,17 +139,33 @@ export default function MatterDetailPage() {
     }
   }, [matterId]);
 
+  const fetchChunks = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/matters/${matterId}/chunks`);
+      if (res.ok) {
+        const data = (await res.json()) as {
+          chunks: Array<{ id: string; docId: string; title?: string; page?: number; preview?: string }>;
+        };
+        setChunks(data.chunks ?? []);
+      }
+    } catch {
+      // silent — graph just won't show chunk nodes
+    }
+  }, [matterId]);
+
   useEffect(() => {
     void fetchMatter();
     void fetchTranscript();
-  }, [fetchMatter, fetchTranscript]);
+    void fetchChunks();
+  }, [fetchMatter, fetchTranscript, fetchChunks]);
 
-  async function handleDocumentUpload(filename: string) {
+  async function handleDocumentUpload(file: File) {
     try {
-      const res = await fetch(`/api/matters/${matterId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "add-document", filename }),
+      const form = new FormData();
+      form.append("file", file, file.name);
+      const res = await fetch(`/api/matters/${matterId}/documents`, {
+        method: "POST",
+        body: form,
       });
       if (res.ok) {
         void fetchMatter();
@@ -241,6 +260,7 @@ export default function MatterDetailPage() {
 
       void fetchMatter();
       void fetchTranscript();
+      void fetchChunks();
       setRefreshKey((k) => k + 1);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -356,9 +376,11 @@ export default function MatterDetailPage() {
                   id: d.id,
                   filename: d.filename,
                   documentType: d.documentType,
+                  chunkCount: d.chunkCount,
                 }))}
                 authorities={authorities}
                 transcript={transcript}
+                chunks={chunks}
               />
             )}
           </section>

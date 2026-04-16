@@ -115,7 +115,6 @@ export function OutputPane({
           </button>
           <button
             onClick={() => {
-              // Export as text file for now; Day 3 adds DOCX generation
               const blob = new Blob([content], { type: "text/markdown" });
               const url = URL.createObjectURL(blob);
               const a = document.createElement("a");
@@ -125,9 +124,38 @@ export function OutputPane({
               URL.revokeObjectURL(url);
             }}
             disabled={!content || streaming}
+            className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-50 disabled:opacity-40 dark:border-neutral-700 dark:hover:bg-neutral-900"
+          >
+            Export .md
+          </button>
+          <button
+            onClick={async () => {
+              const res = await fetch(`/api/matters/${matterId}/export`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  output: content,
+                  citations,
+                  verdict,
+                  totalRounds,
+                  leadPersona,
+                }),
+              });
+              if (!res.ok) return;
+              const blob = await res.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              const disposition = res.headers.get("Content-Disposition") ?? "";
+              const m = /filename="([^"]+)"/.exec(disposition);
+              a.download = m?.[1] ?? "matter-review.docx";
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            disabled={!content || streaming}
             className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs text-white hover:bg-neutral-700 disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900"
           >
-            Export
+            Export .docx
           </button>
         </div>
       </div>

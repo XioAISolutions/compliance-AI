@@ -7,6 +7,7 @@ const config: NextConfig = {
     "@compliance-ai/agents",
     "@compliance-ai/chat-structure",
     "@compliance-ai/cognition",
+    "@compliance-ai/ingestion",
   ],
   typedRoutes: true,
 };

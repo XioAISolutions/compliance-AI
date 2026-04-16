@@ -57,6 +57,18 @@ const STATUS_BADGE: Record<string, string> = {
   archived: "bg-neutral-100 text-neutral-500 dark:bg-neutral-900 dark:text-neutral-500",
 };
 
+interface Recommendation {
+  matterId: string;
+  title: string;
+  taskType: string;
+  jurisdiction: string;
+  registrationCategory: string;
+  status: string;
+  urgencyScore: number;
+  reasons: string[];
+  surfaceCount: number;
+}
+
 export default function MattersPage() {
   const [matters, setMatters] = useState<Matter[]>([]);
   const [creating, setCreating] = useState(false);
@@ -65,10 +77,15 @@ export default function MattersPage() {
   const [registrationCategory, setRegistrationCategory] = useState("emd");
   const [taskType, setTaskType] = useState("om-review");
   const [loading, setLoading] = useState(false);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [balanceByTaskType, setBalanceByTaskType] = useState(true);
 
   useEffect(() => {
     void fetchMatters();
-  }, []);
+    // Dry-run recommendation on load so we don't bump surface counts
+    // just by visiting the page.
+    void fetchRecommendations({ surface: false, balance: balanceByTaskType });
+  }, [balanceByTaskType]);
 
   async function fetchMatters() {
     try {
@@ -79,6 +96,28 @@ export default function MattersPage() {
       }
     } catch {
       // Preview mode may not have the API yet
+    }
+  }
+
+  async function fetchRecommendations({
+    surface,
+    balance,
+  }: {
+    surface: boolean;
+    balance: boolean;
+  }) {
+    try {
+      const q = new URLSearchParams();
+      q.set("topK", "3");
+      q.set("surface", surface ? "1" : "0");
+      q.set("balance", balance ? "1" : "0");
+      const res = await fetch(`/api/matters/recommend?${q.toString()}`);
+      if (res.ok) {
+        const data = (await res.json()) as { recommendations: Recommendation[] };
+        setRecommendations(data.recommendations ?? []);
+      }
+    } catch {
+      setRecommendations([]);
     }
   }
 
@@ -195,6 +234,74 @@ export default function MattersPage() {
             </button>
           </div>
         </form>
+      )}
+
+      {recommendations.length > 0 && (
+        <section className="mt-8 rounded-lg border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900/40">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                Work on next
+              </h2>
+              <p className="mt-0.5 text-[11px] text-neutral-400">
+                UCB1 ranking: staleness + unresolved verdicts + pending uploads,
+                balanced exploration-vs-exploitation.
+                {balanceByTaskType ? " Island-sampled by task type." : ""}
+              </p>
+            </div>
+            <label className="flex items-center gap-1.5 text-[11px] text-neutral-500">
+              <input
+                type="checkbox"
+                checked={balanceByTaskType}
+                onChange={(e) => setBalanceByTaskType(e.target.checked)}
+                className="h-3 w-3"
+              />
+              balance by task type
+            </label>
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            {recommendations.map((r) => (
+              <Link
+                key={r.matterId}
+                href={`/matters/${r.matterId}`}
+                className="flex flex-col gap-2 rounded-md border border-neutral-200 bg-white p-3 text-xs transition-colors hover:border-neutral-400 dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-neutral-600"
+                onClick={() => void fetchRecommendations({ surface: true, balance: balanceByTaskType })}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="flex-1 truncate text-sm font-medium">{r.title}</h3>
+                  <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-mono text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                    {r.urgencyScore === Number.POSITIVE_INFINITY
+                      ? "∞"
+                      : r.urgencyScore.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                    {TASK_ICONS[r.taskType] ?? "?"}
+                  </span>
+                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                    {r.jurisdiction}
+                  </span>
+                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                    {r.registrationCategory}
+                  </span>
+                </div>
+                <ul className="mt-1 space-y-0.5 text-[10px] text-neutral-500">
+                  {r.reasons.map((reason, i) => (
+                    <li key={i} className="truncate">
+                      · {reason}
+                    </li>
+                  ))}
+                </ul>
+                {r.surfaceCount > 0 && (
+                  <p className="text-[10px] text-neutral-400">
+                    Surfaced {r.surfaceCount}×
+                  </p>
+                )}
+              </Link>
+            ))}
+          </div>
+        </section>
       )}
 
       <div className="mt-8 space-y-3">

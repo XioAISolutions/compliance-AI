@@ -170,6 +170,79 @@ describe("buildEvidenceGraph", () => {
   });
 });
 
+describe("chunks", () => {
+  it("adds chunk nodes with a 'contains' edge back to the parent document", () => {
+    const graph = buildEvidenceGraph({
+      matter: { id: "m1", title: "T" },
+      documents: [{ id: "d1", filename: "om.pdf", documentType: "offering-memo", chunkCount: 2 }],
+      authorities: [],
+      transcript: [],
+      chunks: [
+        { id: "ck1", docId: "d1", title: "om.pdf · p.1", page: 1, preview: "hello" },
+        { id: "ck2", docId: "d1", title: "om.pdf · p.2", page: 2, preview: "world" },
+      ],
+    });
+    const chunkNodes = graph.nodes.filter((n) => n.kind === "chunk");
+    expect(chunkNodes).toHaveLength(2);
+    const containsEdges = graph.edges.filter(
+      (e) => e.kind === "contains" && e.source === "doc:d1",
+    );
+    // matter→doc contains already exists, so filter to the two doc→chunk edges.
+    const docChunkEdges = containsEdges.filter((e) => e.target.startsWith("chunk:"));
+    expect(docChunkEdges).toHaveLength(2);
+  });
+
+  it("wires citation → chunk when the cited chunkId matches a known chunk", () => {
+    const cite = {
+      id: "tc1",
+      tool: "cite_authority" as const,
+      args: {
+        id: "c1",
+        authorityId: "ni-45-106",
+        section: "2.9",
+        quote: "…",
+        docId: "d1",
+        chunkId: "ck-known",
+      },
+    };
+    const graph = buildEvidenceGraph({
+      matter: { id: "m1", title: "T" },
+      documents: [{ id: "d1", filename: "om.pdf", documentType: "offering-memo" }],
+      authorities: [{ id: "ni-45-106", title: "NI 45-106" }],
+      chunks: [{ id: "ck-known", docId: "d1", page: 3 }],
+      transcript: [makeTurn({ id: "t1", toolCalls: [cite] })],
+    });
+    const chunkEdges = graph.edges.filter(
+      (e) => e.source === "cite:c1" && e.target === "chunk:ck-known",
+    );
+    expect(chunkEdges).toHaveLength(1);
+    expect(chunkEdges[0]!.kind).toBe("cites");
+  });
+
+  it("does NOT create a citation→chunk edge when the chunkId doesn't match a known chunk", () => {
+    const cite = {
+      id: "tc1",
+      tool: "cite_authority" as const,
+      args: {
+        id: "c1",
+        authorityId: "ni-45-106",
+        section: "2.9",
+        quote: "…",
+        docId: "d1",
+        chunkId: "ck-nowhere",
+      },
+    };
+    const graph = buildEvidenceGraph({
+      matter: { id: "m1", title: "T" },
+      documents: [{ id: "d1", filename: "om.pdf", documentType: "offering-memo" }],
+      authorities: [{ id: "ni-45-106", title: "NI 45-106" }],
+      chunks: [{ id: "ck-known", docId: "d1", page: 3 }],
+      transcript: [makeTurn({ id: "t1", toolCalls: [cite] })],
+    });
+    expect(graph.edges.find((e) => e.target === "chunk:ck-nowhere")).toBeUndefined();
+  });
+});
+
 describe("context360", () => {
   it("returns null for unknown node", () => {
     const graph = buildEvidenceGraph({

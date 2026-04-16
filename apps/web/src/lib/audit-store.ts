@@ -14,7 +14,7 @@ export interface AuditEntry {
   organizationId: string;
   timestamp: Date;
   actor: string;
-  action: "query" | "retrieval" | "generation" | "verdict" | "export";
+  action: "query" | "retrieval" | "generation" | "verdict" | "export" | "upload";
   inputHash: string;
   authoritiesUsed: string[];
   outputHash: string | null;

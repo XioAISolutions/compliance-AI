@@ -15,6 +15,35 @@ from securities matters.
 
 ## Status
 
+`v0.4.0` — Real PDF ingestion + Word export + "work on next" recommendations:
+
+- **Real PDF ingestion** — upload a PDF → server parses with `pdf-parse` → chunker
+  splits by paragraph then sentence → chunks are written to the matter's
+  cognition corpus with jurisdiction + registration scope. The citations
+  the OM reviewer emits now resolve to actual uploaded-document chunks,
+  not just seeded authorities.
+- **Auto-classification from first-page content** — OM vs KYC vs
+  marketing vs authority rule inferred from the first page + filename.
+- **Chunk nodes in the evidence graph** — new `chunk` node kind between
+  `document` and `citation`. The `cites` edge now resolves both directions:
+  citation → authority AND citation → source chunk. Click a citation in
+  the Graph tab and follow `cites` back to the paragraph it came from.
+- **Word export with footnote citations + exhibits** — POST to
+  `/api/matters/[id]/export` returns a `.docx` with a cover page,
+  `[cN]` markers rendered as Word footnotes, an Exhibits section with
+  the full quote + authority section per citation, and a Provenance
+  block carrying output hash + citations hash + timestamp. Closes the
+  original issue #11 acceptance criterion.
+- **UCB1 "work on next" recommendations** — `/api/matters/recommend`
+  ranks open matters via UCB1 exploration-vs-exploitation with an
+  urgency score (staleness + unresolved judge verdicts + pending
+  uploads). Matters index surfaces the top 3 with human-readable reason
+  pills. Optional island sampling by task type so one kind of review
+  doesn't dominate the queue.
+- **Surface-count tracking** — clicking a recommendation bumps the
+  matter's surface count, and the ranking naturally explores
+  less-surfaced candidates next time.
+
 `v0.3.0` — Multi-agent timeline + evidence graph + real task fan-out:
 
 - **Input → Context → Output** three-pane layout at `/matters/[id]`
@@ -106,12 +135,17 @@ packages/
     src/citations.ts       Structured citation parser + validator
     src/loop.ts            Multi-persona loop coordinator (drafter ↔ judge with
                            @mention fan-out + tool-call parsing)
+    src/sampler.ts         UCB1 + island sampling primitives (ported from ASI-Evolve)
   chat-structure/          Registry + @mention router + loop guard + tool calls +
                            JSONL transcript (cannibalized from agentchattr)
   cognition/               RAG store interface + in-memory backend (BM25 + RRF) +
                            seed authorities
     src/authorities.ts     Ontario/EMD authority seed data (6 rules)
     src/in-memory.ts       BM25 + Jaccard + hybrid (RRF) scoring
+  ingestion/               PDF parse → chunk → classify pipeline
+    src/pdf.ts             pdf-parse wrapper with page-offset tracking
+    src/chunk.ts           Legal-prose-aware chunker (paragraph → sentence)
+    src/classify.ts        First-page + filename content classifier
   frameworks/              Control discriminated union + seed catalogs
   db/                      Drizzle schema (orgs, users, controls, matters,
                            audit_log, control_revisions, cognition_items) + RLS

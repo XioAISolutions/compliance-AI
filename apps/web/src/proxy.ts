@@ -1,5 +1,5 @@
 /**
- * Next.js middleware — gates protected routes when auth is configured.
+ * Next.js proxy - gates protected routes when auth is configured.
  *
  * Preview mode (no NEXTAUTH_SECRET): no-op, all routes open.
  * Configured mode: unauthenticated users hitting `/matters/**`, `/queue`,
@@ -11,7 +11,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const PROTECTED_PREFIXES = ["/matters", "/queue", "/approvals", "/onboarding"];
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   // If auth isn't configured, let everything through.
   if (!process.env.NEXTAUTH_SECRET) {
     return NextResponse.next();

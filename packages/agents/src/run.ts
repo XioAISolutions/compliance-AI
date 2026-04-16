@@ -21,6 +21,7 @@ import type {
   AgentMessage,
   PersonaId,
   RetrievedSnippet,
+  ReviewSubject,
 } from "./types.js";
 
 /**
@@ -98,6 +99,33 @@ function renderControlContext(control: Control | null, frameworkScope: Framework
  * the framework when a snippet contradicts it. Compliance-grade hallucination
  * resistance > stylistic fidelity.
  */
+/**
+ * Render the document under review into its own context block.
+ *
+ * Non-cached (changes per matter). Placed BEFORE the cognition context so the
+ * model sees the subject first, then the rules used to evaluate it. Each
+ * chunk carries its id so the reviewer can cite "OM § [chunkId] fails to
+ * disclose X" and the UI can link back to the source.
+ *
+ * Budget: this block dominates token usage for long OMs. The caller should
+ * pre-truncate `chunks` if total chunk content exceeds ~30k tokens.
+ */
+function renderReviewSubject(subject: ReviewSubject | undefined): string {
+  if (!subject || subject.chunks.length === 0) return "";
+  const lines: string[] = [
+    `## Document under review`,
+    `You are reviewing the ${subject.documentType} titled "${subject.title}" (docId: ${subject.documentId}). The document is split into chunks below, each labeled with a chunkId. When you cite a specific passage FROM THE SUBJECT DOCUMENT in your review, reference it by chunkId the same way you cite authorities: emit a \`[cN]\` marker and include a matching entry in the citations array with this chunkId and the docId above.`,
+    ``,
+  ];
+  for (const chunk of subject.chunks) {
+    const pageLabel = chunk.page !== undefined ? `, p.${chunk.page}` : "";
+    lines.push(`### [chunkId: ${chunk.chunkId}${pageLabel}, ordinal ${chunk.ordinal}]`);
+    lines.push(chunk.content);
+    lines.push(``);
+  }
+  return lines.join("\n");
+}
+
 function renderCognitionContext(snippets: RetrievedSnippet[]): string {
   if (snippets.length === 0) return "";
   const lines: string[] = [
@@ -143,12 +171,15 @@ export async function* runAgent(
 
   const personaPrompt = PERSONA_SYSTEM_PROMPTS[decision.persona];
   const controlContext = renderControlContext(context.control, context.frameworkScope);
+  const reviewSubjectContext = renderReviewSubject(context.reviewSubject);
   const cognitionContext = renderCognitionContext(context.retrievedSnippets ?? []);
 
-  // Two cacheable blocks (persona + control) followed by an optional non-cached
-  // cognition block. Anthropic caches up to the LAST block marked with
-  // cache_control, so the cache cut-point stays on the stable prefix even when
-  // retrieved snippets vary turn-to-turn.
+  // Cache strategy: persona + control are stable across turns (ephemeral cache).
+  // Review subject and cognition blocks are non-cached — they change per matter
+  // / per query. Order: persona → control → subject (what we're reviewing) →
+  // authorities (what we're reviewing it against). Anthropic caches up to the
+  // LAST block marked with cache_control, so the cut-point stays on the stable
+  // prefix even when the subject or retrieved snippets vary.
   const systemBlocks: Array<{
     type: "text";
     text: string;
@@ -157,6 +188,9 @@ export async function* runAgent(
     { type: "text", text: personaPrompt, cache_control: { type: "ephemeral" } },
     { type: "text", text: controlContext, cache_control: { type: "ephemeral" } },
   ];
+  if (reviewSubjectContext) {
+    systemBlocks.push({ type: "text", text: reviewSubjectContext });
+  }
   if (cognitionContext) {
     systemBlocks.push({ type: "text", text: cognitionContext });
   }

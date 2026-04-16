@@ -88,6 +88,7 @@ export default function MatterDetailPage() {
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
   const [auditVerified, setAuditVerified] = useState(true);
   const [showAudit, setShowAudit] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const fetchMatter = useCallback(async () => {
     try {
@@ -112,18 +113,28 @@ export default function MatterDetailPage() {
     void fetchMatter();
   }, [fetchMatter]);
 
-  async function handleDocumentUpload(filename: string) {
+  async function handleDocumentUpload(file: File) {
+    if (uploading) return;
+    setUploading(true);
     try {
-      const res = await fetch(`/api/matters/${matterId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "add-document", filename }),
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`/api/matters/${matterId}/documents`, {
+        method: "POST",
+        body: formData,
       });
       if (res.ok) {
         void fetchMatter();
+      } else {
+        const body = await res.json().catch(() => null);
+        const errorMsg = body?.error ?? `HTTP ${res.status}`;
+        setOutput((prev) => prev + `\n\n**Upload error:** ${errorMsg}`);
       }
-    } catch {
-      // Silent fail in preview
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setOutput((prev) => prev + `\n\n**Upload error:** ${msg}`);
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -243,6 +254,7 @@ export default function MatterDetailPage() {
                 matter={matter}
                 documents={documents}
                 onDocumentUpload={handleDocumentUpload}
+                uploading={uploading}
               />
               <div className="mt-6">
                 <ContextPane
@@ -263,6 +275,7 @@ export default function MatterDetailPage() {
             verdict={verdict}
             totalRounds={totalRounds}
             streaming={streaming}
+            matterId={matterId}
             onOpenChat={() => setChatOpen(true)}
             onStartReview={startReview}
           />

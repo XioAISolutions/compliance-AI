@@ -40,7 +40,25 @@ export interface MatterDocument {
   filename: string;
   documentType: DocumentType;
   chunkCount: number;
+  sha256?: string;
+  pageCount?: number;
   createdAt: Date;
+}
+
+/**
+ * A stored chunk of a document. Mirrors `DocumentChunk` from @compliance-ai/ingest
+ * plus the `matterId` it belongs to (for matter-scoped retrieval).
+ */
+export interface StoredChunk {
+  id: string;
+  docId: string;
+  matterId: string;
+  ordinal: number;
+  content: string;
+  charStart: number;
+  charEnd: number;
+  page?: number;
+  tokenCount: number;
 }
 
 export interface CreateMatterInput {
@@ -53,6 +71,10 @@ export interface CreateMatterInput {
 class MatterStore {
   private matters = new Map<string, Matter>();
   private documents = new Map<string, MatterDocument[]>();
+  /** chunks keyed by docId. */
+  private chunksByDoc = new Map<string, StoredChunk[]>();
+  /** Fast lookup: all chunks per matter (flattened across docs). */
+  private chunksByMatter = new Map<string, StoredChunk[]>();
 
   create(input: CreateMatterInput, organizationId = "preview"): Matter {
     const id = randomUUID();
@@ -91,7 +113,12 @@ class MatterStore {
     return matter;
   }
 
-  addDocument(matterId: string, filename: string, documentType: DocumentType): MatterDocument {
+  addDocument(
+    matterId: string,
+    filename: string,
+    documentType: DocumentType,
+    extras: { sha256?: string; pageCount?: number } = {},
+  ): MatterDocument {
     const doc: MatterDocument = {
       id: randomUUID(),
       matterId,
@@ -99,6 +126,8 @@ class MatterStore {
       documentType,
       chunkCount: 0,
       createdAt: new Date(),
+      ...(extras.sha256 ? { sha256: extras.sha256 } : {}),
+      ...(extras.pageCount !== undefined ? { pageCount: extras.pageCount } : {}),
     };
     const docs = this.documents.get(matterId) ?? [];
     docs.push(doc);
@@ -108,6 +137,40 @@ class MatterStore {
 
   getDocuments(matterId: string): MatterDocument[] {
     return this.documents.get(matterId) ?? [];
+  }
+
+  /**
+   * Attach chunks to a document. Updates the document's chunkCount and
+   * maintains fast lookup by matterId.
+   */
+  addChunks(
+    matterId: string,
+    docId: string,
+    chunks: Array<Omit<StoredChunk, "matterId">>,
+  ): StoredChunk[] {
+    const stored: StoredChunk[] = chunks.map((c) => ({ ...c, matterId }));
+    this.chunksByDoc.set(docId, stored);
+
+    const matterChunks = this.chunksByMatter.get(matterId) ?? [];
+    matterChunks.push(...stored);
+    this.chunksByMatter.set(matterId, matterChunks);
+
+    // Update the document's chunk count.
+    const docs = this.documents.get(matterId) ?? [];
+    const doc = docs.find((d) => d.id === docId);
+    if (doc) {
+      doc.chunkCount = stored.length;
+    }
+
+    return stored;
+  }
+
+  getChunksByDoc(docId: string): StoredChunk[] {
+    return this.chunksByDoc.get(docId) ?? [];
+  }
+
+  getChunksByMatter(matterId: string): StoredChunk[] {
+    return this.chunksByMatter.get(matterId) ?? [];
   }
 
   size(): number {

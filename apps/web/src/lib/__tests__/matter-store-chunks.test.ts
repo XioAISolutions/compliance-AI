@@ -1,21 +1,30 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import {
+  InMemoryMatterStore,
+  setMatterStore,
+  type MatterStore,
+} from "../matter-store";
 
 describe("MatterStore chunk storage", () => {
-  let store: ReturnType<typeof import("../matter-store").getDefaultMatterStore>;
+  let store: MatterStore;
 
-  beforeEach(async () => {
-    const mod = await import("../matter-store");
-    store = mod.getDefaultMatterStore();
+  beforeEach(() => {
+    store = new InMemoryMatterStore();
+    setMatterStore(store);
   });
 
-  it("stores chunks and updates document chunkCount", () => {
-    const matter = store.create({
+  afterEach(() => {
+    setMatterStore(null);
+  });
+
+  it("stores chunks and updates document chunkCount", async () => {
+    const matter = await store.create({
       title: "Chunk Test",
       jurisdiction: "ontario",
       registrationCategory: "emd",
       taskType: "om-review",
     });
-    const doc = store.addDocument(matter.id, "om.pdf", "offering-memo", {
+    const doc = await store.addDocument(matter.id, "om.pdf", "offering-memo", {
       sha256: "a".repeat(64),
       pageCount: 3,
     });
@@ -44,24 +53,23 @@ describe("MatterStore chunk storage", () => {
       },
     ];
 
-    const stored = store.addChunks(matter.id, doc.id, chunks);
+    const stored = await store.addChunks(matter.id, doc.id, chunks);
     expect(stored).toHaveLength(2);
     expect(stored[0]!.matterId).toBe(matter.id);
 
-    // Document's chunkCount is updated in place
-    const docs = store.getDocuments(matter.id);
+    const docs = await store.getDocuments(matter.id);
     const updatedDoc = docs.find((d) => d.id === doc.id);
     expect(updatedDoc!.chunkCount).toBe(2);
   });
 
-  it("retrieves chunks by doc id in insertion order", () => {
-    const matter = store.create({
+  it("retrieves chunks by doc id in insertion order", async () => {
+    const matter = await store.create({
       title: "Chunk Order Test",
       jurisdiction: "ontario",
       registrationCategory: "emd",
       taskType: "om-review",
     });
-    const doc = store.addDocument(matter.id, "test.pdf", "offering-memo");
+    const doc = await store.addDocument(matter.id, "test.pdf", "offering-memo");
 
     const chunks = Array.from({ length: 5 }, (_, i) => ({
       id: `ch-${i}`,
@@ -73,26 +81,26 @@ describe("MatterStore chunk storage", () => {
       tokenCount: 2,
     }));
 
-    store.addChunks(matter.id, doc.id, chunks);
+    await store.addChunks(matter.id, doc.id, chunks);
 
-    const retrieved = store.getChunksByDoc(doc.id);
+    const retrieved = await store.getChunksByDoc(doc.id);
     expect(retrieved).toHaveLength(5);
     for (let i = 0; i < 5; i++) {
       expect(retrieved[i]!.ordinal).toBe(i);
     }
   });
 
-  it("retrieves chunks across all documents in a matter", () => {
-    const matter = store.create({
+  it("retrieves chunks across all documents in a matter", async () => {
+    const matter = await store.create({
       title: "Multi-doc Matter",
       jurisdiction: "ontario",
       registrationCategory: "emd",
       taskType: "om-review",
     });
-    const doc1 = store.addDocument(matter.id, "doc1.pdf", "offering-memo");
-    const doc2 = store.addDocument(matter.id, "doc2.pdf", "kyc-aml-file");
+    const doc1 = await store.addDocument(matter.id, "doc1.pdf", "offering-memo");
+    const doc2 = await store.addDocument(matter.id, "doc2.pdf", "kyc-aml-file");
 
-    store.addChunks(matter.id, doc1.id, [
+    await store.addChunks(matter.id, doc1.id, [
       {
         id: "ch-a",
         docId: doc1.id,
@@ -103,7 +111,7 @@ describe("MatterStore chunk storage", () => {
         tokenCount: 1,
       },
     ]);
-    store.addChunks(matter.id, doc2.id, [
+    await store.addChunks(matter.id, doc2.id, [
       {
         id: "ch-b",
         docId: doc2.id,
@@ -124,26 +132,26 @@ describe("MatterStore chunk storage", () => {
       },
     ]);
 
-    const all = store.getChunksByMatter(matter.id);
+    const all = await store.getChunksByMatter(matter.id);
     expect(all).toHaveLength(3);
     expect(all.map((c) => c.id).sort()).toEqual(["ch-a", "ch-b", "ch-c"]);
   });
 
-  it("returns empty array when no chunks exist for a doc", () => {
-    expect(store.getChunksByDoc("nonexistent")).toEqual([]);
-    expect(store.getChunksByMatter("nonexistent")).toEqual([]);
+  it("returns empty array when no chunks exist for a doc", async () => {
+    expect(await store.getChunksByDoc("nonexistent")).toEqual([]);
+    expect(await store.getChunksByMatter("nonexistent")).toEqual([]);
   });
 
-  it("carries page number through to stored chunk", () => {
-    const matter = store.create({
+  it("carries page number through to stored chunk", async () => {
+    const matter = await store.create({
       title: "Page Test",
       jurisdiction: "ontario",
       registrationCategory: "emd",
       taskType: "om-review",
     });
-    const doc = store.addDocument(matter.id, "paged.pdf", "offering-memo");
+    const doc = await store.addDocument(matter.id, "paged.pdf", "offering-memo");
 
-    store.addChunks(matter.id, doc.id, [
+    await store.addChunks(matter.id, doc.id, [
       {
         id: "ch-p1",
         docId: doc.id,
@@ -166,7 +174,7 @@ describe("MatterStore chunk storage", () => {
       },
     ]);
 
-    const retrieved = store.getChunksByDoc(doc.id);
+    const retrieved = await store.getChunksByDoc(doc.id);
     expect(retrieved[0]!.page).toBe(1);
     expect(retrieved[1]!.page).toBe(5);
   });

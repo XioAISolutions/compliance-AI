@@ -62,9 +62,15 @@ importers:
       docx:
         specifier: ^9.0.3
         version: 9.6.1
+      drizzle-orm:
+        specifier: ^0.36.0
+        version: 0.36.4(@types/react@19.2.14)(postgres@3.4.9)(react@19.2.5)
       next:
         specifier: ^16.0.10
         version: 16.2.3(@babel/core@7.29.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      postgres:
+        specifier: ^3.4.5
+        version: 3.4.9
       react:
         specifier: ^19.0.0
         version: 19.2.5

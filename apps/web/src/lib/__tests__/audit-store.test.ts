@@ -1,20 +1,29 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import {
+  InMemoryAuditStore,
+  setAuditStore,
+  getDefaultAuditStore,
+  sha256,
+  type AuditStore,
+} from "../audit-store";
 
-describe("AuditStore", () => {
-  let store: ReturnType<typeof import("../audit-store").getDefaultAuditStore>;
-  let sha256: typeof import("../audit-store").sha256;
+describe("AuditStore (in-memory)", () => {
+  let store: AuditStore;
 
-  beforeEach(async () => {
-    const mod = await import("../audit-store");
-    store = mod.getDefaultAuditStore();
-    sha256 = mod.sha256;
+  beforeEach(() => {
+    store = new InMemoryAuditStore();
+    setAuditStore(store);
+  });
+
+  afterEach(() => {
+    setAuditStore(null);
   });
 
   it("sha256 produces consistent hashes", () => {
     const hash1 = sha256("hello world");
     const hash2 = sha256("hello world");
     expect(hash1).toBe(hash2);
-    expect(hash1).toHaveLength(64); // SHA-256 hex length
+    expect(hash1).toHaveLength(64);
   });
 
   it("sha256 produces different hashes for different inputs", () => {
@@ -23,10 +32,10 @@ describe("AuditStore", () => {
     expect(hash1).not.toBe(hash2);
   });
 
-  it("appends audit entries with hash chaining", () => {
+  it("appends audit entries with hash chaining", async () => {
     const matterId = "test-matter-1";
 
-    const entry1 = store.append(matterId, {
+    const entry1 = await store.append(matterId, {
       matterId,
       organizationId: "preview",
       actor: "system",
@@ -40,10 +49,10 @@ describe("AuditStore", () => {
     });
 
     expect(entry1.id).toBeTruthy();
-    expect(entry1.prevRowHash).toBeNull(); // First entry has no prev hash
+    expect(entry1.prevRowHash).toBeNull();
     expect(entry1.timestamp).toBeInstanceOf(Date);
 
-    const entry2 = store.append(matterId, {
+    const entry2 = await store.append(matterId, {
       matterId,
       organizationId: "preview",
       actor: "om-reviewer",
@@ -56,14 +65,14 @@ describe("AuditStore", () => {
       outputContent: "output 2",
     });
 
-    expect(entry2.prevRowHash).not.toBeNull(); // Chained to entry1
+    expect(entry2.prevRowHash).not.toBeNull();
     expect(entry2.prevRowHash).toBeTruthy();
   });
 
-  it("retrieves entries by matter in reverse chronological order", () => {
+  it("retrieves entries by matter in reverse chronological order", async () => {
     const matterId = "test-matter-2";
 
-    store.append(matterId, {
+    await store.append(matterId, {
       matterId,
       organizationId: "preview",
       actor: "system",
@@ -76,7 +85,7 @@ describe("AuditStore", () => {
       outputContent: null,
     });
 
-    store.append(matterId, {
+    await store.append(matterId, {
       matterId,
       organizationId: "preview",
       actor: "system",
@@ -89,17 +98,16 @@ describe("AuditStore", () => {
       outputContent: "output",
     });
 
-    const entries = store.getByMatter(matterId);
+    const entries = await store.getByMatter(matterId);
     expect(entries).toHaveLength(2);
-    // Reverse chronological — most recent first
     expect(entries[0]!.action).toBe("generation");
     expect(entries[1]!.action).toBe("query");
   });
 
-  it("verifies a valid hash chain", () => {
+  it("verifies a valid hash chain", async () => {
     const matterId = "test-verify-valid";
 
-    store.append(matterId, {
+    await store.append(matterId, {
       matterId,
       organizationId: "preview",
       actor: "a",
@@ -112,7 +120,7 @@ describe("AuditStore", () => {
       outputContent: null,
     });
 
-    store.append(matterId, {
+    await store.append(matterId, {
       matterId,
       organizationId: "preview",
       actor: "b",
@@ -125,18 +133,18 @@ describe("AuditStore", () => {
       outputContent: null,
     });
 
-    expect(store.verify(matterId)).toBe(true);
+    expect(await store.verify(matterId)).toBe(true);
   });
 
-  it("returns true for empty matter (vacuously valid)", () => {
-    expect(store.verify("empty-matter")).toBe(true);
+  it("returns true for empty matter (vacuously valid)", async () => {
+    expect(await store.verify("empty-matter")).toBe(true);
   });
 
-  it("reports size correctly", () => {
+  it("reports size correctly", async () => {
     const matterId = "test-size";
-    expect(store.size(matterId)).toBe(0);
+    expect(await store.size(matterId)).toBe(0);
 
-    store.append(matterId, {
+    await store.append(matterId, {
       matterId,
       organizationId: "preview",
       actor: "a",
@@ -149,7 +157,30 @@ describe("AuditStore", () => {
       outputContent: null,
     });
 
-    expect(store.size(matterId)).toBe(1);
-    expect(store.size()).toBeGreaterThanOrEqual(1);
+    expect(await store.size(matterId)).toBe(1);
+    expect(await store.size()).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("getDefaultAuditStore", () => {
+  afterEach(() => setAuditStore(null));
+
+  it("returns in-memory backend when DATABASE_URL is unset", () => {
+    const prev = process.env.DATABASE_URL;
+    delete process.env.DATABASE_URL;
+    setAuditStore(null);
+    try {
+      const store = getDefaultAuditStore();
+      expect(store).toBeInstanceOf(InMemoryAuditStore);
+    } finally {
+      if (prev !== undefined) process.env.DATABASE_URL = prev;
+      setAuditStore(null);
+    }
+  });
+
+  it("uses the override when one is set", () => {
+    const custom = new InMemoryAuditStore();
+    setAuditStore(custom);
+    expect(getDefaultAuditStore()).toBe(custom);
   });
 });

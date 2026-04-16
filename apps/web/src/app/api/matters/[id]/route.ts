@@ -9,22 +9,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDefaultMatterStore, type DocumentType } from "../../../../lib/matter-store";
 import { getDefaultAuditStore } from "../../../../lib/audit-store";
-import { getDefaultCognitionStore, ONTARIO_EMD_AUTHORITIES } from "@compliance-ai/cognition";
+import { getDefaultCognitionStore } from "@compliance-ai/cognition";
+import { ensureTenant } from "../../../../lib/bootstrap";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-/** Seed authorities into the cognition store on first access. */
-let seeded = false;
-async function ensureAuthoritiesSeeded() {
-  if (seeded) return;
-  const store = getDefaultCognitionStore();
-  const size = await store.size();
-  if (size === 0) {
-    await store.addBatch(ONTARIO_EMD_AUTHORITIES);
-  }
-  seeded = true;
-}
 
 /**
  * Determine which authorities are excluded based on matter scope and why.
@@ -63,14 +52,14 @@ export async function GET(
 ) {
   const { id } = await params;
   const matterStore = getDefaultMatterStore();
-  const matter = matterStore.get(id);
+  const matter = await matterStore.get(id);
 
   if (!matter) {
     return NextResponse.json({ error: "Matter not found" }, { status: 404 });
   }
 
   // Seed authorities and retrieve those matching the matter's scope
-  await ensureAuthoritiesSeeded();
+  await ensureTenant(matter.organizationId);
   const cognitionStore = getDefaultCognitionStore();
   const allItems = await cognitionStore.getAll();
 
@@ -91,12 +80,12 @@ export async function GET(
     }));
 
   const excluded = getExclusions(matter.jurisdiction, matter.registrationCategory);
-  const documents = matterStore.getDocuments(id);
+  const documents = await matterStore.getDocuments(id);
 
   // Audit trail
   const auditStore = getDefaultAuditStore();
-  const auditEntries = auditStore.getByMatter(id);
-  const auditVerified = auditStore.verify(id);
+  const auditEntries = await auditStore.getByMatter(id);
+  const auditVerified = await auditStore.verify(id);
 
   return NextResponse.json({
     matter,
@@ -114,7 +103,7 @@ export async function PATCH(
 ) {
   const { id } = await params;
   const matterStore = getDefaultMatterStore();
-  const matter = matterStore.get(id);
+  const matter = await matterStore.get(id);
 
   if (!matter) {
     return NextResponse.json({ error: "Matter not found" }, { status: 404 });
@@ -129,12 +118,15 @@ export async function PATCH(
     }
     // Auto-classify based on filename
     const docType = classifyDocument(filename);
-    const doc = matterStore.addDocument(id, filename, docType);
+    const doc = await matterStore.addDocument(id, filename, docType);
     return NextResponse.json(doc);
   }
 
   if (body.status && typeof body.status === "string") {
-    const updated = matterStore.updateStatus(id, body.status as "open" | "in-review" | "complete" | "archived");
+    const updated = await matterStore.updateStatus(
+      id,
+      body.status as "open" | "in-review" | "complete" | "archived",
+    );
     return NextResponse.json(updated);
   }
 

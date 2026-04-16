@@ -9,7 +9,7 @@
  * only authorities applicable to the matter's scope are loaded into context.
  */
 
-import { pgTable, uuid, text, timestamp, pgEnum, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, pgEnum, index, integer } from "drizzle-orm/pg-core";
 import { organizations } from "./organizations.js";
 import { users } from "./users.js";
 
@@ -65,8 +65,8 @@ export const matters = pgTable(
   }),
 );
 
-export type Matter = typeof matters.$inferSelect;
-export type NewMatter = typeof matters.$inferInsert;
+export type MatterRow = typeof matters.$inferSelect;
+export type NewMatterRow = typeof matters.$inferInsert;
 
 /** Document types — auto-classified on upload, user can override. */
 export const documentTypeEnum = pgEnum("document_type", [
@@ -92,15 +92,20 @@ export const matterDocuments = pgTable(
     filename: text("filename").notNull(),
     documentType: documentTypeEnum("document_type").notNull().default("other"),
     /** Number of chunks after indexing. */
-    chunkCount: text("chunk_count"),
+    chunkCount: integer("chunk_count").notNull().default(0),
     /** SHA-256 of the original file for integrity verification. */
-    sha256: text("sha256"),
+    sha256: text("sha256").notNull(),
+    /** Page count for paged formats (PDF). Null for DOCX / TXT. */
+    pageCount: integer("page_count"),
+    /** Optional storage URI for the original file (S3/R2). Null if not retained. */
+    sourceUri: text("source_uri"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     matterIdx: index("matter_documents_matter_idx").on(t.matterId),
+    orgIdx: index("matter_documents_org_idx").on(t.organizationId),
   }),
 );
 
-export type MatterDocument = typeof matterDocuments.$inferSelect;
-export type NewMatterDocument = typeof matterDocuments.$inferInsert;
+export type MatterDocumentRow = typeof matterDocuments.$inferSelect;
+export type NewMatterDocumentRow = typeof matterDocuments.$inferInsert;

@@ -14,9 +14,14 @@ import { NextRequest } from "next/server";
 import {
   runAgentLoop,
   type AgentContext,
+  type PersonaId,
   type RetrievedSnippet,
 } from "@compliance-ai/agents";
 import { getDefaultCognitionStore, ONTARIO_EMD_AUTHORITIES, type RetrievalResult } from "@compliance-ai/cognition";
+import {
+  getDefaultTranscriptStore,
+  type TurnKind,
+} from "@compliance-ai/chat-structure";
 import { getDefaultMatterStore } from "../../../../../lib/matter-store";
 import { getDefaultAuditStore, sha256 } from "../../../../../lib/audit-store";
 
@@ -30,13 +35,15 @@ const DEFAULT_SCORE_THRESHOLD = 0.02;
 let seeded = false;
 async function ensureAuthoritiesSeeded() {
   if (seeded) return;
-  const store = getDefaultCognitionStore();
+  const store = getDefaultCognitionStore("securities");
   const size = await store.size();
   if (size === 0) {
     await store.addBatch(ONTARIO_EMD_AUTHORITIES);
   }
   seeded = true;
 }
+
+
 
 function toRetrievedSnippet(result: RetrievalResult): RetrievedSnippet {
   return {
@@ -79,6 +86,15 @@ Structure the response point-by-point, addressing each concern raised.
 Cite supporting authorities and reference the client's existing compliance documentation.`,
 };
 
+/** Lead persona picked by the task type. Each task gets a dedicated system
+ *  prompt — previously all four tasks fell through to om-reviewer. */
+const TASK_LEADS: Record<string, PersonaId> = {
+  "om-review": "om-reviewer",
+  "kyc-gap-check": "kyc-reviewer",
+  "marketing-signoff": "marketing-reviewer",
+  "response-memo": "response-drafter",
+};
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -100,12 +116,13 @@ export async function POST(
 
   const taskType = body.taskType ?? matter.taskType;
   const userMessage = TASK_PROMPTS[taskType] ?? TASK_PROMPTS["om-review"]!;
+  const leadPersona: PersonaId = TASK_LEADS[taskType] ?? "om-reviewer";
 
   // Seed authorities
   await ensureAuthoritiesSeeded();
 
   // Retrieve relevant snippets filtered by matter scope
-  const cognitionStore = getDefaultCognitionStore();
+  const cognitionStore = getDefaultCognitionStore("securities");
   let retrievedSnippets: RetrievedSnippet[] = [];
   try {
     const results = await cognitionStore.retrieve({
@@ -126,7 +143,7 @@ export async function POST(
   auditStore.append(matterId, {
     matterId,
     organizationId: PREVIEW_ORG_ID,
-    actor: "om-reviewer",
+    actor: leadPersona,
     action: "query",
     inputHash: sha256(userMessage),
     authoritiesUsed: retrievedSnippets.map((s) => s.id),
@@ -163,6 +180,17 @@ export async function POST(
   // Update matter status
   matterStore.updateStatus(matterId, "in-review");
 
+  // Seed a user-turn into the transcript so the timeline starts with the
+  // kickoff message. Every subsequent agent turn is appended as the loop
+  // emits it.
+  const transcriptStore = getDefaultTranscriptStore();
+  transcriptStore.append({
+    matterId,
+    from: "user",
+    content: userMessage,
+    kind: "user-message",
+  });
+
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const encoder = new TextEncoder();
@@ -170,36 +198,85 @@ export async function POST(
       let lastVerdict: string | null = null;
       let rounds = 0;
 
+      // Per-round state for transcript persistence
+      let currentPersona: PersonaId | null = null;
+      let currentBuffer = "";
+      let currentRound = 0;
+      let currentKind: TurnKind = "agent-draft";
+      let lastLeadTurnId: string | undefined;
+
+      const flushCurrentTurn = () => {
+        if (!currentPersona || !currentBuffer.trim()) {
+          currentBuffer = "";
+          return;
+        }
+        const turn = transcriptStore.append({
+          matterId,
+          from: currentPersona,
+          replyTo: currentKind === "judge-verdict" ? lastLeadTurnId : undefined,
+          round: currentRound,
+          content: currentBuffer,
+          kind: currentKind,
+          verdict:
+            currentKind === "judge-verdict" && lastVerdict
+              ? (lastVerdict as "READY_TO_SUBMIT" | "ITERATE" | "REWRITE")
+              : undefined,
+        });
+        if (currentKind === "agent-draft" || currentKind === "agent-reply") {
+          lastLeadTurnId = turn.id;
+        }
+        currentBuffer = "";
+      };
+
       try {
         const generator = runAgentLoop(context, userMessage, {
           maxRounds: 3,
+          leadPersona,
         });
 
         for await (const event of generator) {
           controller.enqueue(encoder.encode(sseFrame(event)));
 
-          // Track output and verdict for audit
-          if (event.type === "text-delta") {
+          if (event.type === "round-started") {
+            // Close out the previous turn before starting the next.
+            flushCurrentTurn();
+            currentPersona = event.persona;
+            currentRound = event.round;
+            currentKind =
+              event.persona === "judge"
+                ? "judge-verdict"
+                : event.persona === leadPersona
+                  ? "agent-draft"
+                  : "agent-reply";
+          } else if (event.type === "text-delta") {
             fullOutput += event.delta;
+            currentBuffer += event.delta;
+          } else if (event.type === "citations" && event.redactedText) {
+            // Replace buffer with redacted prose (strips fenced citations
+            // + tool-call blocks). Transcript holds the clean render.
+            currentBuffer = event.redactedText;
           } else if (event.type === "verdict-final") {
             lastVerdict = event.verdict;
           } else if (event.type === "loop-done") {
             rounds = event.totalRounds;
             if (event.finalVerdict) lastVerdict = event.finalVerdict;
+            flushCurrentTurn();
           }
         }
+        // Defensive flush in case the loop yielded events after loop-done.
+        flushCurrentTurn();
 
         // Write generation audit entry
         auditStore.append(matterId, {
           matterId,
           organizationId: PREVIEW_ORG_ID,
-          actor: "om-reviewer",
+          actor: leadPersona,
           action: "generation",
           inputHash: sha256(userMessage),
           authoritiesUsed: retrievedSnippets.map((s) => s.id),
           outputHash: sha256(fullOutput),
           judgeVerdict: lastVerdict,
-          inputContent: `${rounds} round(s) via judge loop`,
+          inputContent: `${rounds} round(s) via judge loop (lead: ${leadPersona})`,
           outputContent: fullOutput.slice(0, 2000),
         });
 

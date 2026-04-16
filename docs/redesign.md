@@ -224,6 +224,63 @@ The mock chrome (graph counters, resolved counters, Hybrid/Authority/Jurisdictio
 branch. The new `/matters` surface replaces it entirely. The demo branch should be
 considered obsolete and archived or deleted.
 
+## v0.3 follow-on — multi-agent timeline + evidence graph
+
+The v0.2 redesign shipped the surface (Input → Context → Output) and the
+OM gap-memo hero flow. v0.3 fills the three gaps v0.2 left behind and
+cannibalizes patterns from two external references:
+
+1. **Citations pipeline was broken end-to-end.** `parseModelOutput()`
+   existed but was only called by unit tests. The fenced `citations`
+   JSON block rendered as raw text, the client's `event.type === "citations"`
+   handler never fired, and the hover cards + footnote list stayed empty.
+   Fixed server-side: the loop coordinator now parses + validates every
+   drafter round's output against the retrieved chunk-ids and emits a
+   `citations` SSE event with the redacted prose and the `Citation[]`.
+2. **Task fan-out was a sham.** All four task types ran the `om-reviewer`
+   system prompt. Split into dedicated `kyc-reviewer`, `marketing-reviewer`,
+   and `response-drafter` personas with task-specific system prompts. The
+   review route picks the lead by `taskType` and passes it as `leadPersona`
+   to `runAgentLoop`.
+3. **Chat drawer ignored the matter.** It posted to `/api/chat` without
+   jurisdiction/registration filters. New `/api/matters/[id]/chat` applies
+   the same retrieval scope the review route uses. Legacy `/api/chat` now
+   belongs to the infosec surface only.
+4. **Cognition store was cross-surface.** `getDefaultCognitionStore("securities" | "infosec")`
+   isolates the two corpora.
+
+Then, cannibalized two upstream projects:
+
+- **[abhigyanpatwari/GitNexus](https://github.com/abhigyanpatwari/GitNexus)**
+  — WebGL graph UI as a primary interface. We ported: three-pane layout
+  inside `/matters/[id]` (left rail + tabbed canvas), Sigma.js canvas
+  with force-atlas2, 360° context panels, hybrid BM25 + RRF search.
+- **[bcurts/agentchattr](https://github.com/bcurts/agentchattr)** —
+  multi-agent chat with colored pills, reply threading, @mention routing,
+  and a loop guard. We ported: participant registry, `parseMentions`,
+  `createLoopGuard`, typed tool calls (`cite_authority`, `flag_gap`,
+  `request_review`, `hand_off`), JSONL transcript, and the Timeline UI.
+
+New packages, routes, and components:
+
+- `packages/chat-structure/` — registry, mentions, tools, transcript
+- `packages/agents/src/personas/{kyc-reviewer,marketing-reviewer,response-drafter}.ts`
+- `apps/web/src/app/api/matters/[id]/chat/route.ts`
+- `apps/web/src/app/api/matters/[id]/transcript/route.ts`
+- `apps/web/src/app/api/agents/route.ts`
+- `apps/web/src/app/matters/[id]/{Timeline,AgentPill,GraphView,ContextPanel}.tsx`
+- `apps/web/src/lib/evidence-graph.ts`
+- `THIRD_PARTY_NOTICES.md`
+
+The multi-persona loop accepts `maxAgentHops` (default 4) and dispatches a
+follow-up turn for each unique @mention / `hand_off` target emitted by the
+lead persona — the judge still closes each round. Follow-up turns count
+against `maxAgentHops`, independent from `maxRounds`.
+
+The `/matters/[id]` page now has three tabs: **Output** (the deliverable),
+**Transcript** (the reply-threaded multi-persona timeline with a JSONL
+download), and **Graph** (the evidence graph with a 360° context panel).
+
 ## What this doc is not
 
 Not an architecture redesign. The agents, judge loop, cognition store, and

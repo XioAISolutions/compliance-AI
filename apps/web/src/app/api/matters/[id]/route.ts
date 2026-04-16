@@ -14,11 +14,11 @@ import { getDefaultCognitionStore, ONTARIO_EMD_AUTHORITIES } from "@compliance-a
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Seed authorities into the cognition store on first access. */
+/** Seed the securities-surface cognition store on first access. */
 let seeded = false;
 async function ensureAuthoritiesSeeded() {
   if (seeded) return;
-  const store = getDefaultCognitionStore();
+  const store = getDefaultCognitionStore("securities");
   const size = await store.size();
   if (size === 0) {
     await store.addBatch(ONTARIO_EMD_AUTHORITIES);
@@ -71,7 +71,7 @@ export async function GET(
 
   // Seed authorities and retrieve those matching the matter's scope
   await ensureAuthoritiesSeeded();
-  const cognitionStore = getDefaultCognitionStore();
+  const cognitionStore = getDefaultCognitionStore("securities");
   const allItems = await cognitionStore.getAll();
 
   // Filter authorities by jurisdiction + registration category

@@ -27,9 +27,27 @@ interface Props {
   verdict: JudgeVerdict | null;
   totalRounds: number | null;
   streaming: boolean;
+  leadPersona: string;
+  matterId: string;
   onOpenChat: () => void;
   onStartReview: () => void;
 }
+
+/**
+ * Persona label lookup — keeps the OutputPane self-contained without
+ * importing the agents package on the client.
+ */
+const PERSONA_LABEL: Record<string, string> = {
+  drafter: "Drafter",
+  reviewer: "Reviewer",
+  "om-reviewer": "OM Reviewer",
+  "kyc-reviewer": "KYC Reviewer",
+  "marketing-reviewer": "Marketing Reviewer",
+  "response-drafter": "Response Drafter",
+  "evidence-collector": "Evidence Collector",
+  "risk-assessor": "Risk Assessor",
+  judge: "Judge",
+};
 
 const VERDICT_STYLES: Record<JudgeVerdict, { bg: string; label: string }> = {
   READY_TO_SUBMIT: {
@@ -52,12 +70,19 @@ export function OutputPane({
   verdict,
   totalRounds,
   streaming,
+  leadPersona,
+  matterId,
   onOpenChat,
   onStartReview,
 }: Props) {
   const [hoveredCitation, setHoveredCitation] = useState<string | null>(null);
 
   const renderedContent = renderWithCitations(content, citations, hoveredCitation, setHoveredCitation);
+  const leadLabel = PERSONA_LABEL[leadPersona] ?? leadPersona;
+
+  // Referenced so the matter id is reachable for future export-to-docx action
+  // (see plan, Phase 4). Today it's passed through so the wiring exists.
+  void matterId;
 
   return (
     <div className="flex h-full flex-col">
@@ -65,6 +90,9 @@ export function OutputPane({
       <div className="flex items-center justify-between border-b border-neutral-200 pb-3 dark:border-neutral-800">
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-semibold">Output</h2>
+          <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-medium text-teal-700 dark:bg-teal-950 dark:text-teal-300">
+            {leadLabel}
+          </span>
           {verdict && (
             <span
               className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${VERDICT_STYLES[verdict].bg}`}

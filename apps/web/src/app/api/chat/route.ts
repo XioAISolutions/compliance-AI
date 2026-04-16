@@ -140,7 +140,9 @@ export async function POST(req: NextRequest) {
   let retrievedSnippets: RetrievedSnippet[] = [];
   if (body.retrieve !== false) {
     try {
-      const store = getDefaultCognitionStore();
+      // Infosec surface: keeps the SOC 2 / GDPR / EU AI Act / ISO 27001
+      // corpus isolated from the securities matter corpus.
+      const store = getDefaultCognitionStore("infosec");
       const results = await store.retrieve({
         query: userMessage,
         topK: body.topK ?? DEFAULT_TOP_K,

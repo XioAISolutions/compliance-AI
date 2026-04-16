@@ -53,4 +53,43 @@ describe("routePersona", () => {
     expect(result.reason).toBeTruthy();
     expect(typeof result.reason).toBe("string");
   });
+
+  // ------------------------------------------------------------------ //
+  //   New personas — kyc-reviewer / marketing-reviewer / response-drafter
+  // ------------------------------------------------------------------ //
+
+  it("routes to kyc-reviewer for KYC requests", () => {
+    const result = routePersona("Check KYC file for the new client account.");
+    expect(result.persona).toBe("kyc-reviewer");
+  });
+
+  it("routes to kyc-reviewer for NI 31-103 Part 13 KYC references", () => {
+    const result = routePersona("Does this KYC file satisfy NI 31-103 Part 13?");
+    expect(result.persona).toBe("kyc-reviewer");
+  });
+
+  it("routes to kyc-reviewer for AML / FINTRAC references", () => {
+    const result = routePersona("Run AML checks and FINTRAC review on this onboarding file.");
+    expect(result.persona).toBe("kyc-reviewer");
+  });
+
+  it("routes to marketing-reviewer for marketing material sign-off", () => {
+    const result = routePersona("Review this marketing material for NI 81-102 Part 15 compliance.");
+    expect(result.persona).toBe("marketing-reviewer");
+  });
+
+  it("routes to marketing-reviewer for sales communications", () => {
+    const result = routePersona("Is this a prohibited sales communication?");
+    expect(result.persona).toBe("marketing-reviewer");
+  });
+
+  it("routes to response-drafter for deficiency-letter responses", () => {
+    const result = routePersona("Draft a response to the regulatory inquiry deficiency letter.");
+    expect(result.persona).toBe("response-drafter");
+  });
+
+  it("routes to response-drafter for OSC exam findings", () => {
+    const result = routePersona("Prepare an OSC response to the exam findings.");
+    expect(result.persona).toBe("response-drafter");
+  });
 });

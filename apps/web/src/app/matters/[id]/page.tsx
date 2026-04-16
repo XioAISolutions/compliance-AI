@@ -1,15 +1,20 @@
 "use client";
 
 /**
- * Matter detail — the Input → Context → Output layout.
+ * Matter detail — Input → Context → Output, with a three-tab main canvas.
  *
- * This is the core of the redesigned workbench. Three panes:
- *   - Input (left, compact): matter scope + document drop zone
- *   - Context (left below input, collapsible): auto-loaded authorities
- *   - Output (right, largest): the streaming deliverable with citations
+ * Left rail (always visible):
+ *   - Input: matter scope + document drop zone
+ *   - Context: auto-loaded authorities + what's excluded and why
  *
- * Chat is a drawer opened from the output pane.
- * Audit log is a collapsible panel at the bottom.
+ * Main canvas (tabbed):
+ *   - Output     — the streaming deliverable with citation superscripts
+ *   - Transcript — multi-persona reply-threaded timeline (cannibalized
+ *                  from agentchattr)
+ *   - Graph      — evidence graph (cannibalized from GitNexus)
+ *
+ * Chat is a drawer opened from the output pane. Audit log is a collapsible
+ * panel at the bottom.
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -20,6 +25,9 @@ import { ContextPane } from "./ContextPane";
 import { OutputPane } from "./OutputPane";
 import { ChatDrawer } from "./ChatDrawer";
 import { AuditLog } from "./AuditLog";
+import { Timeline } from "./Timeline";
+import { GraphView } from "./GraphView";
+import type { TranscriptTurn } from "@compliance-ai/chat-structure";
 
 type JudgeVerdict = "READY_TO_SUBMIT" | "ITERATE" | "REWRITE";
 
@@ -68,6 +76,8 @@ interface AuditEntry {
   outputContent: string | null;
 }
 
+type Tab = "output" | "transcript" | "graph";
+
 export default function MatterDetailPage() {
   const params = useParams();
   const matterId = params.id as string;
@@ -83,11 +93,17 @@ export default function MatterDetailPage() {
   const [verdict, setVerdict] = useState<JudgeVerdict | null>(null);
   const [totalRounds, setTotalRounds] = useState<number | null>(null);
   const [streaming, setStreaming] = useState(false);
+  const [leadPersona, setLeadPersona] = useState<string>("om-reviewer");
 
   const [chatOpen, setChatOpen] = useState(false);
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
   const [auditVerified, setAuditVerified] = useState(true);
   const [showAudit, setShowAudit] = useState(false);
+
+  const [tab, setTab] = useState<Tab>("output");
+  const [transcript, setTranscript] = useState<TranscriptTurn[]>([]);
+  // Forces Timeline / GraphView to refetch when the loop ends.
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const fetchMatter = useCallback(async () => {
     try {
@@ -108,9 +124,22 @@ export default function MatterDetailPage() {
     }
   }, [matterId]);
 
+  const fetchTranscript = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/matters/${matterId}/transcript`);
+      if (res.ok) {
+        const data = (await res.json()) as { turns: TranscriptTurn[] };
+        setTranscript(data.turns ?? []);
+      }
+    } catch {
+      // silent — empty state
+    }
+  }, [matterId]);
+
   useEffect(() => {
     void fetchMatter();
-  }, [fetchMatter]);
+    void fetchTranscript();
+  }, [fetchMatter, fetchTranscript]);
 
   async function handleDocumentUpload(filename: string) {
     try {
@@ -134,6 +163,10 @@ export default function MatterDetailPage() {
     setCitations([]);
     setVerdict(null);
     setTotalRounds(null);
+    // Track the lead persona's streaming buffer separately so we can replace
+    // it with the redacted prose once the citations event arrives.
+    let leadBuffer = "";
+    let isLeadTurn = false;
 
     try {
       const res = await fetch(`/api/matters/${matterId}/review`, {
@@ -165,15 +198,40 @@ export default function MatterDetailPage() {
           try {
             const event = JSON.parse(raw.slice(6)) as Record<string, unknown>;
 
-            if (event.type === "text-delta" && typeof event.delta === "string") {
-              setOutput((prev) => prev + event.delta);
+            if (event.type === "round-started") {
+              const persona = event.persona as string;
+              isLeadTurn = persona !== "judge";
+              if (isLeadTurn) {
+                leadBuffer = "";
+                setLeadPersona(persona);
+              }
+            } else if (event.type === "text-delta" && typeof event.delta === "string") {
+              if (isLeadTurn) {
+                leadBuffer += event.delta;
+                // Strip fenced ```citations + tool-call blocks visually
+                // while streaming; parseModelOutput + parseToolCalls run
+                // server-side and the "citations" event carries the
+                // cleaned prose once the round finishes.
+                const fenceStart = leadBuffer.indexOf("```citations");
+                const toolStart = leadBuffer.search(/\{\{tool:/);
+                let end = leadBuffer.length;
+                if (fenceStart !== -1) end = Math.min(end, fenceStart);
+                if (toolStart !== -1) end = Math.min(end, toolStart);
+                setOutput(leadBuffer.slice(0, end));
+              }
+            } else if (event.type === "citations") {
+              if (Array.isArray(event.citations)) {
+                setCitations((prev) => [...prev, ...(event.citations as Citation[])]);
+              }
+              if (typeof event.redactedText === "string") {
+                setOutput(event.redactedText);
+              }
+              isLeadTurn = false;
             } else if (event.type === "verdict-final") {
               setVerdict(event.verdict as JudgeVerdict);
             } else if (event.type === "loop-done") {
               setTotalRounds(event.totalRounds as number);
               if (event.finalVerdict) setVerdict(event.finalVerdict as JudgeVerdict);
-            } else if (event.type === "citations" && Array.isArray(event.citations)) {
-              setCitations(event.citations as Citation[]);
             }
           } catch {
             // skip malformed
@@ -181,8 +239,9 @@ export default function MatterDetailPage() {
         }
       }
 
-      // Refresh audit log after review completes
       void fetchMatter();
+      void fetchTranscript();
+      setRefreshKey((k) => k + 1);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setOutput((prev) => prev + `\n\n**Error:** ${msg}`);
@@ -195,7 +254,9 @@ export default function MatterDetailPage() {
     return (
       <main className="mx-auto max-w-3xl px-6 py-16 text-center">
         <h1 className="text-xl font-semibold">Matter not found</h1>
-        <p className="mt-2 text-neutral-500">This matter may have been deleted or does not exist.</p>
+        <p className="mt-2 text-neutral-500">
+          This matter may have been deleted or does not exist.
+        </p>
         <Link
           href="/matters"
           className="mt-4 inline-block text-sm text-blue-600 hover:underline"
@@ -255,17 +316,52 @@ export default function MatterDetailPage() {
           )}
         </aside>
 
-        {/* Right: Output (the hero) */}
-        <main className="flex-1 overflow-y-auto p-6">
-          <OutputPane
-            content={output}
-            citations={citations}
-            verdict={verdict}
-            totalRounds={totalRounds}
-            streaming={streaming}
-            onOpenChat={() => setChatOpen(true)}
-            onStartReview={startReview}
-          />
+        {/* Right: tabbed main canvas */}
+        <main className="flex flex-1 flex-col overflow-hidden">
+          <nav className="flex items-center gap-1 border-b border-neutral-200 px-6 pt-3 dark:border-neutral-800">
+            <TabButton active={tab === "output"} onClick={() => setTab("output")}>
+              Output
+            </TabButton>
+            <TabButton active={tab === "transcript"} onClick={() => setTab("transcript")}>
+              Transcript
+              {transcript.length > 0 && (
+                <span className="ml-1 text-[10px] text-neutral-400">({transcript.length})</span>
+              )}
+            </TabButton>
+            <TabButton active={tab === "graph"} onClick={() => setTab("graph")}>
+              Graph
+            </TabButton>
+          </nav>
+          <section className="flex-1 overflow-y-auto p-6">
+            {tab === "output" && (
+              <OutputPane
+                content={output}
+                citations={citations}
+                verdict={verdict}
+                totalRounds={totalRounds}
+                streaming={streaming}
+                leadPersona={leadPersona}
+                matterId={matterId}
+                onOpenChat={() => setChatOpen(true)}
+                onStartReview={startReview}
+              />
+            )}
+            {tab === "transcript" && (
+              <Timeline matterId={matterId} refreshKey={refreshKey} />
+            )}
+            {tab === "graph" && matter && (
+              <GraphView
+                matter={{ id: matter.id, title: matter.title, status: matter.status }}
+                documents={documents.map((d) => ({
+                  id: d.id,
+                  filename: d.filename,
+                  documentType: d.documentType,
+                }))}
+                authorities={authorities}
+                transcript={transcript}
+              />
+            )}
+          </section>
         </main>
       </div>
 
@@ -283,5 +379,28 @@ export default function MatterDetailPage() {
         matterId={matterId}
       />
     </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-t-md px-3 py-1.5 text-xs font-medium transition-colors ${
+        active
+          ? "border border-b-0 border-neutral-200 bg-white text-neutral-900 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-100"
+          : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+      }`}
+    >
+      {children}
+    </button>
   );
 }

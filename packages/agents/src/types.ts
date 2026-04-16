@@ -12,6 +12,7 @@
  */
 
 import type { Control, FrameworkId } from "@compliance-ai/frameworks";
+import type { Citation } from "./citations.js";
 
 export type PersonaId =
   | "drafter" // produces policy / procedure language
@@ -19,7 +20,10 @@ export type PersonaId =
   | "evidence-collector" // identifies what evidence satisfies a control
   | "risk-assessor" // surfaces residual risk + compensating controls
   | "judge" // verdict-only persona used by the loop coordinator
-  | "om-reviewer"; // reviews offering memoranda against securities rules
+  | "om-reviewer" // reviews offering memoranda against securities rules
+  | "kyc-reviewer" // reviews KYC/AML files for NI 31-103 Part 13 gaps
+  | "marketing-reviewer" // reviews marketing material against NI 81-102 Part 15
+  | "response-drafter"; // drafts response/comfort memos to regulators
 
 /**
  * A snippet retrieved from the cognition store and injected into the agent's
@@ -82,4 +86,24 @@ export type AgentEvent =
   | { type: "round-started"; round: number; persona: PersonaId }
   | { type: "verdict-final"; verdict: JudgeVerdict }
   | { type: "loop-done"; totalRounds: number; finalVerdict: JudgeVerdict | null }
+  | {
+      /**
+       * Emitted after a drafter / om-reviewer / kyc-reviewer / etc. round
+       * completes, once the fenced ```citations JSON block has been parsed
+       * and cross-checked against the retrieved snippet chunk-IDs.
+       *
+       * `redactedText` is the prose with the fenced citations block removed
+       * — the UI should replace the in-progress bubble's rendered text with
+       * this, drop any `[cN]` markers whose `id` isn't in `citations`, and
+       * then render `[cN]` as interactive superscripts.
+       */
+      type: "citations";
+      persona: PersonaId;
+      citations: Citation[];
+      orphanedMarkers: string[];
+      unusedCitations: string[];
+      redactedText: string;
+    }
+  | { type: "tool-call"; persona: PersonaId; tool: string; args: unknown }
+  | { type: "mention"; from: PersonaId; to: PersonaId; context: string }
   | { type: "error"; message: string };

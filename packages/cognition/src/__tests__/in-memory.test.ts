@@ -143,7 +143,7 @@ describe("InMemoryCognitionStore", () => {
     expect(results[0]!.item.id).toBe("general");
   });
 
-  it("respects scoreThreshold", async () => {
+  it("respects scoreThreshold in jaccard mode", async () => {
     await store.add({
       id: "low",
       title: "Completely unrelated",
@@ -155,6 +155,7 @@ describe("InMemoryCognitionStore", () => {
       query: "securities regulation offering memorandum",
       organizationId: "org-1",
       scoreThreshold: 0.1,
+      searchMode: "jaccard",
     });
 
     // The unrelated doc should score below 0.1 on Jaccard

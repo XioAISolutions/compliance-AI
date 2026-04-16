@@ -4,6 +4,9 @@ import { EVIDENCE_COLLECTOR_SYSTEM } from "./evidence-collector.js";
 import { RISK_ASSESSOR_SYSTEM } from "./risk-assessor.js";
 import { JUDGE_SYSTEM } from "./judge.js";
 import { OM_REVIEWER_SYSTEM } from "./om-reviewer.js";
+import { KYC_REVIEWER_SYSTEM } from "./kyc-reviewer.js";
+import { MARKETING_REVIEWER_SYSTEM } from "./marketing-reviewer.js";
+import { RESPONSE_DRAFTER_SYSTEM } from "./response-drafter.js";
 import type { PersonaId } from "../types.js";
 
 export const PERSONA_SYSTEM_PROMPTS: Record<PersonaId, string> = {
@@ -13,6 +16,9 @@ export const PERSONA_SYSTEM_PROMPTS: Record<PersonaId, string> = {
   "risk-assessor": RISK_ASSESSOR_SYSTEM,
   judge: JUDGE_SYSTEM,
   "om-reviewer": OM_REVIEWER_SYSTEM,
+  "kyc-reviewer": KYC_REVIEWER_SYSTEM,
+  "marketing-reviewer": MARKETING_REVIEWER_SYSTEM,
+  "response-drafter": RESPONSE_DRAFTER_SYSTEM,
 };
 
 export const PERSONA_LABELS: Record<PersonaId, string> = {
@@ -22,6 +28,9 @@ export const PERSONA_LABELS: Record<PersonaId, string> = {
   "risk-assessor": "Risk assessor",
   judge: "Judge",
   "om-reviewer": "OM Reviewer",
+  "kyc-reviewer": "KYC Reviewer",
+  "marketing-reviewer": "Marketing Reviewer",
+  "response-drafter": "Response Drafter",
 };
 
 export { parseVerdict } from "./judge.js";

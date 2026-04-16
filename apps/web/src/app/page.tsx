@@ -47,6 +47,20 @@ export default function Home() {
           </div>
         </Link>
         <Link
+          href="/approvals"
+          className="flex items-center gap-3 rounded-lg border border-neutral-300 px-5 py-3 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-green-600 text-xs font-bold text-white">
+            ✓
+          </span>
+          <div>
+            <span className="text-sm font-medium">Approvals queue</span>
+            <p className="text-xs text-neutral-500">
+              CCO sign-off on READY_TO_SUBMIT reviews
+            </p>
+          </div>
+        </Link>
+        <Link
           href="/controls"
           className="flex items-center gap-3 rounded-lg border border-neutral-200 px-5 py-3 text-neutral-400 transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"
         >

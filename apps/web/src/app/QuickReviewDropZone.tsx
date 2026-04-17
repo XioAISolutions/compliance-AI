@@ -37,6 +37,7 @@ interface QuickReviewAuthorityIntakeResponse {
   chunksIngested: number;
   classification: Classification;
   message: string;
+  alreadyIngested?: boolean;
 }
 
 type QuickReviewResponse = QuickReviewMatterResponse | QuickReviewAuthorityIntakeResponse;
@@ -62,6 +63,7 @@ export function QuickReviewDropZone() {
     title: string;
     chunks: number;
     message: string;
+    alreadyIngested: boolean;
   } | null>(null);
 
   async function handleFile(file: File) {
@@ -88,6 +90,7 @@ export function QuickReviewDropZone() {
           title: data.authorityTitle,
           chunks: data.chunksIngested,
           message: data.message,
+          alreadyIngested: data.alreadyIngested === true,
         });
         setStatus(null);
         return;
@@ -178,11 +181,26 @@ export function QuickReviewDropZone() {
           <div className="flex items-start gap-2">
             <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-emerald-500" />
             <div className="flex-1">
-              <p className="font-medium">Added to authority library: {authorityIntake.title}</p>
+              <p className="font-medium">
+                {authorityIntake.alreadyIngested
+                  ? `Already in authority library: ${authorityIntake.title}`
+                  : `Added to authority library: ${authorityIntake.title}`}
+              </p>
               <p className="mt-1">
-                Ingested <strong>{authorityIntake.chunks}</strong> chunk
-                {authorityIntake.chunks === 1 ? "" : "s"}. Drop an offering memorandum, KYC file,
-                marketing deck, or regulator inquiry next — reviews will now cite this material.
+                {authorityIntake.alreadyIngested ? (
+                  <>
+                    This regulation was previously ingested for this tenant — no new chunks added.
+                    Drop an offering memorandum, KYC file, marketing deck, or regulator inquiry next
+                    — reviews will cite this material.
+                  </>
+                ) : (
+                  <>
+                    Ingested <strong>{authorityIntake.chunks}</strong> chunk
+                    {authorityIntake.chunks === 1 ? "" : "s"}. Drop an offering memorandum, KYC
+                    file, marketing deck, or regulator inquiry next — reviews will now cite this
+                    material.
+                  </>
+                )}
               </p>
             </div>
           </div>

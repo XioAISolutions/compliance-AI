@@ -40,6 +40,14 @@ import { ensureTenant } from "../../../lib/bootstrap";
 import { requireSession } from "../../../lib/auth";
 import { getDefaultCognitionStore, type CognitionItem } from "@compliance-ai/cognition";
 
+// Per-process dedup cache for authority intake: "<org>:<fileHash>" marks
+// files that have already been ingested so repeated uploads of the same
+// regulation don't pollute the corpus with N × chunk_count duplicates.
+// In-memory only (preview semantics match the rest of the store); tenants
+// on a real DB layer would move this to the cognition store with a
+// uniqueness constraint on (organizationId, sourceSha256).
+const INGESTED_AUTHORITY_HASHES = new Set<string>();
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -112,6 +120,27 @@ export async function POST(req: NextRequest) {
       classification.suggestedTitle?.slice(0, 120) ?? stripExt(file.name) ?? file.name;
     const surface =
       classification.documentType === "authority-rule" ? "authority-rule" : "regulatory-guidance";
+
+    // Dedup: if this tenant has already ingested this exact file, skip the
+    // re-chunking + re-add. Return the same shape as a successful intake so
+    // the UI still surfaces a confirmation — just labeled as already-known.
+    const dedupKey = `${organizationId}:${fileHash}`;
+    if (INGESTED_AUTHORITY_HASHES.has(dedupKey)) {
+      return NextResponse.json(
+        {
+          kind: "authority-intake",
+          authorityTitle,
+          chunksIngested: 0,
+          classification,
+          alreadyIngested: true,
+          message:
+            `"${authorityTitle}" is already in this tenant's authority library — ` +
+            `its chunks are available for retrieval. Upload a document to review against it.`,
+        },
+        { status: 200 },
+      );
+    }
+
     const chunks = chunkDocument(parsed, `authority-${fileHash.slice(0, 12)}`);
 
     const cognitionItems: CognitionItem[] = chunks.map((chunk, idx) => ({
@@ -127,6 +156,7 @@ export async function POST(req: NextRequest) {
 
     const cognitionStore = getDefaultCognitionStore("securities");
     const ingestedIds = await cognitionStore.addBatch(cognitionItems);
+    INGESTED_AUTHORITY_HASHES.add(dedupKey);
 
     // Audit row for the intake — matterId is null because no matter is
     // created (this is corpus-level, not matter-level). We key the audit

@@ -41,11 +41,15 @@ export interface EvidenceStore {
   create(input: CreateEvidenceInput, organizationId?: string): Promise<EvidenceItem>;
   get(id: string): Promise<EvidenceItem | null>;
   list(matterId: string): Promise<EvidenceItem[]>;
-  updateStatus(id: string, status: EvidenceStatus, extras?: {
-    fileUri?: string;
-    sha256?: string;
-    reviewedBy?: string;
-  }): Promise<EvidenceItem | null>;
+  updateStatus(
+    id: string,
+    status: EvidenceStatus,
+    extras?: {
+      fileUri?: string;
+      sha256?: string;
+      reviewedBy?: string;
+    },
+  ): Promise<EvidenceItem | null>;
   delete(id: string): Promise<boolean>;
   size(matterId?: string): Promise<number>;
 }
@@ -176,9 +180,22 @@ export function extractEvidenceRequests(
 }
 
 function stripMarkdown(s: string): string {
-  return s
-    .replace(/\*\*/g, "")
-    .replace(/\*/g, "")
-    .replace(/`/g, "")
-    .trim();
+  return (
+    s
+      .replace(/\*\*/g, "")
+      .replace(/\*/g, "")
+      .replace(/`/g, "")
+      // Strip inline citation markers like [c1][c2] that the OM reviewer
+      // routinely embeds in checklist cells. The [cN] markers resolve to
+      // the citations JSON in the review deliverable — in an evidence
+      // request title or description they just add visual noise and make
+      // a reviewer scanning the list guess what "[c4]" means out of
+      // context. Two passes: first drop markers preceded by whitespace
+      // (so " [c1]" next to a period becomes "."), then drop any
+      // remaining markers; finally collapse multi-space runs.
+      .replace(/\s+\[c\d+\]/g, "")
+      .replace(/\[c\d+\]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
 }

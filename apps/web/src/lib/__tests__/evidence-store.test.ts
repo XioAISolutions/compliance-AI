@@ -161,4 +161,43 @@ All checks passed:
     expect(requests).toHaveLength(1);
     expect(requests[0]!.title).toBe("Thing");
   });
+
+  it("strips embedded [cN] citation markers from checklist cells", () => {
+    // Real output from the om-reviewer persona embeds [c1], [c2], etc. in
+    // each cell to resolve the prose-level citations to the right rule.
+    // Those markers are noise inside an evidence-request title/description
+    // and would confuse a reviewer scanning the queue.
+    const output = `
+| # | Requirement | Rule Reference | Status | Notes |
+| - | --- | --- | --- | --- |
+| 1 | Cover-page essentials [c1] | NI 45-106 Form F2 Item 1; CSA SN 45-318 [c2][c4] | MISSING | The OM gives only a placeholder statement [c1]. |
+| 2 | Rights of action [c3] | OSC Rule 45-501 s. 5.2 [c7] | PARTIAL | Ontario rights language present but incomplete [c8]. |
+`;
+    const requests = extractEvidenceRequests(output);
+    expect(requests).toHaveLength(2);
+    // Titles: no [cN] residue, whitespace collapsed.
+    expect(requests[0]!.title).toBe("Cover-page essentials");
+    expect(requests[1]!.title).toBe("Rights of action");
+    // Sources: no [cN] residue.
+    expect(requests[0]!.source).toBe("NI 45-106 Form F2 Item 1; CSA SN 45-318");
+    expect(requests[1]!.source).toBe("OSC Rule 45-501 s. 5.2");
+    // Notes/descriptions: no [cN] residue.
+    expect(requests[0]!.description).toBe("The OM gives only a placeholder statement.");
+    expect(requests[1]!.description).toBe("Ontario rights language present but incomplete.");
+  });
+
+  it("skips N/A rows (not applicable given matter facts)", () => {
+    // The om-reviewer persona emits N/A for rows that don't apply to the
+    // specific matter (e.g. EMD-specific disclosure on a non-EMD deal).
+    // Those aren't evidence gaps; they shouldn't create queue items.
+    const output = `
+| # | Requirement | Rule Reference | Status | Notes |
+| - | --- | --- | --- | --- |
+| 1 | EMD RDI | NI 31-103 s. 13.13 | N/A | No EMD involved |
+| 2 | Risk factors | NI 45-106 s. 2.9 | MISSING | Not disclosed |
+`;
+    const requests = extractEvidenceRequests(output);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]!.title).toBe("Risk factors");
+  });
 });

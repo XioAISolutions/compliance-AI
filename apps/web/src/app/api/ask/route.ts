@@ -30,14 +30,14 @@
  */
 
 import { NextRequest } from "next/server";
-import { runAgent, type AgentContext, type RetrievedSnippet } from "@compliance-ai/agents";
-import type { FrameworkId } from "@compliance-ai/frameworks";
 import {
-  getDefaultCognitionStore,
-  rrfFuse,
-  type CognitionItem,
-  type RetrievalResult,
-} from "@compliance-ai/cognition";
+  parseModelOutput,
+  runAgent,
+  type AgentContext,
+  type RetrievedSnippet,
+} from "@compliance-ai/agents";
+import type { FrameworkId } from "@compliance-ai/frameworks";
+import { getDefaultCognitionStore, rrfFuse, type RetrievalResult } from "@compliance-ai/cognition";
 import { getSession } from "../../../lib/auth";
 import { ensureTenant } from "../../../lib/bootstrap";
 import { getDefaultAuditStore, sha256 } from "../../../lib/audit-store";
@@ -128,28 +128,82 @@ function fuseJurisdictionResults(
 }
 
 /**
- * Confidence heuristic: mean of the top-3 per-jurisdiction scores, halved
- * when fewer than 2 snippets made the cut. The halving encodes "a single
- * authority is never enough to be confident" — for a cross-border Q&A
- * answer, we want ≥1 from each jurisdiction or ≥2 from one.
+ * Group docIds by jurisdiction using the retrieval result set as the
+ * authoritative source of (docId → jurisdiction) — this is the cheapest way
+ * to get jurisdiction for an arbitrary docId without another store call.
+ * The `keep` filter controls which docIds end up in the output (e.g. "only
+ * docs the model actually cited").
  */
-function computeConfidence(topResults: RetrievalResult[]): number {
-  if (topResults.length === 0) return 0;
-  const top3 = topResults.slice(0, 3);
-  const mean = top3.reduce((s, r) => s + r.score, 0) / top3.length;
-  const penalty = topResults.length >= 2 ? 1 : 0.5;
-  return Math.max(0, Math.min(1, mean * penalty));
-}
-
-/** Group cited items by jurisdiction for the terminal summary event. */
-function citationsByJurisdiction(items: CognitionItem[]): { CA: string[]; US: string[] } {
+function groupByJurisdiction(
+  retrieved: RetrievalResult[],
+  keep: (docId: string) => boolean,
+): { CA: string[]; US: string[] } {
   const out: { CA: string[]; US: string[] } = { CA: [], US: [] };
-  for (const item of items) {
-    if (!item.id) continue;
-    if (item.jurisdiction === "US") out.US.push(item.id);
-    else if (item.jurisdiction === "ontario") out.CA.push(item.id);
+  for (const r of retrieved) {
+    const id = r.item.id;
+    if (!id || !keep(id)) continue;
+    if (r.item.jurisdiction === "US") out.US.push(id);
+    else if (r.item.jurisdiction === "ontario") out.CA.push(id);
   }
   return out;
+}
+
+/**
+ * Build the terminal `qa-summary` event from the MODEL'S ACTUAL OUTPUT
+ * (not just raw retrieval). This is the single source of truth for what
+ * the UI shows:
+ *
+ *   - `citationsByJurisdiction` lists only docs the model actually cited
+ *     (intersection of retrieval ∩ citation fence). If the model refused
+ *     or emitted no fence, these are empty.
+ *   - `crossJurisdictionNote` is true only when the model CITED ≥1 CA and
+ *     ≥1 US authority — we defer to the model's judgment about which
+ *     authorities mattered, instead of flagging divergence just because
+ *     retrieval happened to pull items from both sides.
+ *   - `confidence` combines retrieval scores with output-side signals: a
+ *     RETRIEVAL GAP notice or zero cited markers collapses confidence to
+ *     ≤ 0.1, reflecting the honest posture "retrieval matched something
+ *     lexically but the model couldn't use it". When citations exist,
+ *     confidence is the mean of the TOP CITED items' retrieval scores,
+ *     with the ≥2-items bonus preserved from the original heuristic.
+ *
+ * TODO(confidence): this formula is a reasonable default, not a calibrated
+ * one. Places the owner may want to tune:
+ *   - Weight by jurisdiction coverage (cross-jurisdiction → +bonus?)
+ *   - Use cited-item RAW BM25 scores instead of normalized
+ *   - Factor in cited-marker count vs. citation-fence-entries parity
+ */
+function buildSummary(
+  proseBuffer: string,
+  fusedTop: RetrievalResult[],
+): {
+  confidence: number;
+  crossJurisdictionNote: boolean;
+  citationsByJurisdiction: { CA: string[]; US: string[] };
+} {
+  const parsed = parseModelOutput(proseBuffer);
+  const citedDocIds = new Set(parsed.citations.map((c) => c.docId));
+  const retrievalGapDetected = /RETRIEVAL\s+GAP/i.test(proseBuffer);
+  const markerCount = (proseBuffer.match(/\[c\d+\]/g) ?? []).length;
+
+  const by = groupByJurisdiction(fusedTop, (id) => citedDocIds.has(id));
+  const crossJurisdictionNote = by.CA.length > 0 && by.US.length > 0;
+
+  // Confidence base: mean of the cited items' retrieval scores. When no
+  // citations, fall back to the retrieval top-3 (but we'll cap below).
+  const citedResults = fusedTop.filter((r) => r.item.id && citedDocIds.has(r.item.id));
+  const baseSource = citedResults.length > 0 ? citedResults.slice(0, 3) : fusedTop.slice(0, 3);
+  const mean =
+    baseSource.length > 0 ? baseSource.reduce((s, r) => s + r.score, 0) / baseSource.length : 0;
+  const coverageBonus = citedResults.length >= 2 ? 1 : 0.5;
+  let confidence = Math.max(0, Math.min(1, mean * coverageBonus));
+
+  // Output-side penalties — the model told us the retrieval didn't fit.
+  if (retrievalGapDetected || markerCount === 0 || citedResults.length === 0) {
+    confidence = Math.min(confidence, 0.1);
+  }
+
+  return { confidence, crossJurisdictionNote, citationsByJurisdiction: by };
 }
 
 export async function POST(req: NextRequest) {
@@ -216,13 +270,6 @@ export async function POST(req: NextRequest) {
   const fusedTop = fuseJurisdictionResults(perJurisdiction).slice(0, topK * 2);
   const retrievedSnippets = fusedTop.map(toRetrievedSnippet);
 
-  // Divergence heuristic: if the top fused set carries ≥1 item from each
-  // jurisdiction, the persona gets invited to write a Cross-jurisdiction
-  // note. This is a PRESENCE flag — the persona decides whether the two
-  // positions actually diverge; we just hand it the raw material.
-  const byJurisdiction = citationsByJurisdiction(fusedTop.map((r) => r.item));
-  const crossJurisdictionNote = byJurisdiction.CA.length > 0 && byJurisdiction.US.length > 0;
-
   const context: AgentContext = {
     control: null,
     frameworkScope: framework ? [framework] : ALL_FRAMEWORKS,
@@ -253,11 +300,13 @@ export async function POST(req: NextRequest) {
           // event, before we close. We keep this emission inside the loop
           // so it sits at the correct position in the SSE stream.
           if (event.type === "done") {
+            // Build the summary from the ACTUAL model output: parse the
+            // citations fence and reconcile retrieved vs. cited items.
+            // Keeps the summary honest when the model refuses or the
+            // retrieval matched lexically but the model couldn't use it.
             const summary = {
               type: "qa-summary" as const,
-              confidence: computeConfidence(fusedTop),
-              crossJurisdictionNote,
-              citationsByJurisdiction: byJurisdiction,
+              ...buildSummary(proseBuffer, fusedTop),
             };
             controller.enqueue(encoder.encode(sseFrame(summary)));
           }

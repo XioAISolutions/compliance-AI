@@ -38,6 +38,7 @@ import {
 import { getDefaultAuditStore, sha256 } from "../../../lib/audit-store";
 import { ensureTenant } from "../../../lib/bootstrap";
 import { requireSession } from "../../../lib/auth";
+import { getDefaultCognitionStore, type CognitionItem } from "@compliance-ai/cognition";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -91,13 +92,15 @@ export async function POST(req: NextRequest) {
 
   const classification = classifyDocument(parsed);
 
-  // Reject uploads of the regulations themselves — a compliance lawyer reviews
-  // documents AGAINST regulations, not the regulations themselves. If the user
-  // drops a CSA instrument or staff notice here, the reviewer would treat it
-  // as an OM and hallucinate findings. Guide them to upload something we can
-  // actually review (OM, KYC file, marketing material, or regulator letter).
+  // Authority-intake path: if the upload is a regulation or staff notice, we
+  // don't run a compliance review AGAINST it (you can't review a rule against
+  // itself). Instead we chunk it and add each chunk to the tenant's
+  // securities cognition corpus, so subsequent OM / KYC / marketing /
+  // regulator-inquiry reviews can retrieve and cite the freshly-ingested
+  // rule text alongside the baseline NI 45-106 / NI 31-103 / companion
+  // instruments the bootstrap layer seeded.
   //
-  // Gate on a confident classification — we don't want to false-reject an OM
+  // Gate on a confident classification — we don't want to false-route an OM
   // that briefly mentions an NI number. confidence ≥ 0.33 requires ≥2 signals
   // from the authority/guidance scorers.
   if (
@@ -105,19 +108,54 @@ export async function POST(req: NextRequest) {
       classification.documentType === "regulatory-guidance") &&
     classification.confidence >= 0.33
   ) {
-    const label =
-      classification.documentType === "authority-rule"
-        ? "a regulation (National Instrument, CSA rule, or Securities Act section)"
-        : "regulatory guidance (CSA / OSC staff notice or companion policy)";
+    const authorityTitle =
+      classification.suggestedTitle?.slice(0, 120) ?? stripExt(file.name) ?? file.name;
+    const surface =
+      classification.documentType === "authority-rule" ? "authority-rule" : "regulatory-guidance";
+    const chunks = chunkDocument(parsed, `authority-${fileHash.slice(0, 12)}`);
+
+    const cognitionItems: CognitionItem[] = chunks.map((chunk, idx) => ({
+      organizationId,
+      title: `${authorityTitle} — chunk ${idx + 1}/${chunks.length}`,
+      content: chunk.content,
+      source: `${file.name} (${surface}, uploaded ${new Date().toISOString().slice(0, 10)})`,
+      ...(classification.jurisdiction ? { jurisdiction: classification.jurisdiction } : {}),
+      ...(classification.registrationCategory
+        ? { registrationCategories: [classification.registrationCategory] }
+        : {}),
+    }));
+
+    const cognitionStore = getDefaultCognitionStore("securities");
+    const ingestedIds = await cognitionStore.addBatch(cognitionItems);
+
+    // Audit row for the intake — matterId is null because no matter is
+    // created (this is corpus-level, not matter-level). We key the audit
+    // entry by the file hash so the intake is reproducible.
+    const auditStore = getDefaultAuditStore();
+    await auditStore.append(`authority-${fileHash.slice(0, 12)}`, {
+      matterId: `authority-${fileHash.slice(0, 12)}`,
+      organizationId,
+      actor: session.user.email,
+      action: "retrieval",
+      inputHash: fileHash,
+      authoritiesUsed: ingestedIds,
+      outputHash: sha256(ingestedIds.join(",")),
+      judgeVerdict: null,
+      inputContent: `Authority intake: ${file.name} (${file.size} bytes, ${parsed.pages?.length ?? "?"} pages) — classified as ${classification.documentType} @ ${classification.confidence.toFixed(2)}`,
+      outputContent: `Ingested ${ingestedIds.length} chunks into the tenant's securities authority corpus under title "${authorityTitle}".`,
+    });
+
     return NextResponse.json(
       {
-        error: "authority-document-upload",
-        message:
-          `This looks like ${label}, not a document to review. The reviewer works by checking YOUR document (an offering memorandum, KYC/AML file, marketing material, or regulator inquiry) against the rules. ` +
-          `Upload one of those instead. If you want to expand the authority corpus this reviewer searches, use the authority-library intake (not yet exposed in quick-review).`,
+        kind: "authority-intake",
+        authorityTitle,
+        chunksIngested: ingestedIds.length,
         classification,
+        message:
+          `Recognized "${authorityTitle}" as ${classification.documentType === "authority-rule" ? "a regulation" : "regulatory guidance"} and ingested ${ingestedIds.length} chunk(s) into this tenant's authority library. ` +
+          `Upload an offering memorandum, KYC file, marketing deck, or regulator inquiry next — reviews will now cite this material alongside the baseline corpus.`,
       },
-      { status: 400 },
+      { status: 201 },
     );
   }
 

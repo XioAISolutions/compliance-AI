@@ -115,7 +115,10 @@ export function AuthorityLibrarySnapshot({ refreshToken }: { refreshToken?: numb
   const jurisdictions = Object.entries(snapshot.byJurisdiction).sort((a, b) => b[1] - a[1]);
 
   return (
-    <section className="mt-8 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
+    <section
+      id="authority-library"
+      className="mt-8 scroll-mt-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800"
+    >
       <div className="flex items-baseline justify-between">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
           Authority library

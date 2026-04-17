@@ -12,9 +12,12 @@
 
 import { NextRequest } from "next/server";
 import {
+  parseModelOutput,
+  runAgent,
   runAgentLoop,
   validateCitations,
   type AgentContext,
+  type Citation,
   type PersonaId,
   type RetrievedSnippet,
   type ReviewSubject,
@@ -347,8 +350,145 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           applyEvent(state, event);
         }
 
-        const { prose, citations, orphanedMarkers, unusedCitations } = finalizeReview(state);
-        const { valid: validCitations } = validateCitations(citations, knownChunkIds);
+        // Re-finalize so we can upgrade via a targeted retry when the drafter
+        // output didn't cite cleanly the first time.
+        // eslint-disable-next-line prefer-const
+        let { prose, citations, orphanedMarkers, unusedCitations } = finalizeReview(state);
+        const validation = validateCitations(citations, knownChunkIds);
+        let validCitations = validation.valid;
+        let dropped = validation.dropped;
+
+        // CITATION-INTEGRITY RETRY
+        //
+        // Why this is a separate pass and not just another drafter+judge
+        // round: the judge critiques compliance substance, not citation
+        // plumbing. When MAX_TOKENS truncates the trailing ```citations
+        // fence mid-JSON (a routine outcome for longer marketing/KYC
+        // deliverables with many [cN] markers) the judge correctly says
+        // ITERATE but the next drafter round often rewrites the prose from
+        // scratch and hits the same ceiling. What we actually need is a
+        // targeted "emit ONLY a citations block that resolves every marker
+        // in this prose, against this allowed chunkId set" pass. One extra
+        // model call, ~500 tokens, fixes the common truncation case.
+        const markersInProse = Array.from(
+          new Set((prose.match(/\[c\d+\]/g) ?? []).map((m) => m.slice(1, -1))),
+        );
+        const needsRetry =
+          markersInProse.length > 0 &&
+          (orphanedMarkers.length > 0 ||
+            dropped.length > 0 ||
+            validCitations.length < markersInProse.length);
+
+        if (needsRetry && retrievedSnippets.length > 0) {
+          controller.enqueue(
+            encoder.encode(
+              sseFrame({
+                type: "citation-retry-started",
+                markersInProse,
+                priorValidCount: validCitations.length,
+                reason:
+                  orphanedMarkers.length > 0
+                    ? `${orphanedMarkers.length} orphan marker(s)`
+                    : dropped.length > 0
+                      ? `${dropped.length} hallucinated chunkId(s)`
+                      : `citations block truncated (${validCitations.length}/${markersInProse.length} resolved)`,
+              }),
+            ),
+          );
+
+          const chunkCatalogLines: string[] = [];
+          for (const s of retrievedSnippets) {
+            // Truncated content helps the model produce accurate quotes.
+            const preview = s.content.replace(/\s+/g, " ").slice(0, 240);
+            chunkCatalogLines.push(
+              `- chunkId \`${s.id}\` → authorityId "${s.id}" · title "${s.title}" · content preview: "${preview}${s.content.length > 240 ? "…" : ""}"`,
+            );
+          }
+          if (context.reviewSubject) {
+            for (const c of context.reviewSubject.chunks.slice(0, 12)) {
+              const preview = c.content.replace(/\s+/g, " ").slice(0, 180);
+              chunkCatalogLines.push(
+                `- chunkId \`${c.chunkId}\` → authorityId "subject-document" · section "chunk ${c.chunkId}" · content preview: "${preview}${c.content.length > 180 ? "…" : ""}"`,
+              );
+            }
+          }
+
+          const retryPrompt = [
+            `A compliance review was just drafted but its \`\`\`citations JSON fence was missing, truncated, or referenced invalid chunkIds. Do NOT re-emit the prose. Output ONLY a single fenced \`\`\`citations JSON array that resolves every \`[cN]\` marker used in the prose below.`,
+            ``,
+            `Markers to resolve: ${markersInProse.map((m) => `[${m}]`).join(", ")}`,
+            ``,
+            `Allowed chunkIds (pick the best match for each marker):`,
+            ...chunkCatalogLines,
+            ``,
+            `Prior prose (for context — do not re-emit):`,
+            "```",
+            prose.slice(0, 9000),
+            "```",
+            ``,
+            `Output format — exactly one fenced citations array, nothing else:`,
+            "```citations",
+            `[`,
+            `  {"id": "c1", "authorityId": "<one-of-the-above-authorityId>", "section": "<section-or-chunk-label>", "quote": "<verbatim-or-near-verbatim-from-content-preview>", "docId": "<one-of-the-above-chunkId>", "chunkId": "<one-of-the-above-chunkId>"},`,
+            `  ...`,
+            `]`,
+            "```",
+            ``,
+            `Rules:`,
+            `- Every marker in the list above MUST have a matching entry in the array.`,
+            `- The \`chunkId\` field MUST exactly match one of the chunkIds listed above — do not invent chunkIds.`,
+            `- The \`quote\` should be drawn from the matching content preview.`,
+            `- Output ONLY the fenced citations block. No commentary, no preamble, no other prose.`,
+          ].join("\n");
+
+          let retryOutput = "";
+          try {
+            for await (const ev of runAgent(context, [], retryPrompt, {
+              forcePersona: personaForTask(taskType),
+              maxTokens: 4096,
+            })) {
+              if (ev.type === "text-delta") retryOutput += ev.delta;
+              if (ev.type === "error") break;
+            }
+          } catch {
+            // Retry best-effort; fall through with original values if the
+            // extra call errors.
+          }
+
+          const retryParsed = parseModelOutput(retryOutput);
+          const retryValidation = validateCitations(retryParsed.citations, knownChunkIds);
+
+          // Accept the retry output only if it strictly improves citation
+          // coverage — otherwise keep the original and let the
+          // citation-warnings event flag the remaining integrity gap.
+          if (retryValidation.valid.length > validCitations.length) {
+            validCitations = retryValidation.valid;
+            citations = retryParsed.citations;
+            const cited = new Set(retryValidation.valid.map((c) => c.id));
+            orphanedMarkers = markersInProse.filter((m) => !cited.has(m));
+            unusedCitations = retryValidation.valid
+              .map((c) => c.id)
+              .filter((id) => !markersInProse.includes(id));
+            dropped = retryValidation.dropped;
+
+            controller.enqueue(
+              encoder.encode(sseFrame({ type: "citations", citations: validCitations })),
+            );
+            if (orphanedMarkers.length > 0 || unusedCitations.length > 0 || dropped.length > 0) {
+              controller.enqueue(
+                encoder.encode(
+                  sseFrame({
+                    type: "citation-warnings",
+                    orphanedMarkers,
+                    unusedCitations,
+                    droppedChunkIds: dropped.map((c: Citation) => c.chunkId),
+                    afterRetry: true,
+                  }),
+                ),
+              );
+            }
+          }
+        }
 
         // authoritiesUsed now records the authorities the reviewer ACTUALLY
         // cited (deduped authorityId values), not the retrieval pool. If the

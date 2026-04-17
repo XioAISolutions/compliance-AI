@@ -56,11 +56,13 @@ const DEFAULT_OLLAMA_MODEL = "llama3.1:8b";
 // Compliance reviews routinely produce 15+ citations + 5000+ tokens of cited
 // prose (checklist + gap memo + risk flags + resale check + post-filing).
 // The citations block alone runs ~200 tokens per citation — at 16 cites that's
-// 3200 tokens of citation JSON AFTER the main body. A 4096 budget silently
-// truncated the ```citations fence, leaving the reviewer with 16 orphan
-// markers and parseModelOutput yielding citations=[]. 12k gives the reviewer
-// room for a full, cited, auditor-survivable deliverable.
-const MAX_TOKENS = 12288;
+// 3200 tokens of citation JSON AFTER the main body. 4096 truncated the
+// ```citations fence silently; 12288 got far enough that longer marketing /
+// multi-slide reviews still hit the ceiling mid-JSON. 16000 fits within
+// gpt-5.4-mini's max_completion_tokens limit and gives even the most
+// citation-heavy deliverables room. Route-level citation-integrity retry
+// covers the remaining edge cases.
+const MAX_TOKENS = 16000;
 
 export interface RunAgentOptions {
   /** Override the heuristic router with an explicit persona. */

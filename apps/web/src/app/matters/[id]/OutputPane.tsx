@@ -146,6 +146,13 @@ export function OutputPane({
 
   const displayContent = useMemo(() => stripCitationFence(content), [content]);
 
+  // If the reviewer flipped to Transcript or Graph and then the matter
+  // was reset to an empty state, the tab row hides — snap back to Output
+  // so the placeholder is what shows, not a stale secondary panel.
+  useEffect(() => {
+    if (!content && !streaming && activeTab !== "output") setActiveTab("output");
+  }, [content, streaming, activeTab]);
+
   // Hash the current output so we can both send it on POST and compare
   // against any existing pending approval tied to the same bytes — if the
   // reviewer retries and regenerates, the hash shifts and the button
@@ -402,17 +409,23 @@ export function OutputPane({
         </div>
       </div>
 
-      <div className="mt-3 flex gap-1 border-b border-neutral-200 pb-3 text-xs dark:border-neutral-800">
-        <TabButton active={activeTab === "output"} onClick={() => setActiveTab("output")}>
-          Output
-        </TabButton>
-        <TabButton active={activeTab === "transcript"} onClick={() => setActiveTab("transcript")}>
-          Transcript
-        </TabButton>
-        <TabButton active={activeTab === "graph"} onClick={() => setActiveTab("graph")}>
-          Graph
-        </TabButton>
-      </div>
+      {/* Transcript and graph are forensic views — only meaningful once a
+          review has produced content. Keep the tab row collapsed until
+          then so the first-time visitor sees subject doc → cited draft →
+          judge note rather than three empty tabs. */}
+      {(content || streaming) && (
+        <div className="mt-3 flex gap-1 border-b border-neutral-200 pb-3 text-xs dark:border-neutral-800">
+          <TabButton active={activeTab === "output"} onClick={() => setActiveTab("output")}>
+            Output
+          </TabButton>
+          <TabButton active={activeTab === "transcript"} onClick={() => setActiveTab("transcript")}>
+            Transcript
+          </TabButton>
+          <TabButton active={activeTab === "graph"} onClick={() => setActiveTab("graph")}>
+            Graph
+          </TabButton>
+        </div>
+      )}
 
       {/* Main output area */}
       <div className="flex-1 overflow-y-auto pt-4">

@@ -552,11 +552,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           });
         }
 
-        // Update matter status based on verdict
+        // Update matter status based on the final judge verdict. See the
+        // state machine comment in matter-store.ts — in-review is a
+        // transient state; every review should resolve into complete /
+        // needs-revision / blocked so the matters list reflects whether
+        // the review actually produced a shippable deliverable.
         if (state.lastVerdict === "READY_TO_SUBMIT") {
           await matterStore.updateStatus(matterId, "complete");
+        } else if (state.lastVerdict === "ITERATE") {
+          await matterStore.updateStatus(matterId, "needs-revision");
+        } else if (state.lastVerdict === "REWRITE") {
+          await matterStore.updateStatus(matterId, "blocked");
         }
       } catch (err) {
+        // Review crashed — the output is untrustworthy. Block the matter
+        // so a human has to look before any downstream action (export,
+        // handoff, sign-off) runs against a half-finished draft.
+        await matterStore.updateStatus(matterId, "blocked").catch(() => {});
         const message = err instanceof Error ? err.message : String(err);
         controller.enqueue(encoder.encode(sseFrame({ type: "error", message })));
       } finally {

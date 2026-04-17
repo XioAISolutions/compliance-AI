@@ -54,6 +54,12 @@ const STATUS_BADGE: Record<string, string> = {
   open: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
   "in-review": "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   complete: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300",
+  // needs-revision: judge said ITERATE, round cap hit — soft stop, human
+  // can pick up from the current draft.
+  "needs-revision": "bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300",
+  // blocked: judge said REWRITE or review errored — hard stop, don't
+  // auto-rerun. Rose so it stands out from needs-revision in scan mode.
+  blocked: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300",
   archived: "bg-neutral-100 text-neutral-500 dark:bg-neutral-900 dark:text-neutral-500",
 };
 
@@ -215,7 +221,7 @@ export default function MattersPage() {
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-neutral-100 text-xs font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
               {TASK_ICONS[m.taskType] ?? "?"}
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
               <h3 className="truncate text-sm font-medium">{m.title}</h3>
               <p className="mt-0.5 text-xs text-neutral-500">
                 {JURISDICTIONS.find((j) => j.value === m.jurisdiction)?.label ?? m.jurisdiction}

@@ -16,7 +16,34 @@ import { randomUUID } from "node:crypto";
 export type Jurisdiction = "ontario" | "quebec" | "british-columbia" | "alberta" | "federal";
 export type RegistrationCategory = "emd" | "pm" | "iiroc" | "issuer" | "none";
 export type TaskType = "om-review" | "kyc-gap-check" | "marketing-signoff" | "response-memo";
-export type MatterStatus = "open" | "in-review" | "complete" | "archived";
+/**
+ * Matter state machine:
+ *
+ *   open ──(first /review call)──▶ in-review ──(READY_TO_SUBMIT)──▶ complete
+ *                                        │
+ *                                        ├──(ITERATE after maxRounds)──▶ needs-revision
+ *                                        │
+ *                                        ├──(REWRITE after maxRounds)──▶ blocked
+ *                                        │
+ *                                        └──(review errored)──────────▶ blocked
+ *
+ *   complete | needs-revision | blocked ──(human action)──▶ archived
+ *
+ * `needs-revision` is a soft stop: the drafter produced cited output but the
+ * judge didn't sign off within the round cap. A human can pick up from the
+ * current draft without losing anything.
+ *
+ * `blocked` is a hard stop: either the judge's REWRITE verdict says the
+ * fundamental approach is wrong, or a runtime error made the review
+ * unreliable. Don't auto-rerun — a human must look.
+ */
+export type MatterStatus =
+  | "open"
+  | "in-review"
+  | "complete"
+  | "needs-revision"
+  | "blocked"
+  | "archived";
 export type DocumentType =
   | "authority-rule"
   | "regulatory-guidance"

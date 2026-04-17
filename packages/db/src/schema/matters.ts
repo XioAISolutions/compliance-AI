@@ -22,17 +22,23 @@ export const jurisdictionEnum = pgEnum("jurisdiction", [
 ]);
 
 export const registrationCategoryEnum = pgEnum("registration_category", [
-  "emd",        // Exempt Market Dealer
-  "pm",         // Portfolio Manager
-  "iiroc",      // IIROC Dealer Member (now CIRO)
-  "issuer",     // Reporting Issuer
-  "none",       // No registration (e.g., outside counsel)
+  "emd", // Exempt Market Dealer
+  "pm", // Portfolio Manager
+  "iiroc", // IIROC Dealer Member (now CIRO)
+  "issuer", // Reporting Issuer
+  "none", // No registration (e.g., outside counsel)
 ]);
 
 export const matterStatusEnum = pgEnum("matter_status", [
   "open",
   "in-review",
   "complete",
+  // Soft stop: judge said ITERATE, round cap hit. Draft is cited but not
+  // signed off. Human can resume.
+  "needs-revision",
+  // Hard stop: judge said REWRITE OR review errored mid-stream. Don't
+  // auto-rerun; human must intervene.
+  "blocked",
   "archived",
 ]);
 
@@ -75,7 +81,7 @@ export const documentTypeEnum = pgEnum("document_type", [
   "offering-memo",
   "kyc-aml-file",
   "marketing-material",
-  "reference-material",  // collapsed "Legacy *" categories
+  "reference-material", // collapsed "Legacy *" categories
   "other",
 ]);
 

@@ -90,6 +90,31 @@ describe("MatterStore (in-memory)", () => {
     expect(updated!.updatedAt.getTime()).toBeGreaterThanOrEqual(matter.createdAt.getTime());
   });
 
+  it("supports the full verdict-driven state machine (needs-revision + blocked)", async () => {
+    // Pin the state chart the review route relies on — adding or removing
+    // a status should force this test to be updated alongside the review
+    // route's verdict-to-status mapping.
+    const states = [
+      "open",
+      "in-review",
+      "complete",
+      "needs-revision",
+      "blocked",
+      "archived",
+    ] as const;
+    for (const target of states) {
+      const m = await store.create({
+        title: `State Test — ${target}`,
+        jurisdiction: "ontario",
+        registrationCategory: "emd",
+        taskType: "om-review",
+      });
+      const updated = await store.updateStatus(m.id, target);
+      expect(updated, `status must round-trip for target=${target}`).not.toBeNull();
+      expect(updated!.status).toBe(target);
+    }
+  });
+
   it("adds documents to a matter", async () => {
     const matter = await store.create({
       title: "Doc Test",

@@ -10,6 +10,8 @@
  */
 
 import type { CognitionItem } from "./types.js";
+import { NI_45_106_AUTHORITIES } from "./ni-45-106-authorities.js";
+import { NI_45_106_COMPANION_AUTHORITIES } from "./ni-45-106-companion-authorities.js";
 
 /**
  * FINTRAC / KYC authorities — applicable to EMDs, PMs, and IIROC members.
@@ -261,27 +263,15 @@ Standard FINTRAC remediation expectations:
 ];
 
 export const ONTARIO_EMD_AUTHORITIES: CognitionItem[] = [
-  {
-    id: "auth-ni-45-106-2.9",
-    organizationId: "preview",
-    title: "NI 45-106 s. 2.9 — Offering Memorandum Exemption",
-    source: "National Instrument 45-106 Prospectus Exemptions",
-    jurisdiction: "ontario",
-    registrationCategories: ["emd", "issuer"],
-    content: `Section 2.9 — Offering memorandum
-(1) The prospectus requirement does not apply to a distribution of a security to a person if:
-(a) the person purchases the security as principal,
-(b) the security is distributed in a jurisdiction listed in Appendix D,
-(c) at the time of the distribution, an offering memorandum is delivered to the person that contains:
-  (i) a description of the issuer's business and affairs,
-  (ii) risk factors relating to the issuer's business and the security being offered,
-  (iii) the use of the net proceeds to be raised,
-  (iv) the rights of action available to the purchaser in the event that the offering memorandum contains a misrepresentation,
-  (v) the financial statements required by the instrument,
-  (vi) disclosure of compensation paid to sellers and finders.
-
-The offering memorandum must be in the required form (Form 45-106F2 for non-qualifying issuers, Form 45-106F3 for qualifying issuers).`,
-  },
+  // Full NI 45-106 corpus — 112 items covering every section, part, division,
+  // and appendix, generated from the CSA unofficial consolidation current to
+  // 2025-12-04. Re-generate with `node scripts/ingest-ni-45-106.mjs`.
+  // See docs/NI_45_106_INGESTION.md for details.
+  ...NI_45_106_AUTHORITIES,
+  // Companion instruments — NI 45-102 (resale), CP 45-106CP (CSA interpretation),
+  // CSA Staff Notice 45-318, OSC Staff Notice 45-716. Every OM opinion cites
+  // these alongside NI 45-106.
+  ...NI_45_106_COMPANION_AUTHORITIES,
   {
     id: "auth-osc-rule-45-501-5.2",
     organizationId: "preview",

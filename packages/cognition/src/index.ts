@@ -1,6 +1,13 @@
 export type { CognitionItem, CognitionStore, RetrievalQuery, RetrievalResult } from "./types.js";
 export { InMemoryCognitionStore } from "./in-memory.js";
-export { ONTARIO_EMD_AUTHORITIES } from "./authorities.js";
+export { ONTARIO_EMD_AUTHORITIES, FINTRAC_KYC_AUTHORITIES } from "./authorities.js";
+export { NI_45_106_AUTHORITIES } from "./ni-45-106-authorities.js";
+export {
+  NI_45_102_RESALE_AUTHORITIES,
+  CP_45_106_COMPANION_POLICY_AUTHORITIES,
+  CSA_STAFF_NOTICES_45,
+  NI_45_106_COMPANION_AUTHORITIES,
+} from "./ni-45-106-companion-authorities.js";
 
 import { InMemoryCognitionStore } from "./in-memory.js";
 import type { CognitionStore } from "./types.js";

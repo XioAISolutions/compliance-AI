@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { QuickReviewDropZone } from "./QuickReviewDropZone";
 import { AuthorityLibrarySnapshot } from "./AuthorityLibrarySnapshot";
+import { MatterStatsCard } from "./MatterStatsCard";
 
 export default function Home() {
   // Bump this counter after every authority intake so the snapshot card
@@ -30,6 +31,8 @@ export default function Home() {
         letter, and route it to the right reviewer automatically. Hosted preview can use OpenAI with
         sample documents. Private installs can keep everything on local Ollama.
       </p>
+
+      <MatterStatsCard refreshToken={snapshotRefreshToken} />
 
       <AuthorityLibrarySnapshot refreshToken={snapshotRefreshToken} />
 

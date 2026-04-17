@@ -31,6 +31,15 @@ export interface ReviewStreamState {
   currentPersona: string | null;
   /** The most recent drafter round's output, reset whenever a new drafter round starts. */
   activeDrafterOutput: string;
+  /**
+   * The most recent judge round's output, reset when a new judge round starts.
+   * Tracks the judge's rationale prose so a compliance lawyer looking at a
+   * `needs-revision` or `blocked` matter can read WHY the judge rejected —
+   * not just which verdict token came out. The rationale is discarded from
+   * `activeDrafterOutput` (the judge's prose is not the deliverable), but it
+   * IS auditor-relevant and gets surfaced in the UI as "Judge's notes."
+   */
+  activeJudgeOutput: string;
   /** Highest round number seen so far. */
   lastRound: number;
   /** Last verdict emitted by the judge. */
@@ -43,6 +52,7 @@ export function newReviewStreamState(): ReviewStreamState {
   return {
     currentPersona: null,
     activeDrafterOutput: "",
+    activeJudgeOutput: "",
     lastRound: 0,
     lastVerdict: null,
     totalRounds: 0,
@@ -61,16 +71,22 @@ export function applyEvent(state: ReviewStreamState, event: AgentEvent): ReviewS
       state.lastRound = event.round;
       // If this is a drafter round (anything except judge), the previously
       // accumulated drafter output is now stale — a new draft is starting.
-      if (event.persona !== "judge") {
+      // Same logic for the judge: each judge round's rationale replaces
+      // the last, so we see the MOST RECENT critique in the final state.
+      if (event.persona === "judge") {
+        state.activeJudgeOutput = "";
+      } else {
         state.activeDrafterOutput = "";
       }
       break;
     }
     case "text-delta": {
-      // Only drafter rounds contribute to the deliverable. The judge's
-      // rationale is captured via verdict-final and doesn't belong in the
-      // output pane.
-      if (state.currentPersona !== "judge") {
+      // Drafter text goes to the deliverable. Judge text goes to the
+      // rationale pane (surfaced when the matter lands at needs-revision
+      // or blocked so a compliance lawyer can read WHY the judge rejected).
+      if (state.currentPersona === "judge") {
+        state.activeJudgeOutput += event.delta;
+      } else {
         state.activeDrafterOutput += event.delta;
       }
       break;

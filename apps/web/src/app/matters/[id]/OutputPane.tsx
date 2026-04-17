@@ -49,6 +49,13 @@ interface Props {
   onExported?: () => void;
   citationRetry?: CitationRetryState;
   citationWarnings?: CitationWarnings | null;
+  /**
+   * Judge's last-round rationale prose. Surfaced as an expandable panel
+   * when the verdict isn't READY_TO_SUBMIT, so a compliance lawyer
+   * landing on a `needs-revision` or `blocked` matter can read WHY the
+   * judge rejected, not just the status chip.
+   */
+  verdictRationale?: string | null;
 }
 
 type ActiveTab = "output" | "transcript" | "graph";
@@ -103,6 +110,7 @@ export function OutputPane({
   onExported,
   citationRetry,
   citationWarnings,
+  verdictRationale,
 }: Props) {
   const [hoveredCitation, setHoveredCitation] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -340,6 +348,21 @@ export function OutputPane({
         )}
         {activeTab === "graph" && <GraphPanel graph={graph} loading={loadingGraph} />}
       </div>
+
+      {/* Judge's rationale when verdict isn't READY — why the matter is
+          at needs-revision / blocked. Details disclosure so the prose
+          doesn't dominate the output pane unless the user opens it. */}
+      {activeTab === "output" && verdictRationale && verdict && verdict !== "READY_TO_SUBMIT" && (
+        <details className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs dark:border-amber-900 dark:bg-amber-950/40">
+          <summary className="cursor-pointer font-medium text-amber-800 dark:text-amber-300">
+            Judge&apos;s notes — why this matter is at{" "}
+            {verdict === "REWRITE" ? "blocked" : "needs-revision"}
+          </summary>
+          <div className="mt-2 whitespace-pre-wrap text-amber-900 dark:text-amber-100">
+            {verdictRationale}
+          </div>
+        </details>
+      )}
 
       {/* Citations footnotes */}
       {activeTab === "output" && citations.length > 0 && (

@@ -1,10 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { AgentEvent } from "@compliance-ai/agents";
-import {
-  applyEvent,
-  finalizeReview,
-  newReviewStreamState,
-} from "../review-stream";
+import { applyEvent, finalizeReview, newReviewStreamState } from "../review-stream";
 
 /**
  * These tests pin down the "clean final deliverable" semantics that the
@@ -52,6 +48,43 @@ describe("review-stream applyEvent", () => {
     // Drafter output should only be the drafter's content — not the judge's
     // rationale.
     expect(s.activeDrafterOutput).toBe("Draft content.");
+  });
+
+  it("captures the judge's rationale in activeJudgeOutput", () => {
+    // The review route forwards the judge's rationale to the UI as a
+    // verdict-rationale SSE event when the matter doesn't hit
+    // READY_TO_SUBMIT — a compliance lawyer needs to see WHY the draft
+    // got rejected, not just the "Rewriting" chip.
+    const s = newReviewStreamState();
+    const events: AgentEvent[] = [
+      { type: "round-started", round: 1, persona: "om-reviewer" },
+      { type: "text-delta", delta: "Cover page is missing issuer name." },
+      { type: "round-started", round: 1, persona: "judge" },
+      { type: "text-delta", delta: "Risk factors section is too generic. " },
+      { type: "text-delta", delta: "Use of proceeds needs itemization. " },
+      { type: "text-delta", delta: "ITERATE" },
+    ];
+    for (const e of events) applyEvent(s, e);
+    expect(s.activeJudgeOutput).toBe(
+      "Risk factors section is too generic. Use of proceeds needs itemization. ITERATE",
+    );
+  });
+
+  it("resets judge rationale on each new judge round (most-recent-wins)", () => {
+    // The UI shows the judge's LAST critique — an R3 rationale is more
+    // relevant than an R1 rationale that's since been addressed.
+    const s = newReviewStreamState();
+    const events: AgentEvent[] = [
+      { type: "round-started", round: 1, persona: "judge" },
+      { type: "text-delta", delta: "R1 rationale: missing risk factors." },
+      { type: "verdict-final", verdict: "ITERATE" },
+      { type: "round-started", round: 2, persona: "om-reviewer" },
+      { type: "text-delta", delta: "Round 2 draft with risk factors." },
+      { type: "round-started", round: 2, persona: "judge" },
+      { type: "text-delta", delta: "R2 rationale: risk factors present but shallow." },
+    ];
+    for (const e of events) applyEvent(s, e);
+    expect(s.activeJudgeOutput).toBe("R2 rationale: risk factors present but shallow.");
   });
 
   it("resets drafter output when a new drafter round starts (R2+)", () => {

@@ -111,6 +111,10 @@ export default function MatterDetailPage() {
     droppedChunkIds: string[];
     afterRetry: boolean;
   } | null>(null);
+  // Last judge round's rationale — shown when the final verdict isn't
+  // READY_TO_SUBMIT so a compliance lawyer can see WHY the draft got
+  // rejected instead of just "Rewriting" / "Iterating" badges.
+  const [verdictRationale, setVerdictRationale] = useState<string | null>(null);
 
   const [chatOpen, setChatOpen] = useState(false);
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
@@ -195,6 +199,7 @@ export default function MatterDetailPage() {
     setCitations([]);
     setCitationRetry({ inFlight: false, reason: null, markerCount: 0, priorValidCount: 0 });
     setCitationWarnings(null);
+    setVerdictRationale(null);
     setVerdict(null);
     setTotalRounds(null);
     currentPersonaRef.current = null;
@@ -282,6 +287,8 @@ export default function MatterDetailPage() {
                   : [],
                 afterRetry: event.afterRetry === true,
               });
+            } else if (event.type === "verdict-rationale" && typeof event.rationale === "string") {
+              setVerdictRationale(event.rationale);
             } else if (event.type === "loop-done") {
               setTotalRounds(event.totalRounds as number);
               if (event.finalVerdict) setVerdict(event.finalVerdict as JudgeVerdict);
@@ -380,6 +387,7 @@ export default function MatterDetailPage() {
             onStartReview={startReview}
             citationRetry={citationRetry}
             citationWarnings={citationWarnings}
+            verdictRationale={verdictRationale}
           />
         </main>
       </div>

@@ -324,6 +324,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             applyEvent(state, event);
             const { prose, citations, orphanedMarkers, unusedCitations } = finalizeReview(state);
             const { valid: validCitations, dropped } = validateCitations(citations, knownChunkIds);
+            // Surface the judge's rationale alongside the final prose so a
+            // compliance lawyer looking at a `needs-revision` or `blocked`
+            // matter sees WHY the judge rejected, not just the verdict
+            // token. When the judge shipped READY_TO_SUBMIT we skip this
+            // event — there's no critique to show.
+            if (state.lastVerdict !== "READY_TO_SUBMIT" && state.activeJudgeOutput.trim()) {
+              controller.enqueue(
+                encoder.encode(
+                  sseFrame({
+                    type: "verdict-rationale",
+                    rationale: state.activeJudgeOutput.trim(),
+                    verdict: state.lastVerdict,
+                  }),
+                ),
+              );
+            }
             controller.enqueue(encoder.encode(sseFrame({ type: "prose-final", prose })));
             controller.enqueue(
               encoder.encode(sseFrame({ type: "citations", citations: validCitations })),

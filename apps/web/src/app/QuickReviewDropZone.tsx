@@ -24,11 +24,22 @@ interface Classification {
   suggestedTitle: string | null;
 }
 
-interface QuickReviewResponse {
+interface QuickReviewMatterResponse {
+  kind?: "matter";
   matterId: string;
   matter: { title: string; taskType: string; jurisdiction: string };
   classification: Classification;
 }
+
+interface QuickReviewAuthorityIntakeResponse {
+  kind: "authority-intake";
+  authorityTitle: string;
+  chunksIngested: number;
+  classification: Classification;
+  message: string;
+}
+
+type QuickReviewResponse = QuickReviewMatterResponse | QuickReviewAuthorityIntakeResponse;
 
 const TASK_LABELS: Record<string, string> = {
   "om-review": "Offering memo review",
@@ -44,6 +55,14 @@ export function QuickReviewDropZone() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Persistent confirmation when a regulation was ingested into the
+  // authority library — the drop stays on the home page rather than
+  // navigating to a matter that wasn't created.
+  const [authorityIntake, setAuthorityIntake] = useState<{
+    title: string;
+    chunks: number;
+    message: string;
+  } | null>(null);
 
   async function handleFile(file: File) {
     if (busy) return;
@@ -56,11 +75,28 @@ export function QuickReviewDropZone() {
       const res = await fetch("/api/quick-review", { method: "POST", body: fd });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.error ?? `HTTP ${res.status}`);
+        throw new Error(body?.error ?? body?.message ?? `HTTP ${res.status}`);
       }
       const data = (await res.json()) as QuickReviewResponse;
+      // Authority-intake: regulation or staff notice was ingested into the
+      // tenant's cognition corpus. Don't navigate — the next upload (an OM,
+      // KYC file, marketing material, or regulator letter) is what produces
+      // a matter, and reviews for that matter will now cite the freshly
+      // ingested material.
+      if (data.kind === "authority-intake") {
+        setAuthorityIntake({
+          title: data.authorityTitle,
+          chunks: data.chunksIngested,
+          message: data.message,
+        });
+        setStatus(null);
+        return;
+      }
+      // Standard matter-creation response: navigate to the matter page and
+      // auto-start the review.
       const taskLabel = TASK_LABELS[data.matter.taskType] ?? data.matter.taskType;
       setStatus(`Classified as ${taskLabel}. Opening matter…`);
+      setAuthorityIntake(null);
       router.push(`/matters/${data.matterId}?autoStart=1`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -93,9 +129,7 @@ export function QuickReviewDropZone() {
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         className={`flex min-h-[200px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors ${
-          busy
-            ? "cursor-wait border-neutral-200 dark:border-neutral-800"
-            : ""
+          busy ? "cursor-wait border-neutral-200 dark:border-neutral-800" : ""
         } ${
           dragOver && !busy
             ? "border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-950/30"
@@ -138,6 +172,21 @@ export function QuickReviewDropZone() {
         <p className="mt-2 rounded-md bg-red-50 p-2 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">
           {error}
         </p>
+      )}
+      {authorityIntake && !error && (
+        <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+          <div className="flex items-start gap-2">
+            <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            <div className="flex-1">
+              <p className="font-medium">Added to authority library: {authorityIntake.title}</p>
+              <p className="mt-1">
+                Ingested <strong>{authorityIntake.chunks}</strong> chunk
+                {authorityIntake.chunks === 1 ? "" : "s"}. Drop an offering memorandum, KYC file,
+                marketing deck, or regulator inquiry next — reviews will now cite this material.
+              </p>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

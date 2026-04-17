@@ -63,6 +63,20 @@ const STATUS_BADGE: Record<string, string> = {
   archived: "bg-neutral-100 text-neutral-500 dark:bg-neutral-900 dark:text-neutral-500",
 };
 
+// Status filter chips, in the order a compliance lawyer scanning the list
+// would triage them: attention-worthy states first (needs-revision, blocked),
+// then in-progress, then done / new / archived. "all" is the default so
+// existing behaviour is unchanged for users who don't click a filter.
+const STATUS_FILTERS: Array<{ value: "all" | string; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "needs-revision", label: "Needs revision" },
+  { value: "blocked", label: "Blocked" },
+  { value: "in-review", label: "In review" },
+  { value: "open", label: "Open" },
+  { value: "complete", label: "Complete" },
+  { value: "archived", label: "Archived" },
+];
+
 export default function MattersPage() {
   const [matters, setMatters] = useState<Matter[]>([]);
   const [creating, setCreating] = useState(false);
@@ -71,6 +85,7 @@ export default function MattersPage() {
   const [registrationCategory, setRegistrationCategory] = useState("emd");
   const [taskType, setTaskType] = useState("om-review");
   const [loading, setLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   useEffect(() => {
     void fetchMatters();
@@ -203,7 +218,33 @@ export default function MattersPage() {
         </form>
       )}
 
-      <div className="mt-8 space-y-3">
+      {matters.length > 0 && (
+        <div className="mt-6 flex flex-wrap gap-1.5">
+          {STATUS_FILTERS.map((f) => {
+            const count =
+              f.value === "all"
+                ? matters.length
+                : matters.filter((m) => m.status === f.value).length;
+            const active = statusFilter === f.value;
+            return (
+              <button
+                key={f.value}
+                onClick={() => setStatusFilter(f.value)}
+                disabled={count === 0 && f.value !== "all"}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  active
+                    ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900"
+                    : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                }`}
+              >
+                {f.label} · {count}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="mt-4 space-y-3">
         {matters.length === 0 && !creating && (
           <div className="rounded-lg border border-dashed border-neutral-300 py-12 text-center dark:border-neutral-700">
             <p className="text-neutral-500">No matters yet.</p>
@@ -212,33 +253,35 @@ export default function MattersPage() {
             </p>
           </div>
         )}
-        {matters.map((m) => (
-          <Link
-            key={m.id}
-            href={`/matters/${m.id}`}
-            className="flex items-center gap-4 rounded-lg border border-neutral-200 p-4 transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900/50"
-          >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-neutral-100 text-xs font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
-              {TASK_ICONS[m.taskType] ?? "?"}
-            </div>
-            <div className="min-w-0 flex-1">
-              <h3 className="truncate text-sm font-medium">{m.title}</h3>
-              <p className="mt-0.5 text-xs text-neutral-500">
-                {JURISDICTIONS.find((j) => j.value === m.jurisdiction)?.label ?? m.jurisdiction}
-                {" · "}
-                {REGISTRATION_CATEGORIES.find((r) => r.value === m.registrationCategory)?.label ??
-                  m.registrationCategory}
-                {" · "}
-                {TASK_TYPES.find((t) => t.value === m.taskType)?.label ?? m.taskType}
-              </p>
-            </div>
-            <span
-              className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE[m.status] ?? STATUS_BADGE.open}`}
+        {matters
+          .filter((m) => statusFilter === "all" || m.status === statusFilter)
+          .map((m) => (
+            <Link
+              key={m.id}
+              href={`/matters/${m.id}`}
+              className="flex items-center gap-4 rounded-lg border border-neutral-200 p-4 transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900/50"
             >
-              {m.status}
-            </span>
-          </Link>
-        ))}
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-neutral-100 text-xs font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                {TASK_ICONS[m.taskType] ?? "?"}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="truncate text-sm font-medium">{m.title}</h3>
+                <p className="mt-0.5 text-xs text-neutral-500">
+                  {JURISDICTIONS.find((j) => j.value === m.jurisdiction)?.label ?? m.jurisdiction}
+                  {" · "}
+                  {REGISTRATION_CATEGORIES.find((r) => r.value === m.registrationCategory)?.label ??
+                    m.registrationCategory}
+                  {" · "}
+                  {TASK_TYPES.find((t) => t.value === m.taskType)?.label ?? m.taskType}
+                </p>
+              </div>
+              <span
+                className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE[m.status] ?? STATUS_BADGE.open}`}
+              >
+                {m.status}
+              </span>
+            </Link>
+          ))}
       </div>
     </main>
   );

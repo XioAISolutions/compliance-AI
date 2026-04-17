@@ -208,7 +208,24 @@ function renderReviewSubject(subject: ReviewSubject | undefined): string {
 }
 
 function renderCognitionContext(snippets: RetrievedSnippet[]): string {
-  if (snippets.length === 0) return "";
+  // When retrieval returns empty, we still emit a context block — telling the
+  // model "no authorities came back, do not fabricate [cN] markers, and flag
+  // this gap in your output" is strictly better than dropping the citation
+  // instruction entirely and letting the persona's default citation habit
+  // produce orphan markers that audit can't reconcile.
+  if (snippets.length === 0) {
+    return [
+      `## Retrieved tenant context`,
+      `**No authorities were retrieved for this matter.** The tenant's compliance corpus either has no items that matched the retrieval query, or the retrieval layer is not yet seeded for this tenant.`,
+      ``,
+      `In this case you MUST NOT fabricate [cN] citation markers or pretend to have an authority to back your findings. Instead:`,
+      `- Lead your output with an explicit "RETRIEVAL GAP" notice naming what you would have cited.`,
+      `- State each finding in plain terms, clearly labeled as uncited, and defer any rule-specific assertion to follow-up.`,
+      `- Do not emit a \`\`\`citations fence at all — an empty array is acceptable and expected here.`,
+      ``,
+      `If a human reader asks why a finding isn't cited, the honest answer is "the retrieval layer returned zero authorities for this query" — surface that fact rather than hiding it.`,
+    ].join("\n");
+  }
   const lines: string[] = [
     `## Retrieved tenant context`,
     `The following snippets are drawn from this tenant's compliance corpus (authority rules, prior approved language, auditor letters, internal policy excerpts). Use them to ground your answer. If a snippet conflicts with the framework requirement, prefer the framework and flag the conflict.`,
@@ -238,10 +255,11 @@ function client(): Anthropic {
   return cachedClient;
 }
 
-function renderSystemPrompt(
-  blocks: Array<{ text: string }>,
-): string {
-  return blocks.map((block) => block.text.trim()).filter(Boolean).join("\n\n");
+function renderSystemPrompt(blocks: Array<{ text: string }>): string {
+  return blocks
+    .map((block) => block.text.trim())
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 function openAiCompatibleAuthHeaders(config: ModelProviderConfig): Record<string, string> {
@@ -308,7 +326,8 @@ async function* readOpenAiCompatibleStream(
         choice.delta && typeof choice.delta === "object"
           ? (choice.delta as Record<string, unknown>)
           : null;
-      const content = delta?.content ?? (choice.message as Record<string, unknown> | undefined)?.content;
+      const content =
+        delta?.content ?? (choice.message as Record<string, unknown> | undefined)?.content;
       if (typeof content === "string" && content.length > 0) {
         yield { type: "text-delta", delta: content };
       }

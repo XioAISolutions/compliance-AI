@@ -91,6 +91,36 @@ export async function POST(req: NextRequest) {
 
   const classification = classifyDocument(parsed);
 
+  // Reject uploads of the regulations themselves — a compliance lawyer reviews
+  // documents AGAINST regulations, not the regulations themselves. If the user
+  // drops a CSA instrument or staff notice here, the reviewer would treat it
+  // as an OM and hallucinate findings. Guide them to upload something we can
+  // actually review (OM, KYC file, marketing material, or regulator letter).
+  //
+  // Gate on a confident classification — we don't want to false-reject an OM
+  // that briefly mentions an NI number. confidence ≥ 0.33 requires ≥2 signals
+  // from the authority/guidance scorers.
+  if (
+    (classification.documentType === "authority-rule" ||
+      classification.documentType === "regulatory-guidance") &&
+    classification.confidence >= 0.33
+  ) {
+    const label =
+      classification.documentType === "authority-rule"
+        ? "a regulation (National Instrument, CSA rule, or Securities Act section)"
+        : "regulatory guidance (CSA / OSC staff notice or companion policy)";
+    return NextResponse.json(
+      {
+        error: "authority-document-upload",
+        message:
+          `This looks like ${label}, not a document to review. The reviewer works by checking YOUR document (an offering memorandum, KYC/AML file, marketing material, or regulator inquiry) against the rules. ` +
+          `Upload one of those instead. If you want to expand the authority corpus this reviewer searches, use the authority-library intake (not yet exposed in quick-review).`,
+        classification,
+      },
+      { status: 400 },
+    );
+  }
+
   // Compose a matter title from the classification + filename.
   const title =
     classification.suggestedTitle?.slice(0, 80) ??
@@ -148,7 +178,10 @@ export async function POST(req: NextRequest) {
 }
 
 function stripExt(filename: string): string {
-  return filename.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim();
+  return filename
+    .replace(/\.[^.]+$/, "")
+    .replace(/[-_]+/g, " ")
+    .trim();
 }
 
 function mapDocumentType(d: string): DocumentType {
@@ -171,7 +204,12 @@ function mapDocumentType(d: string): DocumentType {
 }
 
 function mapTaskType(t: string | null): TaskType {
-  if (t === "om-review" || t === "kyc-gap-check" || t === "marketing-signoff" || t === "response-memo") {
+  if (
+    t === "om-review" ||
+    t === "kyc-gap-check" ||
+    t === "marketing-signoff" ||
+    t === "response-memo"
+  ) {
     return t;
   }
   return "om-review";
@@ -181,8 +219,6 @@ function mapJurisdiction(j: InferredJurisdiction | null): Jurisdiction {
   return j ?? "ontario";
 }
 
-function mapRegistrationCategory(
-  r: InferredRegistrationCategory | null,
-): RegistrationCategory {
+function mapRegistrationCategory(r: InferredRegistrationCategory | null): RegistrationCategory {
   return r ?? "emd";
 }

@@ -100,6 +100,42 @@ describe("classifyDocument", () => {
     expect(result.taskType).toBeNull();
   });
 
+  it("classifies NI 45-106 unofficial consolidation high-confidence even with OM-adjacent vocabulary", () => {
+    // Synthesized from the actual CSA consolidation cover page. The text
+    // contains "Offering memorandum" (in a table of contents) and
+    // "Accredited investor" — terms that used to tie the classifier between
+    // authority-rule and offering-memo, sending it to "other" with
+    // confidence 0. Authority-specific markers ("Prospectus Exemptions",
+    // "unofficial consolidation", "this Instrument", "Part 1", "Division 1")
+    // should now win decisively.
+    const text = `
+      Ontario Securities Commission
+      National Instrument 45-106
+      Unofficial consolidation current to 2025-12-04.
+
+      NATIONAL INSTRUMENT 45-106
+      PROSPECTUS EXEMPTIONS
+
+      Text boxes in this Instrument located above sections 2.1 to 2.5 refer to
+      National Instrument 45-102 Resale of Securities.
+
+      Contents
+      Part 1 Definitions and Interpretation
+      Part 2 Prospectus Exemptions
+      Division 1: Capital Raising Exemptions
+      Accredited investor
+      Private issuer
+      Offering memorandum
+      Minimum amount investment
+    `;
+    const result = classifyDocument({ text });
+    expect(result.documentType).toBe("authority-rule");
+    expect(result.taskType).toBeNull();
+    // Classifier must be *confident* — the quick-review route rejects uploads
+    // of the regulations themselves only when confidence >= 0.33.
+    expect(result.confidence).toBeGreaterThanOrEqual(0.5);
+  });
+
   it("classifies CSA staff notice as regulatory guidance", () => {
     const text = `
       CSA Staff Notice 33-316 — Marketing Practices Review

@@ -196,6 +196,16 @@ function scoreAuthority(text: string): number {
   if (/\b(subsection|paragraph \([a-z]\))\b/.test(text)) score += 1;
   if (/\b(prescribed|shall not|is required to)\b/.test(text)) score += 1;
   if (/\b(regulation \d+)\b/.test(text)) score += 1;
+  // Additional signals that distinguish a regulator-published instrument from
+  // an OM that merely mentions NI 45-106 once on its cover page. An actual
+  // instrument's contents repeat these structural markers throughout:
+  if (/\bprospectus exemptions?\b/.test(text)) score += 2;
+  if (/\bunofficial consolidation\b/.test(text)) score += 2;
+  if (/\bthis instrument\b/.test(text)) score += 2;
+  if (/\b(part \d+|division \d+)\b/.test(text)) score += 1;
+  // Any four-digit CSA-style identifier tied to "45-" / "31-" / "81-" /
+  // "33-" families strongly implies a regulation doc, not evidence.
+  if (/\b(45|31|81|33|51|52)-\d{3}\b/.test(text)) score += 1;
   return score;
 }
 
@@ -214,7 +224,8 @@ function inferJurisdiction(text: string): InferredJurisdiction | null {
   if (/\b(autorité des marchés financiers|\bamf\b|quebec|québec)\b/.test(text)) return "quebec";
   if (/\b(bcsc|british columbia securities|vancouver)\b/.test(text)) return "british-columbia";
   if (/\b(alberta securities commission|\basc\b|calgary|edmonton)\b/.test(text)) return "alberta";
-  if (/\b(ontario securities commission|\bosc\b|\bontario\b|toronto)\b/.test(text)) return "ontario";
+  if (/\b(ontario securities commission|\bosc\b|\bontario\b|toronto)\b/.test(text))
+    return "ontario";
   return null;
 }
 
@@ -229,7 +240,10 @@ function inferRegistrationCategory(text: string): InferredRegistrationCategory |
 // --- Title extraction -----------------------------------------------------
 
 function extractTitle(sample: string): string | null {
-  const lines = sample.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const lines = sample
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
   for (const line of lines.slice(0, 10)) {
     // Heuristic: first non-trivial line that looks like a title
     // (length 8..120, not all uppercase noise, not starting with boilerplate)

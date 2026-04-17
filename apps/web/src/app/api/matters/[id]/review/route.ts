@@ -13,6 +13,7 @@
 import { NextRequest } from "next/server";
 import {
   runAgentLoop,
+  validateCitations,
   type AgentContext,
   type PersonaId,
   type RetrievedSnippet,
@@ -27,17 +28,19 @@ import {
   extractEvidenceRequests,
 } from "../../../../../lib/evidence-store";
 import { requireSession } from "../../../../../lib/auth";
-import {
-  applyEvent,
-  finalizeReview,
-  newReviewStreamState,
-} from "../../../../../lib/review-stream";
+import { applyEvent, finalizeReview, newReviewStreamState } from "../../../../../lib/review-stream";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const DEFAULT_TOP_K = 6;
-const DEFAULT_SCORE_THRESHOLD = 0.02;
+const DEFAULT_TOP_K = 8;
+// Threshold kept near zero: BM25 + RRF normalization returns scores on [0,1],
+// and for a broad query against a well-populated corpus the top-K items tend
+// to land between 0.1 and 1.0. Anything above zero is a positive lexical
+// match — trust topK to cap the list rather than an arbitrary floor that
+// silently starves the reviewer of authorities when the query happens to
+// normalize tightly.
+const DEFAULT_SCORE_THRESHOLD = 0;
 
 function toRetrievedSnippet(result: RetrievalResult): RetrievedSnippet {
   return {
@@ -176,10 +179,7 @@ const TASK_PROMPTS_NO_SUBJECT: Record<string, string> = {
   "response-memo": `No inquiry or deficiency letter has been uploaded to this matter yet. Ask the user to upload the regulator's letter so the response can be drafted against its specific points.`,
 };
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: matterId } = await params;
 
   let session;
@@ -210,8 +210,8 @@ export async function POST(
   // If no document has been uploaded, fall through to the no-subject prompt.
   const reviewSubject = await buildReviewSubject(matterId, taskType);
   const userMessage = reviewSubject
-    ? TASK_PROMPTS_WITH_SUBJECT[taskType] ?? TASK_PROMPTS_WITH_SUBJECT["om-review"]!
-    : TASK_PROMPTS_NO_SUBJECT[taskType] ?? TASK_PROMPTS_NO_SUBJECT["om-review"]!;
+    ? (TASK_PROMPTS_WITH_SUBJECT[taskType] ?? TASK_PROMPTS_WITH_SUBJECT["om-review"]!)
+    : (TASK_PROMPTS_NO_SUBJECT[taskType] ?? TASK_PROMPTS_NO_SUBJECT["om-review"]!);
 
   // Seed authorities for this tenant (idempotent)
   await ensureTenant(matter.organizationId);
@@ -221,7 +221,10 @@ export async function POST(
   // most relevant to the OM's topics come back.
   const cognitionStore = getDefaultCognitionStore();
   const retrievalQuery = reviewSubject
-    ? reviewSubject.chunks.map((c) => c.content).join(" ").slice(0, 2000)
+    ? reviewSubject.chunks
+        .map((c) => c.content)
+        .join(" ")
+        .slice(0, 2000)
     : userMessage;
   let retrievedSnippets: RetrievedSnippet[] = [];
   try {
@@ -302,18 +305,41 @@ export async function POST(
         // reading. We must emit `prose-final` and `citations` BEFORE the
         // loop-done passes through so the UI can replace its accumulated
         // stream with the clean final version before closing the reader.
+        // Build the set of resolvable chunkIds visible to the model this turn —
+        // both the subject document's chunks AND the retrieved authority ids.
+        // A [cN] citation is only trustworthy if its chunkId lands in this set.
+        const knownChunkIds = new Set<string>();
+        for (const s of retrievedSnippets) knownChunkIds.add(s.id);
+        if (context.reviewSubject) {
+          for (const c of context.reviewSubject.chunks) knownChunkIds.add(c.chunkId);
+        }
+
         for await (const event of generator) {
           if (event.type === "loop-done") {
             // Hold the loop-done event until after we've parsed + emitted
             // the finalize events.
             applyEvent(state, event);
-            const { prose, citations } = finalizeReview(state);
+            const { prose, citations, orphanedMarkers, unusedCitations } = finalizeReview(state);
+            const { valid: validCitations, dropped } = validateCitations(citations, knownChunkIds);
+            controller.enqueue(encoder.encode(sseFrame({ type: "prose-final", prose })));
             controller.enqueue(
-              encoder.encode(sseFrame({ type: "prose-final", prose })),
+              encoder.encode(sseFrame({ type: "citations", citations: validCitations })),
             );
-            controller.enqueue(
-              encoder.encode(sseFrame({ type: "citations", citations })),
-            );
+            // Surface citation integrity warnings so the UI can flag "X
+            // orphan marker(s)" — silently dropping them is what got us the
+            // empty `authorities_used` audit rows in the first place.
+            if (orphanedMarkers.length > 0 || unusedCitations.length > 0 || dropped.length > 0) {
+              controller.enqueue(
+                encoder.encode(
+                  sseFrame({
+                    type: "citation-warnings",
+                    orphanedMarkers,
+                    unusedCitations,
+                    droppedChunkIds: dropped.map((c) => c.chunkId),
+                  }),
+                ),
+              );
+            }
             controller.enqueue(encoder.encode(sseFrame(event)));
             continue;
           }
@@ -321,7 +347,19 @@ export async function POST(
           applyEvent(state, event);
         }
 
-        const { prose, citations } = finalizeReview(state);
+        const { prose, citations, orphanedMarkers, unusedCitations } = finalizeReview(state);
+        const { valid: validCitations } = validateCitations(citations, knownChunkIds);
+
+        // authoritiesUsed now records the authorities the reviewer ACTUALLY
+        // cited (deduped authorityId values), not the retrieval pool. If the
+        // reviewer shipped uncited prose we record the retrieval pool as a
+        // fallback but the orphan/unused counts in inputContent make the
+        // integrity gap visible to an auditor reading the trail.
+        const citedAuthorityIds = Array.from(
+          new Set(validCitations.map((c) => c.authorityId).filter(Boolean)),
+        );
+        const authoritiesUsed =
+          citedAuthorityIds.length > 0 ? citedAuthorityIds : retrievedSnippets.map((s) => s.id);
 
         // Write the generation audit entry using the CLEAN final prose so
         // regulators see the final deliverable, not the reasoning transcript.
@@ -333,10 +371,14 @@ export async function POST(
           actor: personaForTask(taskType),
           action: "generation",
           inputHash: sha256(userMessage),
-          authoritiesUsed: retrievedSnippets.map((s) => s.id),
+          authoritiesUsed,
           outputHash: sha256(prose),
           judgeVerdict: state.lastVerdict,
-          inputContent: `${state.totalRounds} round(s) via judge loop · ${citations.length} citation(s)`,
+          inputContent:
+            `${state.totalRounds} round(s) via judge loop · ` +
+            `${validCitations.length}/${citations.length} citation(s) resolved · ` +
+            `${orphanedMarkers.length} orphan marker(s) · ` +
+            `${unusedCitations.length} unused citation(s)`,
           outputContent: prose.slice(0, 2000),
         });
 

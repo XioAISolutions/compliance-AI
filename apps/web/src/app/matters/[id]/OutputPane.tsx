@@ -139,8 +139,79 @@ export function OutputPane({
     edges: [],
   });
   const [loadingGraph, setLoadingGraph] = useState(false);
+  const [outputHash, setOutputHash] = useState<string | null>(null);
+  const [approvalRequested, setApprovalRequested] = useState(false);
+  const [requestingApproval, setRequestingApproval] = useState(false);
+  const [approvalError, setApprovalError] = useState<string | null>(null);
 
   const displayContent = useMemo(() => stripCitationFence(content), [content]);
+
+  // If the reviewer flipped to Transcript or Graph and then the matter
+  // was reset to an empty state, the tab row hides — snap back to Output
+  // so the placeholder is what shows, not a stale secondary panel.
+  useEffect(() => {
+    if (!content && !streaming && activeTab !== "output") setActiveTab("output");
+  }, [content, streaming, activeTab]);
+
+  // Hash the current output so we can both send it on POST and compare
+  // against any existing pending approval tied to the same bytes — if the
+  // reviewer retries and regenerates, the hash shifts and the button
+  // resets so stale approvals don't look current.
+  useEffect(() => {
+    if (!content || streaming) {
+      setOutputHash(null);
+      return;
+    }
+    let cancelled = false;
+    void sha256Hex(content).then((hash) => {
+      if (!cancelled) setOutputHash(hash);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [content, streaming]);
+
+  // On mount (and whenever the hash changes) check whether this exact
+  // output already has a pending approval so a refresh keeps showing
+  // "Approval requested" instead of inviting a duplicate submission.
+  useEffect(() => {
+    if (verdict !== "READY_TO_SUBMIT" || !outputHash) {
+      setApprovalRequested(false);
+      return;
+    }
+    let cancelled = false;
+    void fetch(`/api/approvals?matterId=${matterId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((items: Array<{ id: string; status: string; outputHash: string }> | null) => {
+        if (cancelled || !Array.isArray(items)) return;
+        const match = items.find((i) => i.status === "requested" && i.outputHash === outputHash);
+        setApprovalRequested(Boolean(match));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [matterId, outputHash, verdict]);
+
+  async function requestApproval() {
+    if (requestingApproval || approvalRequested || !outputHash || !content) return;
+    setRequestingApproval(true);
+    setApprovalError(null);
+    try {
+      const summary = deriveApprovalSummary(displayContent) || `Matter ${matterId.slice(0, 8)}`;
+      const res = await fetch("/api/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matterId, outputHash, summary }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setApprovalRequested(true);
+    } catch (err) {
+      setApprovalError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRequestingApproval(false);
+    }
+  }
 
   useEffect(() => {
     if (activeTab !== "transcript" || loadingTranscript || transcript.length > 0) return;
@@ -298,6 +369,24 @@ export function OutputPane({
           )}
         </div>
         <div className="flex gap-2">
+          {verdict === "READY_TO_SUBMIT" && content && !streaming && (
+            <button
+              onClick={() => void requestApproval()}
+              disabled={requestingApproval || approvalRequested || !outputHash}
+              title={approvalError ?? undefined}
+              className={
+                approvalRequested
+                  ? "rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-300"
+                  : "rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-40"
+              }
+            >
+              {approvalRequested
+                ? "Approval requested"
+                : requestingApproval
+                  ? "Requesting…"
+                  : "Request approval"}
+            </button>
+          )}
           <button
             onClick={onOpenChat}
             className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
@@ -320,17 +409,23 @@ export function OutputPane({
         </div>
       </div>
 
-      <div className="mt-3 flex gap-1 border-b border-neutral-200 pb-3 text-xs dark:border-neutral-800">
-        <TabButton active={activeTab === "output"} onClick={() => setActiveTab("output")}>
-          Output
-        </TabButton>
-        <TabButton active={activeTab === "transcript"} onClick={() => setActiveTab("transcript")}>
-          Transcript
-        </TabButton>
-        <TabButton active={activeTab === "graph"} onClick={() => setActiveTab("graph")}>
-          Graph
-        </TabButton>
-      </div>
+      {/* Transcript and graph are forensic views — only meaningful once a
+          review has produced content. Keep the tab row collapsed until
+          then so the first-time visitor sees subject doc → cited draft →
+          judge note rather than three empty tabs. */}
+      {(content || streaming) && (
+        <div className="mt-3 flex gap-1 border-b border-neutral-200 pb-3 text-xs dark:border-neutral-800">
+          <TabButton active={activeTab === "output"} onClick={() => setActiveTab("output")}>
+            Output
+          </TabButton>
+          <TabButton active={activeTab === "transcript"} onClick={() => setActiveTab("transcript")}>
+            Transcript
+          </TabButton>
+          <TabButton active={activeTab === "graph"} onClick={() => setActiveTab("graph")}>
+            Graph
+          </TabButton>
+        </div>
+      )}
 
       {/* Main output area */}
       <div className="flex-1 overflow-y-auto pt-4">
@@ -435,6 +530,23 @@ export function OutputPane({
 
 function stripCitationFence(value: string): string {
   return value.replace(/```citations\s*\n[\s\S]*?\n```/g, "").trim();
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const bytes = new TextEncoder().encode(input);
+  const buf = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function deriveApprovalSummary(text: string): string {
+  const line = text
+    .split("\n")
+    .map((l) => l.replace(/^#+\s*/, "").trim())
+    .find((l) => l.length > 0);
+  if (!line) return "";
+  return line.length > 160 ? `${line.slice(0, 157)}…` : line;
 }
 
 function TabButton({

@@ -47,20 +47,25 @@ export function AuthorityLibrarySnapshot({ refreshToken }: { refreshToken?: numb
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch("/api/authorities")
-      .then((res) => (res.ok ? res.json() : Promise.reject(`HTTP ${res.status}`)))
-      .then((body: Snapshot) => {
+    // Keep this simple — the original .then/.catch/.finally chain with typed
+    // body callbacks was hot-reloading to a state where setSnapshot didn't
+    // re-render under some Turbopack fast-refresh sequences. async/await is
+    // boring and works.
+    (async () => {
+      try {
+        const res = await fetch("/api/authorities");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = (await res.json()) as Snapshot;
         if (!cancelled) {
           setSnapshot(body);
           setErr(null);
         }
-      })
-      .catch((e) => {
-        if (!cancelled) setErr(String(e));
-      })
-      .finally(() => {
+      } catch (e) {
+        if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };

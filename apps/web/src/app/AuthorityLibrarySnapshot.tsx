@@ -43,6 +43,33 @@ export function AuthorityLibrarySnapshot({ refreshToken }: { refreshToken?: numb
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [removingSource, setRemovingSource] = useState<string | null>(null);
+  const [localRefresh, setLocalRefresh] = useState(0);
+
+  async function removeSource(source: string) {
+    // Confirm in-place so a mis-click doesn't wipe a 70-chunk ingest.
+    const confirmed = window.confirm(
+      `Remove all chunks uploaded from "${source}" from the authority library? ` +
+        `Baseline authorities (not from your uploads) are unaffected.`,
+    );
+    if (!confirmed) return;
+    setRemovingSource(source);
+    try {
+      const res = await fetch(`/api/authorities?source=${encodeURIComponent(source)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? `HTTP ${res.status}`);
+      }
+      // Force a re-fetch so the card updates without a page reload.
+      setLocalRefresh((n) => n + 1);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRemovingSource(null);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -69,7 +96,7 @@ export function AuthorityLibrarySnapshot({ refreshToken }: { refreshToken?: numb
     return () => {
       cancelled = true;
     };
-  }, [refreshToken]);
+  }, [refreshToken, localRefresh]);
 
   if (loading && !snapshot) {
     return (
@@ -126,8 +153,16 @@ export function AuthorityLibrarySnapshot({ refreshToken }: { refreshToken?: numb
           </p>
           <ul className="mt-1 space-y-0.5 text-[11px] text-neutral-600 dark:text-neutral-400">
             {snapshot.uploadedSources.slice(0, 6).map((src) => (
-              <li key={src} className="truncate">
-                · {src}
+              <li key={src} className="group flex items-center justify-between gap-2">
+                <span className="truncate">· {src}</span>
+                <button
+                  onClick={() => removeSource(src)}
+                  disabled={removingSource === src}
+                  className="shrink-0 rounded-sm px-1 text-[10px] text-neutral-400 opacity-0 transition-opacity hover:bg-rose-50 hover:text-rose-700 disabled:cursor-wait group-hover:opacity-100 dark:hover:bg-rose-950 dark:hover:text-rose-300"
+                  title={`Remove all chunks from ${src} from the authority library`}
+                >
+                  {removingSource === src ? "Removing…" : "Remove"}
+                </button>
               </li>
             ))}
             {snapshot.uploadedSources.length > 6 && (

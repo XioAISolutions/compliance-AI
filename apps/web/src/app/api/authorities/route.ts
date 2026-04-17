@@ -14,6 +14,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getDefaultCognitionStore } from "@compliance-ai/cognition";
+import { getDefaultAuditStore, sha256 } from "../../../lib/audit-store";
 import { ensureTenant } from "../../../lib/bootstrap";
 import { requireSession } from "../../../lib/auth";
 
@@ -90,4 +91,69 @@ export async function GET(_req: NextRequest) {
     uploadedSources: Array.from(uploadedFiles).sort(),
     recent,
   });
+}
+
+/**
+ * Bulk delete by source — DELETE /api/authorities?source=<filename>
+ *
+ * Removes every cognition item whose `source` field begins with the given
+ * filename + " (". Scoped to the caller's organizationId so a tenant can
+ * never wipe another tenant's items. Baseline-seeded authorities (source
+ * not derived from an upload) are never matched by the filename regex so
+ * they're safe from bulk deletion — a lawyer needs the per-id DELETE
+ * endpoint to touch those.
+ *
+ * Returns the count of items removed. Useful for undoing a mistaken
+ * upload where chunkCount is ~70 and deleting one by one would be
+ * tedious.
+ */
+export async function DELETE(req: NextRequest) {
+  let session;
+  try {
+    session = await requireSession();
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const organizationId = session.organizationId;
+
+  const source = req.nextUrl.searchParams.get("source");
+  if (!source || !source.trim()) {
+    return NextResponse.json({ error: "Missing ?source=<filename> query param" }, { status: 400 });
+  }
+
+  const store = getDefaultCognitionStore("securities");
+  const all = await store.getAll();
+  // Exact-prefix match on the source filename + " (" guard so a partial
+  // overlap (e.g. "NI.pdf" wouldn't match "NI 45-106.pdf") can't wipe
+  // unrelated items.
+  const prefix = `${source.trim()} (`;
+  const targets = all.filter(
+    (item) => item.organizationId === organizationId && item.source?.startsWith(prefix),
+  );
+  if (targets.length === 0) {
+    return NextResponse.json({ removed: 0, source });
+  }
+
+  let removedCount = 0;
+  for (const item of targets) {
+    if (!item.id) continue;
+    const ok = await store.remove(item.id);
+    if (ok) removedCount += 1;
+  }
+
+  const auditStore = getDefaultAuditStore();
+  await auditStore.append(`authority-bulkdelete-${sha256(source).slice(0, 12)}`, {
+    matterId: `authority-bulkdelete-${sha256(source).slice(0, 12)}`,
+    organizationId,
+    actor: session.user.email,
+    action: "retrieval",
+    inputHash: sha256(source),
+    authoritiesUsed: targets.map((t) => t.id!).filter(Boolean),
+    outputHash: null,
+    judgeVerdict: null,
+    inputContent: `Bulk authority deletion: source="${source}"`,
+    outputContent: `Removed ${removedCount} of ${targets.length} matched chunks from ${organizationId}'s securities corpus.`,
+  });
+
+  return NextResponse.json({ removed: removedCount, source });
 }

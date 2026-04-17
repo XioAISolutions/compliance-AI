@@ -8,6 +8,13 @@
       "when": 1776342101945,
       "tag": "0000_lethal_mandroid",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776348000000,
+      "tag": "0001_matter_status_verdict_states",
+      "breakpoints": true
     }
   ]
 }

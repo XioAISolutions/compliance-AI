@@ -13,6 +13,7 @@ import {
   getDefaultCognitionStore,
   type CognitionSurface,
   ONTARIO_EMD_AUTHORITIES,
+  US_SECURITIES_AUTHORITIES,
 } from "@compliance-ai/cognition";
 
 const _seeded = new Set<string>();
@@ -20,6 +21,12 @@ const _seeded = new Set<string>();
 /**
  * Ensure the given tenant has baseline seed data. Safe to call on every
  * request — the first call does the work, subsequent calls short-circuit.
+ *
+ * For the securities surface we seed both the Canadian corpus (Ontario /
+ * EMD authorities, ~120+ items) and the US corpus (Regulation D, Rule 144,
+ * Securities Act §§ 4(a)(2)/5) so that the /api/ask cross-jurisdiction
+ * endpoint can retrieve analogous authorities from both sides on the same
+ * question.
  */
 export async function ensureTenant(
   organizationId = "preview",
@@ -32,7 +39,7 @@ export async function ensureTenant(
   const existing = await cognition.size();
   if (surface === "securities" && existing === 0) {
     // Tag every seed item with the tenant id so retrieval filtering works.
-    const items = ONTARIO_EMD_AUTHORITIES.map((item) => ({
+    const items = [...ONTARIO_EMD_AUTHORITIES, ...US_SECURITIES_AUTHORITIES].map((item) => ({
       ...item,
       organizationId,
     }));

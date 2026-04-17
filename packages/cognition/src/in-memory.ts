@@ -120,7 +120,14 @@ function normalizeScores(scored: { id: string; score: number }[]): void {
 
 const RRF_K = 60;
 
-function rrfFuse(
+/**
+ * Reciprocal-rank fusion over two rankings. Exported so callers that run
+ * multiple independent retrievals (e.g. /api/ask doing per-jurisdiction
+ * retrieval) can merge them with the same fusion weight (RRF_K = 60) that
+ * the in-memory store uses internally. Each ranking is `{ id, rank }` where
+ * rank starts at 1 for the top hit.
+ */
+export function rrfFuse(
   rankingA: { id: string; rank: number }[],
   rankingB: { id: string; rank: number }[],
 ): Map<string, number> {
@@ -179,7 +186,8 @@ export class InMemoryCognitionStore implements CognitionStore {
         query.registrationCategory &&
         item.registrationCategories?.length &&
         !item.registrationCategories.includes(query.registrationCategory)
-      ) continue;
+      )
+        continue;
       candidates.push(item);
     }
     if (candidates.length === 0) return [];

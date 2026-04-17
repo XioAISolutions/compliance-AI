@@ -103,6 +103,25 @@ export default function MattersPage() {
     }
   }
 
+  async function archiveMatter(id: string) {
+    // Don't prompt on single-click archival — the matter stays recoverable
+    // because the backend store keeps archived matters (the list just hides
+    // them unless the Archived filter chip is selected). If we ever add a
+    // hard-delete this should prompt first.
+    try {
+      const res = await fetch(`/api/matters/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "archived" }),
+      });
+      if (res.ok) {
+        setMatters((prev) => prev.map((m) => (m.id === id ? { ...m, status: "archived" } : m)));
+      }
+    } catch {
+      /* ignore — UI retry is a page refresh */
+    }
+  }
+
   async function createMatter(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) return;
@@ -259,7 +278,7 @@ export default function MattersPage() {
             <Link
               key={m.id}
               href={`/matters/${m.id}`}
-              className="flex items-center gap-4 rounded-lg border border-neutral-200 p-4 transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900/50"
+              className="group flex items-center gap-4 rounded-lg border border-neutral-200 p-4 transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900/50"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-neutral-100 text-xs font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
                 {TASK_ICONS[m.taskType] ?? "?"}
@@ -280,6 +299,24 @@ export default function MattersPage() {
               >
                 {m.status}
               </span>
+              {/* Archive action — hover-reveal to keep the row clean.
+                  Stops propagation so clicking the button doesn't also
+                  navigate to the matter page. Only offered on final
+                  states; "open" and "in-review" matters shouldn't be
+                  archived mid-flight. */}
+              {m.status !== "archived" && m.status !== "open" && m.status !== "in-review" && (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    void archiveMatter(m.id);
+                  }}
+                  className="ml-2 shrink-0 rounded-md px-2 py-1 text-[10px] text-neutral-400 opacity-0 transition-opacity hover:bg-neutral-200 hover:text-neutral-700 group-hover:opacity-100 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+                  title="Archive this matter"
+                >
+                  Archive
+                </button>
+              )}
             </Link>
           ))}
       </div>

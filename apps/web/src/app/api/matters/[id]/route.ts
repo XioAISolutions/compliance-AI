@@ -46,10 +46,7 @@ function getExclusions(
   return exclusions;
 }
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const matterStore = getDefaultMatterStore();
   const matter = await matterStore.get(id);
@@ -70,7 +67,8 @@ export async function GET(
       if (
         item.registrationCategories?.length &&
         !item.registrationCategories.includes(matter.registrationCategory)
-      ) return false;
+      )
+        return false;
       return true;
     })
     .map((item) => ({
@@ -97,10 +95,7 @@ export async function GET(
   });
 }
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const matterStore = getDefaultMatterStore();
   const matter = await matterStore.get(id);
@@ -123,10 +118,21 @@ export async function PATCH(
   }
 
   if (body.status && typeof body.status === "string") {
-    const updated = await matterStore.updateStatus(
-      id,
-      body.status as "open" | "in-review" | "complete" | "archived",
-    );
+    // Validate against the full MatterStatus union; reject garbage so a
+    // client can't put a matter into an unknown state.
+    const validStatuses = [
+      "open",
+      "in-review",
+      "complete",
+      "needs-revision",
+      "blocked",
+      "archived",
+    ] as const;
+    type ValidStatus = (typeof validStatuses)[number];
+    if (!(validStatuses as readonly string[]).includes(body.status)) {
+      return NextResponse.json({ error: `Unknown status: ${body.status}` }, { status: 400 });
+    }
+    const updated = await matterStore.updateStatus(id, body.status as ValidStatus);
     return NextResponse.json(updated);
   }
 

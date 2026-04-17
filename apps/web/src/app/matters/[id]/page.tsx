@@ -94,6 +94,23 @@ export default function MatterDetailPage() {
   const [verdict, setVerdict] = useState<JudgeVerdict | null>(null);
   const [totalRounds, setTotalRounds] = useState<number | null>(null);
   const [streaming, setStreaming] = useState(false);
+  // Citation integrity signals — surface the new SSE events the review route
+  // emits when the drafter's ```citations fence is missing / truncated /
+  // references hallucinated chunkIds. Silent dropping is what produced empty
+  // `authorities_used` in the audit trail before; the UI now names the gap
+  // (and, when the citation-retry rescues it, shows that too).
+  const [citationRetry, setCitationRetry] = useState<{
+    inFlight: boolean;
+    reason: string | null;
+    markerCount: number;
+    priorValidCount: number;
+  }>({ inFlight: false, reason: null, markerCount: 0, priorValidCount: 0 });
+  const [citationWarnings, setCitationWarnings] = useState<{
+    orphanedMarkers: string[];
+    unusedCitations: string[];
+    droppedChunkIds: string[];
+    afterRetry: boolean;
+  } | null>(null);
 
   const [chatOpen, setChatOpen] = useState(false);
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
@@ -176,6 +193,8 @@ export default function MatterDetailPage() {
     setStreaming(true);
     setOutput("");
     setCitations([]);
+    setCitationRetry({ inFlight: false, reason: null, markerCount: 0, priorValidCount: 0 });
+    setCitationWarnings(null);
     setVerdict(null);
     setTotalRounds(null);
     currentPersonaRef.current = null;
@@ -238,6 +257,31 @@ export default function MatterDetailPage() {
               setOutput(event.prose);
             } else if (event.type === "citations" && Array.isArray(event.citations)) {
               setCitations(event.citations as Citation[]);
+              // Arrival of a citations event means either the first-pass
+              // citations landed OR the retry just rescued them. Either way
+              // the retry is no longer in-flight.
+              setCitationRetry((prev) => ({ ...prev, inFlight: false }));
+            } else if (event.type === "citation-retry-started") {
+              setCitationRetry({
+                inFlight: true,
+                reason: typeof event.reason === "string" ? event.reason : "citation gap",
+                markerCount: Array.isArray(event.markersInProse) ? event.markersInProse.length : 0,
+                priorValidCount:
+                  typeof event.priorValidCount === "number" ? event.priorValidCount : 0,
+              });
+            } else if (event.type === "citation-warnings") {
+              setCitationWarnings({
+                orphanedMarkers: Array.isArray(event.orphanedMarkers)
+                  ? (event.orphanedMarkers as string[])
+                  : [],
+                unusedCitations: Array.isArray(event.unusedCitations)
+                  ? (event.unusedCitations as string[])
+                  : [],
+                droppedChunkIds: Array.isArray(event.droppedChunkIds)
+                  ? (event.droppedChunkIds as string[])
+                  : [],
+                afterRetry: event.afterRetry === true,
+              });
             } else if (event.type === "loop-done") {
               setTotalRounds(event.totalRounds as number);
               if (event.finalVerdict) setVerdict(event.finalVerdict as JudgeVerdict);
@@ -262,11 +306,10 @@ export default function MatterDetailPage() {
     return (
       <main className="mx-auto max-w-3xl px-6 py-16 text-center">
         <h1 className="text-xl font-semibold">Matter not found</h1>
-        <p className="mt-2 text-neutral-500">This matter may have been deleted or does not exist.</p>
-        <Link
-          href="/matters"
-          className="mt-4 inline-block text-sm text-blue-600 hover:underline"
-        >
+        <p className="mt-2 text-neutral-500">
+          This matter may have been deleted or does not exist.
+        </p>
+        <Link href="/matters" className="mt-4 inline-block text-sm text-blue-600 hover:underline">
           Back to matters
         </Link>
       </main>
@@ -318,11 +361,7 @@ export default function MatterDetailPage() {
                 />
               </div>
               <div className="mt-6">
-                <EvidencePanel
-                  items={evidence}
-                  matterId={matterId}
-                  onRefresh={fetchMatter}
-                />
+                <EvidencePanel items={evidence} matterId={matterId} onRefresh={fetchMatter} />
               </div>
             </>
           )}
@@ -339,6 +378,8 @@ export default function MatterDetailPage() {
             matterId={matterId}
             onOpenChat={() => setChatOpen(true)}
             onStartReview={startReview}
+            citationRetry={citationRetry}
+            citationWarnings={citationWarnings}
           />
         </main>
       </div>
@@ -351,11 +392,7 @@ export default function MatterDetailPage() {
       )}
 
       {/* Chat drawer */}
-      <ChatDrawer
-        open={chatOpen}
-        onClose={() => setChatOpen(false)}
-        matterId={matterId}
-      />
+      <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} matterId={matterId} />
     </div>
   );
 }

@@ -23,6 +23,20 @@ interface Citation {
 
 type JudgeVerdict = "READY_TO_SUBMIT" | "ITERATE" | "REWRITE";
 
+interface CitationRetryState {
+  inFlight: boolean;
+  reason: string | null;
+  markerCount: number;
+  priorValidCount: number;
+}
+
+interface CitationWarnings {
+  orphanedMarkers: string[];
+  unusedCitations: string[];
+  droppedChunkIds: string[];
+  afterRetry: boolean;
+}
+
 interface Props {
   content: string;
   citations: Citation[];
@@ -33,6 +47,8 @@ interface Props {
   onOpenChat: () => void;
   onStartReview: () => void;
   onExported?: () => void;
+  citationRetry?: CitationRetryState;
+  citationWarnings?: CitationWarnings | null;
 }
 
 type ActiveTab = "output" | "transcript" | "graph";
@@ -85,6 +101,8 @@ export function OutputPane({
   onOpenChat,
   onStartReview,
   onExported,
+  citationRetry,
+  citationWarnings,
 }: Props) {
   const [hoveredCitation, setHoveredCitation] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -202,6 +220,57 @@ export function OutputPane({
               {totalRounds} round{totalRounds === 1 ? "" : "s"}
             </span>
           )}
+          {/* Citation integrity: if a retry is running right now, or warnings
+              remain post-retry, name the state so the compliance lawyer can
+              see "why the citations count changed". Silent rescue would
+              repeat the original sin — shipping output without showing what
+              shifted between what the model first wrote and what the audit
+              actually records. */}
+          {citationRetry?.inFlight && (
+            <span
+              className="flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+              title={
+                citationRetry.reason
+                  ? `Retry reason: ${citationRetry.reason}. Prior valid citations: ${citationRetry.priorValidCount}/${citationRetry.markerCount}.`
+                  : undefined
+              }
+            >
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" />
+              Rescuing citations…
+            </span>
+          )}
+          {!citationRetry?.inFlight && citationWarnings && (
+            <span
+              className={`flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                citationWarnings.orphanedMarkers.length +
+                  citationWarnings.droppedChunkIds.length ===
+                0
+                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                  : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
+              }`}
+              title={[
+                citationWarnings.afterRetry ? "(after retry)" : "",
+                citationWarnings.orphanedMarkers.length > 0
+                  ? `Orphan markers: ${citationWarnings.orphanedMarkers.map((m) => `[${m}]`).join(", ")}`
+                  : "",
+                citationWarnings.unusedCitations.length > 0
+                  ? `Unused: ${citationWarnings.unusedCitations.join(", ")}`
+                  : "",
+                citationWarnings.droppedChunkIds.length > 0
+                  ? `Dropped chunkIds: ${citationWarnings.droppedChunkIds.join(", ")}`
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            >
+              {citationWarnings.orphanedMarkers.length + citationWarnings.droppedChunkIds.length ===
+              0
+                ? citationWarnings.afterRetry
+                  ? "Citations rescued"
+                  : "Citations resolved"
+                : `${citationWarnings.orphanedMarkers.length} orphan · ${citationWarnings.droppedChunkIds.length} dropped`}
+            </span>
+          )}
         </div>
         <div className="flex gap-2">
           <button
@@ -269,17 +338,13 @@ export function OutputPane({
         {activeTab === "transcript" && (
           <TranscriptPanel events={transcript} loading={loadingTranscript} matterId={matterId} />
         )}
-        {activeTab === "graph" && (
-          <GraphPanel graph={graph} loading={loadingGraph} />
-        )}
+        {activeTab === "graph" && <GraphPanel graph={graph} loading={loadingGraph} />}
       </div>
 
       {/* Citations footnotes */}
       {activeTab === "output" && citations.length > 0 && (
         <div className="mt-4 border-t border-neutral-200 pt-3 dark:border-neutral-800">
-          <h3 className="text-xs font-semibold text-neutral-400">
-            Citations ({citations.length})
-          </h3>
+          <h3 className="text-xs font-semibold text-neutral-400">Citations ({citations.length})</h3>
           <ol className="mt-2 space-y-1.5">
             {citations.map((c) => (
               <li
@@ -294,8 +359,10 @@ export function OutputPane({
                 onMouseLeave={() => setHoveredCitation(null)}
               >
                 <span className="font-mono font-semibold text-amber-600">[{c.id}]</span>{" "}
-                <span className="font-medium">{c.authorityId} § {c.section}</span>
-                <p className="mt-0.5 text-neutral-500 italic">&ldquo;{c.quote}&rdquo;</p>
+                <span className="font-medium">
+                  {c.authorityId} § {c.section}
+                </span>
+                <p className="mt-0.5 italic text-neutral-500">&ldquo;{c.quote}&rdquo;</p>
               </li>
             ))}
           </ol>
@@ -361,7 +428,9 @@ function TranscriptPanel({
         {events.map((event) => (
           <li key={event.id} className="border-l-2 border-neutral-200 pl-3 dark:border-neutral-800">
             <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500">
-              <span className="font-medium text-neutral-700 dark:text-neutral-300">{event.actor}</span>
+              <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                {event.actor}
+              </span>
               <span>{event.action}</span>
               <span>{new Date(event.createdAt).toLocaleString()}</span>
             </div>
@@ -393,10 +462,17 @@ function GraphPanel({
       <div className="min-h-[360px] rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
           {graph.nodes.slice(0, 18).map((node) => (
-            <div key={node.id} className="rounded-md border border-neutral-200 p-3 dark:border-neutral-800">
-              <div className="text-[10px] font-semibold uppercase text-neutral-400">{node.type}</div>
+            <div
+              key={node.id}
+              className="rounded-md border border-neutral-200 p-3 dark:border-neutral-800"
+            >
+              <div className="text-[10px] font-semibold uppercase text-neutral-400">
+                {node.type}
+              </div>
               <div className="mt-1 line-clamp-2 text-sm font-medium">{node.label}</div>
-              {node.detail && <p className="mt-1 line-clamp-3 text-xs text-neutral-500">{node.detail}</p>}
+              {node.detail && (
+                <p className="mt-1 line-clamp-3 text-xs text-neutral-500">{node.detail}</p>
+              )}
             </div>
           ))}
         </div>
@@ -406,7 +482,9 @@ function GraphPanel({
         <ul className="mt-3 space-y-2 text-xs text-neutral-500">
           {visibleEdges.map((edge) => (
             <li key={edge.id}>
-              <span className="font-medium text-neutral-700 dark:text-neutral-300">{edge.label}</span>{" "}
+              <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                {edge.label}
+              </span>{" "}
               {edge.source.slice(0, 10)} → {edge.target.slice(0, 10)}
             </li>
           ))}

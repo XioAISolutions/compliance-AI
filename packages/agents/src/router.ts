@@ -59,6 +59,10 @@ const KEYWORDS: Record<PersonaId, RegExp[]> = {
   // the loop coordinator (`runAgentLoop`) which forces the persona explicitly.
   // We keep the empty entry so `Record<PersonaId, RegExp[]>` stays exhaustive.
   judge: [],
+  // QA responder is only selected via `forcePersona` from /api/ask. Empty
+  // keyword list so the router never reaches for it from a free-text matter
+  // chat (where the user expects drafter/reviewer behaviour).
+  "qa-responder": [],
 };
 
 export interface RoutingDecision {
@@ -77,6 +81,7 @@ export function routePersona(userMessage: string): RoutingDecision {
     "marketing-reviewer": 0,
     "response-memo-drafter": 0,
     judge: 0, // Never picked by router; kept here so the Record is exhaustive.
+    "qa-responder": 0, // Force-only; exhaustive-Record placeholder.
   };
 
   for (const [persona, patterns] of Object.entries(KEYWORDS) as [PersonaId, RegExp[]][]) {

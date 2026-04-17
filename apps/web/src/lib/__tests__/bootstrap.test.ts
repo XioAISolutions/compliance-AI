@@ -18,6 +18,19 @@ describe("ensureTenant", () => {
     expect(size).toBeGreaterThan(0);
   });
 
+  it("seeds BOTH the Canadian (Ontario) and US corpora for the securities surface", async () => {
+    await ensureTenant("preview");
+    const store = await import("@compliance-ai/cognition").then((m) =>
+      m.getDefaultCognitionStore(),
+    );
+    const all = await store.getAll();
+    const caItems = all.filter((i) => i.jurisdiction === "ontario");
+    const usItems = all.filter((i) => i.jurisdiction === "US");
+    // Canadian NI 45-106 corpus is >100 items; US Reg D corpus is ~20.
+    expect(caItems.length).toBeGreaterThan(50);
+    expect(usItems.length).toBeGreaterThan(15);
+  });
+
   it("is idempotent on repeated calls", async () => {
     await ensureTenant("preview");
     const store = await import("@compliance-ai/cognition").then((m) =>
@@ -44,9 +57,7 @@ describe("ensureTenant", () => {
   });
 
   it("does not re-seed a non-empty cognition store", async () => {
-    const cog = await import("@compliance-ai/cognition").then((m) =>
-      m.getDefaultCognitionStore(),
-    );
+    const cog = await import("@compliance-ai/cognition").then((m) => m.getDefaultCognitionStore());
     await cog.add({
       id: "existing-item",
       organizationId: "preview",

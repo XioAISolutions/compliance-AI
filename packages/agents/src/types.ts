@@ -23,7 +23,8 @@ export type PersonaId =
   | "om-reviewer" // reviews offering memoranda against securities rules
   | "kyc-reviewer" // reviews client KYC files for NI 31-103 / FINTRAC gaps
   | "marketing-reviewer" // reviews marketing materials for NI 81-102 / 13.18
-  | "response-memo-drafter"; // drafts responses to regulator inquiries
+  | "response-memo-drafter" // drafts responses to regulator inquiries
+  | "qa-responder"; // answers jurisdictional Q&A via /api/ask — never routed, only force-selected
 
 /**
  * A snippet retrieved from the cognition store and injected into the agent's

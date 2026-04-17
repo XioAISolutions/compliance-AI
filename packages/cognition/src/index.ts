@@ -8,6 +8,8 @@ export {
   CSA_STAFF_NOTICES_45,
   NI_45_106_COMPANION_AUTHORITIES,
 } from "./ni-45-106-companion-authorities.js";
+export { US_SECURITIES_AUTHORITIES } from "./us-securities-authorities.js";
+export { rrfFuse } from "./in-memory.js";
 
 import { InMemoryCognitionStore } from "./in-memory.js";
 import type { CognitionStore } from "./types.js";

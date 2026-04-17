@@ -200,14 +200,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return new Response("Matter not found", { status: 404 });
   }
 
-  let body: { taskType?: string } = {};
+  let body: { taskType?: string; maxRounds?: number } = {};
   try {
-    body = (await req.json()) as { taskType?: string };
+    body = (await req.json()) as { taskType?: string; maxRounds?: number };
   } catch {
-    // Use matter's task type
+    // Use matter's task type + default rounds
   }
 
   const taskType = body.taskType ?? matter.taskType;
+  // Optional override for the judge-loop round cap. Default 3 matches the
+  // original behaviour. The UI surfaces a "retry with deeper rounds" action
+  // on needs-revision matters that calls through with 6 — giving the judge
+  // more room to iterate with the drafter before the matter resolves.
+  // Clamp to [1, 8] so a malformed client request can't wedge the loop.
+  const requestedRounds = typeof body.maxRounds === "number" ? body.maxRounds : 3;
+  const maxRounds = Math.max(1, Math.min(8, Math.floor(requestedRounds)));
 
   // Build the review subject from the matter's uploaded document chunks.
   // If no document has been uploaded, fall through to the no-subject prompt.
@@ -295,7 +302,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
       try {
         const generator = runAgentLoop(context, userMessage, {
-          maxRounds: 3,
+          maxRounds,
           drafterPersona: personaForTask(taskType),
         });
 

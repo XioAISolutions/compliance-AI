@@ -192,7 +192,7 @@ export default function MatterDetailPage() {
     }
   }
 
-  async function startReview() {
+  async function startReview(opts: { maxRounds?: number } = {}) {
     if (streaming || !matter) return;
     setStreaming(true);
     setOutput("");
@@ -208,7 +208,10 @@ export default function MatterDetailPage() {
       const res = await fetch(`/api/matters/${matterId}/review`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ taskType: matter.taskType }),
+        body: JSON.stringify({
+          taskType: matter.taskType,
+          ...(opts.maxRounds ? { maxRounds: opts.maxRounds } : {}),
+        }),
       });
 
       if (!res.ok || !res.body) {
@@ -388,6 +391,8 @@ export default function MatterDetailPage() {
             citationRetry={citationRetry}
             citationWarnings={citationWarnings}
             verdictRationale={verdictRationale}
+            matterStatus={matter?.status ?? null}
+            onRetryDeeper={() => startReview({ maxRounds: 6 })}
           />
         </main>
       </div>

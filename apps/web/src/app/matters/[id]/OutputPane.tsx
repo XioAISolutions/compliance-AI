@@ -56,6 +56,21 @@ interface Props {
    * judge rejected, not just the status chip.
    */
   verdictRationale?: string | null;
+  /**
+   * Current matter status. Drives whether the "Retry with deeper
+   * rounds" action is offered — only meaningful when the matter lands
+   * at needs-revision (the judge had substantive ITERATE feedback and
+   * ran out of rounds) or blocked (REWRITE — extra rounds might break
+   * through, though for blocked cases the lawyer usually wants to
+   * rewrite the subject document first).
+   */
+  matterStatus?: string | null;
+  /**
+   * Called with maxRounds=6 to re-run the review with a deeper judge
+   * loop, giving the drafter more passes to address accumulated
+   * critiques before hitting the cap.
+   */
+  onRetryDeeper?: () => void;
 }
 
 type ActiveTab = "output" | "transcript" | "graph";
@@ -111,6 +126,8 @@ export function OutputPane({
   citationRetry,
   citationWarnings,
   verdictRationale,
+  matterStatus,
+  onRetryDeeper,
 }: Props) {
   const [hoveredCitation, setHoveredCitation] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -361,6 +378,27 @@ export function OutputPane({
           <div className="mt-2 whitespace-pre-wrap text-amber-900 dark:text-amber-100">
             {verdictRationale}
           </div>
+          {/* Retry with more rounds — mostly useful for needs-revision.
+              For blocked/REWRITE the judge said the approach is wrong,
+              and more rounds usually just burn tokens against the same
+              wall; the button is still offered for parity but the
+              subtitle tells the lawyer what to expect. */}
+          {onRetryDeeper && (matterStatus === "needs-revision" || matterStatus === "blocked") && (
+            <div className="mt-3 flex items-center gap-3 border-t border-amber-200 pt-3 dark:border-amber-900">
+              <button
+                onClick={onRetryDeeper}
+                disabled={streaming}
+                className="rounded-md bg-amber-900 px-3 py-1.5 text-[11px] font-medium text-amber-50 hover:bg-amber-800 disabled:opacity-40 dark:bg-amber-200 dark:text-amber-950 dark:hover:bg-amber-100"
+              >
+                {streaming ? "Rerunning…" : "Retry with deeper rounds (6)"}
+              </button>
+              <span className="text-[10px] text-amber-700 dark:text-amber-400">
+                {matterStatus === "needs-revision"
+                  ? "Gives the drafter more passes to address the judge's concerns."
+                  : "For blocked matters the reviewer usually needs a revised subject doc — more rounds alone rarely break through."}
+              </span>
+            </div>
+          )}
         </details>
       )}
 

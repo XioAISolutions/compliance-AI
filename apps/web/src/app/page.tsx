@@ -1,7 +1,16 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 import { QuickReviewDropZone } from "./QuickReviewDropZone";
+import { AuthorityLibrarySnapshot } from "./AuthorityLibrarySnapshot";
 
 export default function Home() {
+  // Bump this counter after every authority intake so the snapshot card
+  // re-fetches and reflects the just-uploaded regulation without a full
+  // page reload.
+  const [snapshotRefreshToken, setSnapshotRefreshToken] = useState(0);
+
   return (
     <main className="mx-auto max-w-4xl px-6 py-12">
       <div className="mb-8">
@@ -14,14 +23,15 @@ export default function Home() {
         </p>
       </div>
 
-      <QuickReviewDropZone />
+      <QuickReviewDropZone onAuthorityIntake={() => setSnapshotRefreshToken((t) => t + 1)} />
 
       <p className="mt-3 text-xs text-neutral-400">
-        We&apos;ll detect whether it&apos;s an offering memo, KYC file, marketing deck, or
-        regulator letter, and route it to the right reviewer automatically. Hosted
-        preview can use OpenAI with sample documents. Private installs can keep
-        everything on local Ollama.
+        We&apos;ll detect whether it&apos;s an offering memo, KYC file, marketing deck, or regulator
+        letter, and route it to the right reviewer automatically. Hosted preview can use OpenAI with
+        sample documents. Private installs can keep everything on local Ollama.
       </p>
+
+      <AuthorityLibrarySnapshot refreshToken={snapshotRefreshToken} />
 
       <nav className="mt-12 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
         <Link

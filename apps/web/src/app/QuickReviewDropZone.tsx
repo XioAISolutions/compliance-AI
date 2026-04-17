@@ -49,7 +49,11 @@ const TASK_LABELS: Record<string, string> = {
   "response-memo": "Regulator response memo",
 };
 
-export function QuickReviewDropZone() {
+export function QuickReviewDropZone({
+  onAuthorityIntake,
+}: {
+  onAuthorityIntake?: () => void;
+} = {}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -93,6 +97,9 @@ export function QuickReviewDropZone() {
           alreadyIngested: data.alreadyIngested === true,
         });
         setStatus(null);
+        // Nudge the corpus snapshot on the home page to re-fetch so the new
+        // chunk count + source file shows up without a manual reload.
+        onAuthorityIntake?.();
         return;
       }
       // Standard matter-creation response: navigate to the matter page and

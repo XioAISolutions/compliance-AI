@@ -15,6 +15,7 @@
 export * from "./types.js";
 export { routePersona, type RoutingDecision } from "./router.js";
 export {
+  renderCognitionContext,
   resolveModelProvider,
   runAgent,
   type ModelProvider,

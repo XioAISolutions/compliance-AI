@@ -216,7 +216,14 @@ function renderReviewSubject(subject: ReviewSubject | undefined): string {
   return lines.join("\n");
 }
 
-function renderCognitionContext(snippets: RetrievedSnippet[]): string {
+/**
+ * Render retrieved cognition snippets into the system-prompt context block.
+ * Exported for unit-testing: the empty-snippet path emits an explicit
+ * RETRIEVAL-GAP directive (telling the model not to fabricate [cN] markers
+ * and to flag the gap in its output) — this is load-bearing behaviour that
+ * a regression would silently hide.
+ */
+export function renderCognitionContext(snippets: RetrievedSnippet[]): string {
   // When retrieval returns empty, we still emit a context block — telling the
   // model "no authorities came back, do not fabricate [cN] markers, and flag
   // this gap in your output" is strictly better than dropping the citation

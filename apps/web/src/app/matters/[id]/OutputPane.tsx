@@ -131,6 +131,7 @@ export function OutputPane({
 }: Props) {
   const [hoveredCitation, setHoveredCitation] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>("output");
   const [transcript, setTranscript] = useState<TranscriptEvent[]>([]);
   const [loadingTranscript, setLoadingTranscript] = useState(false);
@@ -250,13 +251,26 @@ export function OutputPane({
   async function exportDocx() {
     if (exporting || !content) return;
     setExporting(true);
+    setExportError(null);
     try {
       const res = await fetch(`/api/matters/${matterId}/export`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ format: "docx", output: content, citations }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        // Pull the server-side error message if it's JSON; otherwise show
+        // the status text so the user has something actionable.
+        let serverMsg = `HTTP ${res.status}`;
+        try {
+          const body = await res.json();
+          if (body?.error) serverMsg = `${serverMsg} — ${body.error}`;
+        } catch {
+          // Response wasn't JSON (e.g., partial DOCX bytes). Leave the
+          // HTTP status as the message.
+        }
+        throw new Error(serverMsg);
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -268,16 +282,14 @@ export function OutputPane({
       URL.revokeObjectURL(url);
       onExported?.();
     } catch (err) {
-      // Fall back to markdown if export fails
+      // No silent fallback — the previous implementation quietly downloaded
+      // the raw markdown as .md when DOCX generation failed, which hid the
+      // real bug from users who only saw an unexpected file type. Surface
+      // the error so the user can report it and we can fix the underlying
+      // DOCX path.
       const msg = err instanceof Error ? err.message : String(err);
       console.error("DOCX export failed:", msg);
-      const blob = new Blob([content], { type: "text/markdown" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "compliance-review.md";
-      a.click();
-      URL.revokeObjectURL(url);
+      setExportError(msg);
     } finally {
       setExporting(false);
     }
@@ -408,6 +420,21 @@ export function OutputPane({
           </button>
         </div>
       </div>
+      {exportError && (
+        <div className="mt-2 flex items-start justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+          <span>
+            <span className="font-medium">DOCX export failed.</span>{" "}
+            {exportError}
+          </span>
+          <button
+            type="button"
+            onClick={() => setExportError(null)}
+            className="shrink-0 text-red-700 underline underline-offset-2 hover:text-red-900 dark:text-red-300 dark:hover:text-red-100"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Transcript and graph are forensic views — only meaningful once a
           review has produced content. Keep the tab row collapsed until

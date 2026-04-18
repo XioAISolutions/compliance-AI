@@ -72,14 +72,47 @@ export async function POST(
   }
 
   const citations = body.citations ?? [];
-  const docBytes = await renderDocx({
-    matterTitle: matter.title,
-    jurisdiction: matter.jurisdiction,
-    registrationCategory: matter.registrationCategory,
-    taskType: matter.taskType,
-    output: body.output,
-    citations,
-  });
+
+  // DOCX rendering has to succeed — the client no longer falls back to
+  // markdown on failure. Wrap the primary renderer so a parser bug on a
+  // single markdown pattern can't break the entire export; on failure,
+  // fall through to a plaintext-only DOCX that still delivers a .docx
+  // file the user can open in Word.
+  let docBytes: Buffer;
+  let renderMode: "full" | "plaintext" = "full";
+  try {
+    docBytes = await renderDocx({
+      matterTitle: matter.title,
+      jurisdiction: matter.jurisdiction,
+      registrationCategory: matter.registrationCategory,
+      taskType: matter.taskType,
+      output: body.output,
+      citations,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[export] full DOCX render failed for matter ${matterId}:`, msg);
+    try {
+      docBytes = await renderPlaintextDocx({
+        matterTitle: matter.title,
+        jurisdiction: matter.jurisdiction,
+        registrationCategory: matter.registrationCategory,
+        taskType: matter.taskType,
+        output: body.output,
+      });
+      renderMode = "plaintext";
+    } catch (plainErr) {
+      const plainMsg = plainErr instanceof Error ? plainErr.message : String(plainErr);
+      console.error(`[export] plaintext DOCX fallback failed for matter ${matterId}:`, plainMsg);
+      return NextResponse.json(
+        {
+          error: `DOCX render failed: ${msg}`,
+          fallbackError: plainMsg,
+        },
+        { status: 500 },
+      );
+    }
+  }
 
   // Audit entry for the export
   const auditStore = getDefaultAuditStore();
@@ -93,7 +126,7 @@ export async function POST(
     outputHash: sha256(docBytes.toString("base64")),
     judgeVerdict: null,
     inputContent: `Export ${matter.title} (${citations.length} citations)`,
-    outputContent: `DOCX export, ${docBytes.byteLength} bytes`,
+    outputContent: `DOCX export (${renderMode}), ${docBytes.byteLength} bytes`,
   });
 
   return new Response(new Uint8Array(docBytes), {
@@ -101,8 +134,67 @@ export async function POST(
       "Content-Type":
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "Content-Disposition": `attachment; filename="compliance-review.docx"`,
+      "X-Docx-Render-Mode": renderMode,
     },
   });
+}
+
+/**
+ * Plaintext DOCX fallback — used when the primary markdown-aware renderer
+ * throws on a pathological input. We still emit a valid .docx file with
+ * the title page and the raw review text split line-by-line, so the user
+ * always gets a Word document even when the markdown→docx parser can't
+ * cope.
+ */
+async function renderPlaintextDocx(opts: {
+  matterTitle: string;
+  jurisdiction: string;
+  registrationCategory: string;
+  taskType: string;
+  output: string;
+}): Promise<Buffer> {
+  const children: Paragraph[] = [
+    new Paragraph({
+      children: [new TextRun({ text: opts.matterTitle, bold: true, size: 40 })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 200 },
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: `${labelForTask(opts.taskType)} · ${labelForJurisdiction(opts.jurisdiction)} / ${opts.registrationCategory.toUpperCase()}`,
+          italics: true,
+          color: "666666",
+        }),
+      ],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 100 },
+    }),
+    new Paragraph({ children: [new PageBreak()] }),
+  ];
+
+  for (const rawLine of opts.output.split("\n")) {
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: rawLine })],
+        spacing: { after: 60 },
+      }),
+    );
+  }
+
+  const doc = new Document({
+    creator: "XIO Compliance Brain",
+    title: opts.matterTitle,
+    description: `Compliance review for ${opts.matterTitle} (plaintext fallback)`,
+    sections: [{ children }],
+    styles: {
+      default: {
+        document: { run: { font: "Calibri", size: 22 } },
+      },
+    },
+  });
+
+  return Packer.toBuffer(doc);
 }
 
 interface RenderOptions {

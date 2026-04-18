@@ -6,7 +6,6 @@ import {
   buildEvidenceGraph,
   buildMatterContextBundle,
   buildTranscriptEvents,
-  renderCrumbHandoff,
 } from "../matter-context";
 
 describe("matter-context", () => {
@@ -29,7 +28,7 @@ describe("matter-context", () => {
     setEvidenceStore(null);
   });
 
-  it("builds transcript, graph, and CRUMB handoff from matter state", async () => {
+  it("builds transcript, graph, and bundle from matter state", async () => {
     const matter = await matters.create({
       title: "North Fund OM",
       jurisdiction: "ontario",
@@ -77,6 +76,8 @@ describe("matter-context", () => {
 
     const bundle = await buildMatterContextBundle(matter.id);
     expect(bundle?.version).toBe("demo-case-pack/v1");
-    expect(renderCrumbHandoff(bundle!)).toContain("[handoff]");
+    expect(bundle?.documents).toHaveLength(1);
+    expect(bundle?.evidence).toHaveLength(1);
+    expect(bundle?.audit).toHaveLength(1);
   });
 });

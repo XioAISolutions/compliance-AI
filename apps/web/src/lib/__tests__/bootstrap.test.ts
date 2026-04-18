@@ -58,7 +58,13 @@ describe("ensureTenant", () => {
     }
   });
 
-  it("does not re-seed a non-empty cognition store", async () => {
+  it("additively seeds missing authorities on a partially populated store", async () => {
+    // The bootstrap used to skip seeding entirely when the store was
+    // non-empty. That meant a tenant seeded with last release's corpus
+    // never picked up newly-authored items on redeploy. The current
+    // bootstrap filters the target corpus against existing ids and only
+    // adds the missing entries — so an unrelated pre-existing item does
+    // NOT block the seed, but a duplicate id is skipped.
     const cog = await import("@compliance-ai/cognition").then((m) => m.getDefaultCognitionStore());
     await cog.add({
       id: "existing-item",
@@ -71,6 +77,30 @@ describe("ensureTenant", () => {
     await ensureTenant("preview");
 
     const sizeAfter = await cog.size();
-    expect(sizeAfter).toBe(sizeBefore);
+    expect(sizeAfter).toBeGreaterThan(sizeBefore);
+    // Original item still present, not duplicated
+    const existing = await cog.get("existing-item");
+    expect(existing).toBeTruthy();
+  });
+
+  it("skips items already present by id on a redeploy-style reseed", async () => {
+    // Simulate a "previous deploy" that seeded half the corpus. The next
+    // bootstrap should leave the existing items alone and only add the
+    // ones that weren't there before — no duplicates.
+    await ensureTenant("preview");
+    const store = await import("@compliance-ai/cognition").then((m) =>
+      m.getDefaultCognitionStore(),
+    );
+    const firstPassSize = await store.size();
+
+    // Simulate a new request on the same tenant, across a process that
+    // has forgotten it already seeded (clears the _seeded short-circuit).
+    resetBootstrapState();
+    await ensureTenant("preview");
+    const secondPassSize = await store.size();
+
+    // Size must not grow — every item is already in the store under the
+    // same id and filtered out of the additive seed.
+    expect(secondPassSize).toBe(firstPassSize);
   });
 });

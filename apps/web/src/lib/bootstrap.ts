@@ -38,21 +38,37 @@ export async function ensureTenant(
   if (_seeded.has(key)) return;
 
   const cognition = getDefaultCognitionStore(surface);
-  const existing = await cognition.size();
-  if (surface === "securities" && existing === 0) {
+  if (surface === "securities") {
     // Ontario EMD / NI 45-106 securities corpus plus the pan-Canadian
     // consumer protection corpus — every province and territory + federal.
     // Retrieval is scoped per matter by jurisdiction + registrationCategory,
     // so a securities matter still sees only securities items and a
     // consumer-protection matter still sees only consumer-protection items.
-    const items = [
+    //
+    // Additive seed: we filter the target corpus against the store's
+    // existing items (by id within the tenant scope) and only add the
+    // missing ones. This keeps the bootstrap idempotent across process
+    // restarts AND lets new corpus entries land on existing tenants
+    // without a manual reset. Before this change the bootstrap gated on
+    // `existing === 0`, which silently skipped newly-added seeds on any
+    // tenant that had already been initialised.
+    const existing = await cognition.getAll();
+    const existingIds = new Set(
+      existing
+        .filter((item) => item.organizationId === organizationId)
+        .map((item) => item.id)
+        .filter((id): id is string => Boolean(id)),
+    );
+    const target = [
       ...ONTARIO_EMD_AUTHORITIES,
       ...CANADA_CONSUMER_PROTECTION_AUTHORITIES,
-    ].map((item) => ({
-      ...item,
-      organizationId,
-    }));
-    await cognition.addBatch(items);
+    ];
+    const missing = target
+      .filter((item) => item.id && !existingIds.has(item.id))
+      .map((item) => ({ ...item, organizationId }));
+    if (missing.length > 0) {
+      await cognition.addBatch(missing);
+    }
   }
 
   _seeded.add(key);

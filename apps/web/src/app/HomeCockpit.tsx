@@ -16,7 +16,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { QuickReviewDropZone } from "./QuickReviewDropZone";
+import { HomeComposer } from "./HomeComposer";
 import { AuthorityLibrarySnapshot } from "./AuthorityLibrarySnapshot";
 import { MatterStatsCard } from "./MatterStatsCard";
 import { AssessmentRunner } from "./demo/AssessmentRunner";
@@ -87,12 +87,13 @@ export function HomeCockpit({ assessment }: { assessment: DemoAssessmentResult }
 
       {surface === "securities" ? (
         <section>
-          <QuickReviewDropZone
+          <HomeComposer
             onAuthorityIntake={() => setSnapshotRefreshToken((t) => t + 1)}
           />
           <p className="mt-3 text-xs text-neutral-400">
-            We&apos;ll detect whether it&apos;s an offering memo, KYC file, marketing deck, or
-            regulator letter, and route it to the right reviewer automatically.
+            Ask a question and we&apos;ll cite the authority corpus, or drop a document and
+            we&apos;ll detect whether it&apos;s an offering memo, KYC file, marketing deck, or
+            regulator letter and route it to the right reviewer.
           </p>
           <MatterStatsCard refreshToken={snapshotRefreshToken} />
           <AuthorityLibrarySnapshot refreshToken={snapshotRefreshToken} />

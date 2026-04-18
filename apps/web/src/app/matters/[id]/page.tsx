@@ -155,7 +155,7 @@ export default function MatterDetailPage() {
   }, [fetchMatter]);
 
   // Auto-start the review when arriving from the home-page quick-review flow
-  // (URL param autoStart=1 set by QuickReviewDropZone). Fires once after the
+  // (URL param autoStart=1 set by HomeComposer). Fires once after the
   // matter data has loaded and at least one document is present.
   useEffect(() => {
     if (!autoStart) return;

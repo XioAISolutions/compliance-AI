@@ -4,16 +4,18 @@
  * Called lazily from route handlers on first hit. Idempotent:
  * repeated calls are no-ops once the tenant has been seeded.
  *
- * For the preview tenant, this seeds the Ontario/EMD authority corpus so
- * reviewer context has something to retrieve against. For real tenants
- * (Layer 4+) this is where onboarding-time provisioning hooks attach.
+ * For the preview tenant, this seeds the Canadian authority corpus so
+ * reviewer context has something to retrieve against. US authorities
+ * are NOT seeded by default — the /api/ask cross-jurisdiction endpoint
+ * can load them on-demand when a US comparison is requested, but they
+ * should never pollute the default Authority Library shown on the home
+ * page or the matter review context.
  */
 
 import {
   getDefaultCognitionStore,
   type CognitionSurface,
   ONTARIO_EMD_AUTHORITIES,
-  US_SECURITIES_AUTHORITIES,
 } from "@compliance-ai/cognition";
 
 const _seeded = new Set<string>();
@@ -22,11 +24,10 @@ const _seeded = new Set<string>();
  * Ensure the given tenant has baseline seed data. Safe to call on every
  * request — the first call does the work, subsequent calls short-circuit.
  *
- * For the securities surface we seed both the Canadian corpus (Ontario /
- * EMD authorities, ~120+ items) and the US corpus (Regulation D, Rule 144,
- * Securities Act §§ 4(a)(2)/5) so that the /api/ask cross-jurisdiction
- * endpoint can retrieve analogous authorities from both sides on the same
- * question.
+ * Seeds the Canadian authority corpus only. US authorities are available
+ * via US_SECURITIES_AUTHORITIES in @compliance-ai/cognition but are not
+ * loaded into the default store — they're loaded on-demand by the /api/ask
+ * endpoint when doing cross-jurisdiction comparisons.
  */
 export async function ensureTenant(
   organizationId = "preview",
@@ -38,8 +39,7 @@ export async function ensureTenant(
   const cognition = getDefaultCognitionStore(surface);
   const existing = await cognition.size();
   if (surface === "securities" && existing === 0) {
-    // Tag every seed item with the tenant id so retrieval filtering works.
-    const items = [...ONTARIO_EMD_AUTHORITIES, ...US_SECURITIES_AUTHORITIES].map((item) => ({
+    const items = ONTARIO_EMD_AUTHORITIES.map((item) => ({
       ...item,
       organizationId,
     }));

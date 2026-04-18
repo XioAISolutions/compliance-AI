@@ -18,7 +18,7 @@ describe("ensureTenant", () => {
     expect(size).toBeGreaterThan(0);
   });
 
-  it("seeds BOTH the Canadian (Ontario) and US corpora for the securities surface", async () => {
+  it("seeds the Canadian authority corpus for the securities surface (no US)", async () => {
     await ensureTenant("preview");
     const store = await import("@compliance-ai/cognition").then((m) =>
       m.getDefaultCognitionStore(),
@@ -26,9 +26,11 @@ describe("ensureTenant", () => {
     const all = await store.getAll();
     const caItems = all.filter((i) => i.jurisdiction === "ontario");
     const usItems = all.filter((i) => i.jurisdiction === "US");
-    // Canadian NI 45-106 corpus is >100 items; US Reg D corpus is ~20.
+    // Canadian NI 45-106 corpus is >100 items
     expect(caItems.length).toBeGreaterThan(50);
-    expect(usItems.length).toBeGreaterThan(15);
+    // US authorities are no longer seeded by default — they're loaded
+    // on-demand by /api/ask when doing cross-jurisdiction comparisons.
+    expect(usItems.length).toBe(0);
   });
 
   it("is idempotent on repeated calls", async () => {

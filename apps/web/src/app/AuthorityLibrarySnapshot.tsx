@@ -21,13 +21,25 @@ interface Snapshot {
 }
 
 function humanizeJurisdiction(j: string): string {
-  if (j === "ontario") return "Ontario";
-  if (j === "quebec") return "Quebec";
-  if (j === "british-columbia") return "BC";
-  if (j === "alberta") return "Alberta";
-  if (j === "federal") return "Federal";
-  if (j === "unspecified") return "Cross-jurisdictional";
-  return j;
+  const map: Record<string, string> = {
+    ontario: "Ontario",
+    quebec: "Quebec",
+    "british-columbia": "BC",
+    alberta: "Alberta",
+    saskatchewan: "Saskatchewan",
+    manitoba: "Manitoba",
+    "nova-scotia": "Nova Scotia",
+    "new-brunswick": "New Brunswick",
+    newfoundland: "NL",
+    pei: "PEI",
+    "northwest-territories": "NWT",
+    yukon: "Yukon",
+    nunavut: "Nunavut",
+    federal: "Federal",
+    "multi-provincial": "Multi-provincial",
+    unspecified: "Cross-jurisdictional",
+  };
+  return map[j] ?? j;
 }
 
 function humanizeCategory(c: string): string {

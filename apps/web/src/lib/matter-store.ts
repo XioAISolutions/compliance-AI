@@ -53,6 +53,54 @@ export type DocumentType =
   | "reference-material"
   | "other";
 
+// ---------------------------------------------------------------------------
+// Consumer-law enums — additive to the existing securities-focused types.
+// ---------------------------------------------------------------------------
+
+export type CourtLevel =
+  | "superior"
+  | "federal"
+  | "small-claims"
+  | "divisional"
+  | "court-of-appeal"
+  | "supreme";
+
+export type LegalRegime =
+  | "cpa-ontario"
+  | "cpa-quebec"
+  | "cpa-bc"
+  | "cpa-alberta"
+  | "competition-act"
+  | "pipeda"
+  | "casl"
+  | "securities-act"
+  | "ni-45-106"
+  | "ni-31-103"
+  | "ni-81-102"
+  | "other";
+
+export type ClaimType =
+  | "false-advertising"
+  | "defective-product"
+  | "hidden-fees"
+  | "data-breach"
+  | "privacy-misuse"
+  | "unfair-terms"
+  | "telemarketing-spam"
+  | "price-fixing"
+  | "other";
+
+export type ProceduralPosture =
+  | "investigation"
+  | "pre-litigation"
+  | "proposed-class"
+  | "certification"
+  | "discovery"
+  | "settlement"
+  | "trial"
+  | "appeal"
+  | "closed";
+
 export interface Matter {
   id: string;
   organizationId: string;
@@ -63,6 +111,22 @@ export interface Matter {
   status: MatterStatus;
   createdAt: Date;
   updatedAt: Date;
+  // Consumer-law fields — all optional for back-compat with existing
+  // securities matters. Populated via the /matters/new wizard when the
+  // user selects "Consumer Law" as the matter type.
+  clientName?: string;
+  opposingParty?: string;
+  courtLevel?: CourtLevel;
+  legalRegime?: LegalRegime[];
+  claimType?: ClaimType;
+  classActionFlag?: boolean;
+  estimatedClassSize?: string;
+  harmDescription?: string;
+  proceduralPosture?: ProceduralPosture;
+  limitationDate?: Date;
+  certificationDate?: Date;
+  nextDeadline?: Date;
+  nextDeadlineLabel?: string;
 }
 
 export interface MatterDocument {
@@ -97,6 +161,30 @@ export interface CreateMatterInput {
   jurisdiction: Jurisdiction;
   registrationCategory: RegistrationCategory;
   taskType: TaskType;
+  // Consumer-law fields — all optional for back-compat.
+  clientName?: string;
+  opposingParty?: string;
+  courtLevel?: CourtLevel;
+  legalRegime?: LegalRegime[];
+  claimType?: ClaimType;
+  classActionFlag?: boolean;
+  estimatedClassSize?: string;
+  harmDescription?: string;
+  proceduralPosture?: ProceduralPosture;
+  limitationDate?: Date;
+  certificationDate?: Date;
+  nextDeadline?: Date;
+  nextDeadlineLabel?: string;
+}
+
+/** Filter parameters for the list() query. All optional — no filter = return all. */
+export interface MatterListFilters {
+  status?: MatterStatus;
+  claimType?: ClaimType;
+  proceduralPosture?: ProceduralPosture;
+  classActionOnly?: boolean;
+  hasOverdueDeadline?: boolean;
+  search?: string;
 }
 
 /**
@@ -106,7 +194,8 @@ export interface CreateMatterInput {
 export interface MatterStore {
   create(input: CreateMatterInput, organizationId?: string): Promise<Matter>;
   get(id: string): Promise<Matter | null>;
-  list(organizationId?: string): Promise<Matter[]>;
+  list(organizationId?: string, filters?: MatterListFilters): Promise<Matter[]>;
+  update(id: string, fields: Partial<CreateMatterInput>): Promise<Matter | null>;
   updateStatus(id: string, status: MatterStatus): Promise<Matter | null>;
   addDocument(
     matterId: string,
@@ -144,6 +233,20 @@ export class InMemoryMatterStore implements MatterStore {
       status: "open",
       createdAt: now,
       updatedAt: now,
+      // Consumer-law fields — pass through from input
+      ...(input.clientName ? { clientName: input.clientName } : {}),
+      ...(input.opposingParty ? { opposingParty: input.opposingParty } : {}),
+      ...(input.courtLevel ? { courtLevel: input.courtLevel } : {}),
+      ...(input.legalRegime ? { legalRegime: input.legalRegime } : {}),
+      ...(input.claimType ? { claimType: input.claimType } : {}),
+      ...(input.classActionFlag !== undefined ? { classActionFlag: input.classActionFlag } : {}),
+      ...(input.estimatedClassSize ? { estimatedClassSize: input.estimatedClassSize } : {}),
+      ...(input.harmDescription ? { harmDescription: input.harmDescription } : {}),
+      ...(input.proceduralPosture ? { proceduralPosture: input.proceduralPosture } : {}),
+      ...(input.limitationDate ? { limitationDate: input.limitationDate } : {}),
+      ...(input.certificationDate ? { certificationDate: input.certificationDate } : {}),
+      ...(input.nextDeadline ? { nextDeadline: input.nextDeadline } : {}),
+      ...(input.nextDeadlineLabel ? { nextDeadlineLabel: input.nextDeadlineLabel } : {}),
     };
     this.matters.set(id, matter);
     this.documents.set(id, []);
@@ -154,10 +257,36 @@ export class InMemoryMatterStore implements MatterStore {
     return this.matters.get(id) ?? null;
   }
 
-  async list(organizationId = "preview"): Promise<Matter[]> {
-    return Array.from(this.matters.values())
-      .filter((m) => m.organizationId === organizationId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  async list(organizationId = "preview", filters?: MatterListFilters): Promise<Matter[]> {
+    let results = Array.from(this.matters.values()).filter(
+      (m) => m.organizationId === organizationId,
+    );
+    if (filters?.status) results = results.filter((m) => m.status === filters.status);
+    if (filters?.claimType) results = results.filter((m) => m.claimType === filters.claimType);
+    if (filters?.proceduralPosture)
+      results = results.filter((m) => m.proceduralPosture === filters.proceduralPosture);
+    if (filters?.classActionOnly) results = results.filter((m) => m.classActionFlag === true);
+    if (filters?.hasOverdueDeadline) {
+      const now = new Date();
+      results = results.filter((m) => m.nextDeadline && m.nextDeadline < now);
+    }
+    if (filters?.search) {
+      const q = filters.search.toLowerCase();
+      results = results.filter(
+        (m) =>
+          m.title.toLowerCase().includes(q) ||
+          m.clientName?.toLowerCase().includes(q) ||
+          m.opposingParty?.toLowerCase().includes(q),
+      );
+    }
+    return results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async update(id: string, fields: Partial<CreateMatterInput>): Promise<Matter | null> {
+    const matter = this.matters.get(id);
+    if (!matter) return null;
+    Object.assign(matter, fields, { updatedAt: new Date() });
+    return matter;
   }
 
   async updateStatus(id: string, status: MatterStatus): Promise<Matter | null> {

@@ -21,6 +21,7 @@ import { OutputPane } from "./OutputPane";
 import { ChatDrawer } from "./ChatDrawer";
 import { AuditLog } from "./AuditLog";
 import { EvidencePanel, type EvidenceItem } from "./EvidencePanel";
+import { MatterInfo } from "./MatterInfo";
 
 type JudgeVerdict = "READY_TO_SUBMIT" | "ITERATE" | "REWRITE";
 
@@ -357,6 +358,17 @@ export default function MatterDetailPage() {
         <aside className="w-72 shrink-0 overflow-y-auto border-r border-neutral-200 p-4 dark:border-neutral-800">
           {matter && (
             <>
+              <MatterInfo
+                matter={matter}
+                onUpdate={async (fields) => {
+                  await fetch(`/api/matters/${matterId}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(fields),
+                  });
+                  void fetchMatter();
+                }}
+              />
               <InputPane
                 matter={matter}
                 documents={documents}

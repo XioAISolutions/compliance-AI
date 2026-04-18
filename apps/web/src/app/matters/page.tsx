@@ -18,6 +18,15 @@ interface Matter {
   taskType: string;
   status: string;
   createdAt: string;
+  // Consumer-law fields (optional)
+  clientName?: string;
+  opposingParty?: string;
+  claimType?: string;
+  classActionFlag?: boolean;
+  proceduralPosture?: string;
+  nextDeadline?: string;
+  nextDeadlineLabel?: string;
+  limitationDate?: string;
 }
 
 const JURISDICTIONS = [
@@ -49,6 +58,49 @@ const TASK_ICONS: Record<string, string> = {
   "marketing-signoff": "MKT",
   "response-memo": "RSP",
 };
+
+const CLAIM_ICONS: Record<string, string> = {
+  "false-advertising": "AD",
+  "defective-product": "DEF",
+  "hidden-fees": "FEE",
+  "data-breach": "DAT",
+  "privacy-misuse": "PRV",
+  "unfair-terms": "TRM",
+  "telemarketing-spam": "TEL",
+  "price-fixing": "FIX",
+  other: "OTH",
+};
+
+const CLAIM_LABELS: Record<string, string> = {
+  "false-advertising": "False advertising",
+  "defective-product": "Defective product",
+  "hidden-fees": "Hidden fees",
+  "data-breach": "Data breach",
+  "privacy-misuse": "Privacy misuse",
+  "unfair-terms": "Unfair terms",
+  "telemarketing-spam": "Telemarketing / spam",
+  "price-fixing": "Price fixing",
+  other: "Other",
+};
+
+const POSTURE_LABELS: Record<string, string> = {
+  investigation: "Investigation",
+  "pre-litigation": "Pre-litigation",
+  "proposed-class": "Proposed class",
+  certification: "Certification",
+  discovery: "Discovery",
+  settlement: "Settlement",
+  trial: "Trial",
+  appeal: "Appeal",
+  closed: "Closed",
+};
+
+function daysUntil(dateStr?: string): number | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  return Math.ceil((d.getTime() - Date.now()) / 86_400_000);
+}
 
 const STATUS_BADGE: Record<string, string> = {
   open: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
@@ -151,12 +203,12 @@ export default function MattersPage() {
             Select a matter or create a new one to start a compliance review.
           </p>
         </div>
-        <button
-          onClick={() => setCreating(!creating)}
+        <Link
+          href="/matters/new"
           className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-300"
         >
           + New matter
-        </button>
+        </Link>
       </div>
 
       {creating && (
@@ -280,19 +332,46 @@ export default function MattersPage() {
               href={`/matters/${m.id}`}
               className="group flex items-center gap-4 rounded-lg border border-neutral-200 p-4 transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900/50"
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-neutral-100 text-xs font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
-                {TASK_ICONS[m.taskType] ?? "?"}
+              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-xs font-bold ${
+                m.claimType
+                  ? "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
+                  : "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
+              }`}>
+                {m.claimType ? (CLAIM_ICONS[m.claimType] ?? "CL") : (TASK_ICONS[m.taskType] ?? "?")}
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="truncate text-sm font-medium">{m.title}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="truncate text-sm font-medium">{m.title}</h3>
+                  {m.classActionFlag && (
+                    <span className="shrink-0 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-950 dark:text-violet-300">
+                      Class
+                    </span>
+                  )}
+                </div>
                 <p className="mt-0.5 text-xs text-neutral-500">
+                  {m.clientName && m.opposingParty
+                    ? `${m.clientName} v. ${m.opposingParty} · `
+                    : m.clientName
+                      ? `${m.clientName} · `
+                      : ""}
                   {JURISDICTIONS.find((j) => j.value === m.jurisdiction)?.label ?? m.jurisdiction}
-                  {" · "}
-                  {REGISTRATION_CATEGORIES.find((r) => r.value === m.registrationCategory)?.label ??
-                    m.registrationCategory}
-                  {" · "}
-                  {TASK_TYPES.find((t) => t.value === m.taskType)?.label ?? m.taskType}
+                  {m.claimType
+                    ? ` · ${CLAIM_LABELS[m.claimType] ?? m.claimType}`
+                    : ` · ${TASK_TYPES.find((t) => t.value === m.taskType)?.label ?? m.taskType}`}
+                  {m.proceduralPosture && ` · ${POSTURE_LABELS[m.proceduralPosture] ?? m.proceduralPosture}`}
                 </p>
+                {(() => {
+                  const days = daysUntil(m.nextDeadline ?? m.limitationDate);
+                  if (days === null) return null;
+                  const label = m.nextDeadlineLabel ?? (m.limitationDate ? "Limitation" : "Deadline");
+                  return (
+                    <p className={`mt-0.5 text-[10px] font-medium ${
+                      days < 0 ? "text-red-600" : days <= 30 ? "text-amber-600" : "text-neutral-400"
+                    }`}>
+                      {label}: {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d remaining`}
+                    </p>
+                  );
+                })()}
               </div>
               <span
                 className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE[m.status] ?? STATUS_BADGE.open}`}

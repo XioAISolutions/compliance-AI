@@ -15,13 +15,18 @@ import {
 } from "@compliance-ai/db";
 import { eq, desc } from "drizzle-orm";
 import type {
+  ClaimType,
+  CourtLevel,
   CreateMatterInput,
   DocumentType,
   Jurisdiction,
+  LegalRegime,
   Matter,
   MatterDocument,
+  MatterListFilters,
   MatterStatus,
   MatterStore,
+  ProceduralPosture,
   RegistrationCategory,
   StoredChunk,
   TaskType,
@@ -41,6 +46,20 @@ export class PostgresMatterStore implements MatterStore {
           registrationCategory: input.registrationCategory,
           taskType: input.taskType,
           status: "open",
+          // Consumer-law fields — nullable, passed through when present
+          ...(input.clientName ? { clientName: input.clientName } : {}),
+          ...(input.opposingParty ? { opposingParty: input.opposingParty } : {}),
+          ...(input.courtLevel ? { courtLevel: input.courtLevel } : {}),
+          ...(input.legalRegime ? { legalRegime: input.legalRegime } : {}),
+          ...(input.claimType ? { claimType: input.claimType } : {}),
+          ...(input.classActionFlag !== undefined ? { classActionFlag: input.classActionFlag } : {}),
+          ...(input.estimatedClassSize ? { estimatedClassSize: input.estimatedClassSize } : {}),
+          ...(input.harmDescription ? { harmDescription: input.harmDescription } : {}),
+          ...(input.proceduralPosture ? { proceduralPosture: input.proceduralPosture } : {}),
+          ...(input.limitationDate ? { limitationDate: input.limitationDate } : {}),
+          ...(input.certificationDate ? { certificationDate: input.certificationDate } : {}),
+          ...(input.nextDeadline ? { nextDeadline: input.nextDeadline } : {}),
+          ...(input.nextDeadlineLabel ? { nextDeadlineLabel: input.nextDeadlineLabel } : {}),
         })
         .returning();
       if (!row) throw new Error("Insert failed");
@@ -57,14 +76,47 @@ export class PostgresMatterStore implements MatterStore {
     });
   }
 
-  async list(organizationId = PREVIEW_ORG_ID): Promise<Matter[]> {
+  async list(organizationId = PREVIEW_ORG_ID, _filters?: MatterListFilters): Promise<Matter[]> {
     return withOrg(organizationId, async (tx) => {
-      const rows = await tx
+      // Filters are applied in-memory after fetching the org-scoped rows.
+      // For large datasets, push these into SQL WHERE clauses with Drizzle
+      // conditions. At current scale (< 1000 matters), post-fetch filtering
+      // is simpler and avoids complex query composition.
+      let rows = await tx
         .select()
         .from(schema.matters)
         .where(eq(schema.matters.organizationId, organizationId))
         .orderBy(desc(schema.matters.createdAt));
+
+      if (_filters) {
+        if (_filters.status) rows = rows.filter((r) => r.status === _filters.status);
+        if (_filters.claimType) rows = rows.filter((r) => r.claimType === _filters.claimType);
+        if (_filters.proceduralPosture)
+          rows = rows.filter((r) => r.proceduralPosture === _filters.proceduralPosture);
+        if (_filters.classActionOnly) rows = rows.filter((r) => r.classActionFlag === true);
+        if (_filters.search) {
+          const q = _filters.search.toLowerCase();
+          rows = rows.filter(
+            (r) =>
+              r.title.toLowerCase().includes(q) ||
+              r.clientName?.toLowerCase().includes(q) ||
+              r.opposingParty?.toLowerCase().includes(q),
+          );
+        }
+      }
+
       return rows.map(toMatter);
+    });
+  }
+
+  async update(id: string, fields: Partial<CreateMatterInput>): Promise<Matter | null> {
+    return withOrg(PREVIEW_ORG_ID, async (tx) => {
+      const [row] = await tx
+        .update(schema.matters)
+        .set({ ...fields, updatedAt: new Date() } as Record<string, unknown>)
+        .where(eq(schema.matters.id, id))
+        .returning();
+      return row ? toMatter(row) : null;
     });
   }
 
@@ -192,6 +244,24 @@ function toMatter(row: MatterRow): Matter {
     status: row.status as MatterStatus,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    // Consumer-law fields — map from nullable DB columns to optional TS fields
+    ...(row.clientName ? { clientName: row.clientName } : {}),
+    ...(row.opposingParty ? { opposingParty: row.opposingParty } : {}),
+    ...(row.courtLevel ? { courtLevel: row.courtLevel as CourtLevel } : {}),
+    ...(row.legalRegime ? { legalRegime: row.legalRegime as LegalRegime[] } : {}),
+    ...(row.claimType ? { claimType: row.claimType as ClaimType } : {}),
+    ...(row.classActionFlag !== null && row.classActionFlag !== undefined
+      ? { classActionFlag: row.classActionFlag }
+      : {}),
+    ...(row.estimatedClassSize ? { estimatedClassSize: row.estimatedClassSize } : {}),
+    ...(row.harmDescription ? { harmDescription: row.harmDescription } : {}),
+    ...(row.proceduralPosture
+      ? { proceduralPosture: row.proceduralPosture as ProceduralPosture }
+      : {}),
+    ...(row.limitationDate ? { limitationDate: row.limitationDate } : {}),
+    ...(row.certificationDate ? { certificationDate: row.certificationDate } : {}),
+    ...(row.nextDeadline ? { nextDeadline: row.nextDeadline } : {}),
+    ...(row.nextDeadlineLabel ? { nextDeadlineLabel: row.nextDeadlineLabel } : {}),
   };
 }
 

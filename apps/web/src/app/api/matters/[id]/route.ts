@@ -118,8 +118,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   if (body.status && typeof body.status === "string") {
-    // Validate against the full MatterStatus union; reject garbage so a
-    // client can't put a matter into an unknown state.
     const validStatuses = [
       "open",
       "in-review",
@@ -133,6 +131,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: `Unknown status: ${body.status}` }, { status: 400 });
     }
     const updated = await matterStore.updateStatus(id, body.status as ValidStatus);
+    return NextResponse.json(updated);
+  }
+
+  // Consumer-law field updates — partial update of any field on the matter.
+  // The store.update() method merges the provided fields and bumps updatedAt.
+  const updateableFields = [
+    "clientName", "opposingParty", "courtLevel", "legalRegime",
+    "claimType", "classActionFlag", "estimatedClassSize", "harmDescription",
+    "proceduralPosture", "limitationDate", "certificationDate",
+    "nextDeadline", "nextDeadlineLabel", "title",
+  ];
+  const updates: Record<string, unknown> = {};
+  for (const key of updateableFields) {
+    if (key in body) {
+      let val = body[key];
+      if ((key === "limitationDate" || key === "certificationDate" || key === "nextDeadline") && typeof val === "string") {
+        val = new Date(val);
+      }
+      updates[key] = val;
+    }
+  }
+  if (Object.keys(updates).length > 0) {
+    const updated = await matterStore.update(id, updates);
     return NextResponse.json(updated);
   }
 

@@ -9,7 +9,7 @@
  * only authorities applicable to the matter's scope are loaded into context.
  */
 
-import { pgTable, uuid, text, timestamp, pgEnum, index, integer } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, pgEnum, index, integer, boolean, jsonb } from "drizzle-orm/pg-core";
 import { organizations } from "./organizations.js";
 import { users } from "./users.js";
 
@@ -49,6 +49,39 @@ export const taskTypeEnum = pgEnum("task_type", [
   "response-memo",
 ]);
 
+export const claimTypeEnum = pgEnum("claim_type", [
+  "false-advertising",
+  "defective-product",
+  "hidden-fees",
+  "data-breach",
+  "privacy-misuse",
+  "unfair-terms",
+  "telemarketing-spam",
+  "price-fixing",
+  "other",
+]);
+
+export const proceduralPostureEnum = pgEnum("procedural_posture", [
+  "investigation",
+  "pre-litigation",
+  "proposed-class",
+  "certification",
+  "discovery",
+  "settlement",
+  "trial",
+  "appeal",
+  "closed",
+]);
+
+export const courtLevelEnum = pgEnum("court_level", [
+  "superior",
+  "federal",
+  "small-claims",
+  "divisional",
+  "court-of-appeal",
+  "supreme",
+]);
+
 export const matters = pgTable(
   "matters",
   {
@@ -62,6 +95,20 @@ export const matters = pgTable(
     taskType: taskTypeEnum("task_type").notNull(),
     status: matterStatusEnum("status").notNull().default("open"),
     createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    // Consumer-law fields — all nullable for back-compat with securities matters
+    clientName: text("client_name"),
+    opposingParty: text("opposing_party"),
+    courtLevel: courtLevelEnum("court_level"),
+    legalRegime: jsonb("legal_regime").$type<string[]>(),
+    claimType: claimTypeEnum("claim_type"),
+    classActionFlag: boolean("class_action_flag"),
+    estimatedClassSize: text("estimated_class_size"),
+    harmDescription: text("harm_description"),
+    proceduralPosture: proceduralPostureEnum("procedural_posture"),
+    limitationDate: timestamp("limitation_date", { withTimezone: true }),
+    certificationDate: timestamp("certification_date", { withTimezone: true }),
+    nextDeadline: timestamp("next_deadline", { withTimezone: true }),
+    nextDeadlineLabel: text("next_deadline_label"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

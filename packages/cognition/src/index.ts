@@ -9,6 +9,33 @@ export {
   NI_45_106_COMPANION_AUTHORITIES,
 } from "./ni-45-106-companion-authorities.js";
 export { US_SECURITIES_AUTHORITIES } from "./us-securities-authorities.js";
+
+// Pan-Canadian consumer protection corpus — every province/territory +
+// Federal + Multi-provincial harmonisation templates. See
+// canada-consumer-protection-authorities.ts for the aggregator and the
+// per-jurisdiction files for the individual exports.
+export { FEDERAL_CONSUMER_PROTECTION_AUTHORITIES } from "./federal-consumer-protection-authorities.js";
+export { ONTARIO_CONSUMER_PROTECTION_AUTHORITIES } from "./ontario-consumer-protection-authorities.js";
+export { QUEBEC_CONSUMER_PROTECTION_AUTHORITIES } from "./quebec-consumer-protection-authorities.js";
+export { BC_BPCPA_AUTHORITIES } from "./british-columbia-consumer-protection-authorities.js";
+export { ALBERTA_CPA_AUTHORITIES } from "./alberta-consumer-protection-authorities.js";
+export {
+  SASKATCHEWAN_CPBPA_AUTHORITIES,
+  MANITOBA_CONSUMER_PROTECTION_AUTHORITIES,
+} from "./prairies-consumer-protection-authorities.js";
+export {
+  NOVA_SCOTIA_CPA_AUTHORITIES,
+  NEW_BRUNSWICK_CPA_AUTHORITIES,
+  NEWFOUNDLAND_CPBPA_AUTHORITIES,
+  PEI_CPA_AUTHORITIES,
+} from "./atlantic-consumer-protection-authorities.js";
+export {
+  YUKON_CPA_AUTHORITIES,
+  NWT_CPA_AUTHORITIES,
+  NUNAVUT_CPA_AUTHORITIES,
+} from "./territories-consumer-protection-authorities.js";
+export { MULTI_PROVINCIAL_CONSUMER_PROTECTION_AUTHORITIES } from "./multi-provincial-consumer-protection-authorities.js";
+export { CANADA_CONSUMER_PROTECTION_AUTHORITIES } from "./canada-consumer-protection-authorities.js";
 export { rrfFuse } from "./in-memory.js";
 
 import { InMemoryCognitionStore } from "./in-memory.js";

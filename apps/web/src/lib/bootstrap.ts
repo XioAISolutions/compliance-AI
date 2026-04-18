@@ -16,6 +16,7 @@ import {
   getDefaultCognitionStore,
   type CognitionSurface,
   ONTARIO_EMD_AUTHORITIES,
+  CANADA_CONSUMER_PROTECTION_AUTHORITIES,
 } from "@compliance-ai/cognition";
 
 const _seeded = new Set<string>();
@@ -39,7 +40,15 @@ export async function ensureTenant(
   const cognition = getDefaultCognitionStore(surface);
   const existing = await cognition.size();
   if (surface === "securities" && existing === 0) {
-    const items = ONTARIO_EMD_AUTHORITIES.map((item) => ({
+    // Ontario EMD / NI 45-106 securities corpus plus the pan-Canadian
+    // consumer protection corpus — every province and territory + federal.
+    // Retrieval is scoped per matter by jurisdiction + registrationCategory,
+    // so a securities matter still sees only securities items and a
+    // consumer-protection matter still sees only consumer-protection items.
+    const items = [
+      ...ONTARIO_EMD_AUTHORITIES,
+      ...CANADA_CONSUMER_PROTECTION_AUTHORITIES,
+    ].map((item) => ({
       ...item,
       organizationId,
     }));

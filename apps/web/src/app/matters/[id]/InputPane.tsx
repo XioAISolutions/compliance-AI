@@ -31,7 +31,17 @@ const JURISDICTION_LABELS: Record<string, string> = {
   quebec: "Quebec",
   "british-columbia": "British Columbia",
   alberta: "Alberta",
+  saskatchewan: "Saskatchewan",
+  manitoba: "Manitoba",
+  "nova-scotia": "Nova Scotia",
+  "new-brunswick": "New Brunswick",
+  newfoundland: "Newfoundland & Labrador",
+  pei: "Prince Edward Island",
+  "northwest-territories": "Northwest Territories",
+  yukon: "Yukon",
+  nunavut: "Nunavut",
   federal: "Federal",
+  "multi-provincial": "Multi-provincial",
 };
 
 const REGISTRATION_LABELS: Record<string, string> = {

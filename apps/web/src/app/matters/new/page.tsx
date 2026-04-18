@@ -140,7 +140,17 @@ const JURISDICTIONS = [
   { value: "quebec", label: "Quebec" },
   { value: "british-columbia", label: "British Columbia" },
   { value: "alberta", label: "Alberta" },
+  { value: "saskatchewan", label: "Saskatchewan" },
+  { value: "manitoba", label: "Manitoba" },
+  { value: "nova-scotia", label: "Nova Scotia" },
+  { value: "new-brunswick", label: "New Brunswick" },
+  { value: "newfoundland", label: "Newfoundland & Labrador" },
+  { value: "pei", label: "Prince Edward Island" },
+  { value: "northwest-territories", label: "Northwest Territories" },
+  { value: "yukon", label: "Yukon" },
+  { value: "nunavut", label: "Nunavut" },
   { value: "federal", label: "Federal" },
+  { value: "multi-provincial", label: "Multi-provincial" },
 ];
 
 const COURT_LEVELS = [
@@ -155,12 +165,19 @@ const COURT_LEVELS = [
 const LEGAL_REGIMES = [
   { value: "cpa-ontario", label: "Consumer Protection Act (Ontario)" },
   { value: "cpa-quebec", label: "Consumer Protection Act (Quebec)" },
-  { value: "cpa-bc", label: "Business Practices & Consumer Protection Act (BC)" },
+  { value: "cpa-bc", label: "BPCPA (British Columbia)" },
   { value: "cpa-alberta", label: "Consumer Protection Act (Alberta)" },
+  { value: "cpa-saskatchewan", label: "Consumer Protection & Business Practices Act (SK)" },
+  { value: "cpa-manitoba", label: "Consumer Protection Act (Manitoba)" },
+  { value: "cpa-nova-scotia", label: "Consumer Protection Act (Nova Scotia)" },
+  { value: "cpa-new-brunswick", label: "Consumer Product Warranty & Liability Act (NB)" },
+  { value: "cpa-newfoundland", label: "Consumer Protection & Business Practices Act (NL)" },
+  { value: "cpa-pei", label: "Consumer Protection Act (PEI)" },
   { value: "competition-act", label: "Competition Act (federal)" },
-  { value: "pipeda", label: "PIPEDA (privacy)" },
+  { value: "pipeda", label: "PIPEDA (federal privacy)" },
   { value: "casl", label: "CASL (anti-spam)" },
-  { value: "securities-act", label: "Securities Act (Ontario)" },
+  { value: "criminal-code", label: "Criminal Code (fraud / deceptive marketing)" },
+  { value: "securities-act", label: "Securities Act" },
   { value: "other", label: "Other" },
 ];
 

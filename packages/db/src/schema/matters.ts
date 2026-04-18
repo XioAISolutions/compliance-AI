@@ -18,7 +18,17 @@ export const jurisdictionEnum = pgEnum("jurisdiction", [
   "quebec",
   "british-columbia",
   "alberta",
+  "saskatchewan",
+  "manitoba",
+  "nova-scotia",
+  "new-brunswick",
+  "newfoundland",
+  "pei",
+  "northwest-territories",
+  "yukon",
+  "nunavut",
   "federal",
+  "multi-provincial",
 ]);
 
 export const registrationCategoryEnum = pgEnum("registration_category", [

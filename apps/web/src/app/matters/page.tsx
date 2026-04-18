@@ -34,7 +34,17 @@ const JURISDICTIONS = [
   { value: "quebec", label: "Quebec" },
   { value: "british-columbia", label: "British Columbia" },
   { value: "alberta", label: "Alberta" },
+  { value: "saskatchewan", label: "Saskatchewan" },
+  { value: "manitoba", label: "Manitoba" },
+  { value: "nova-scotia", label: "Nova Scotia" },
+  { value: "new-brunswick", label: "New Brunswick" },
+  { value: "newfoundland", label: "Newfoundland & Labrador" },
+  { value: "pei", label: "Prince Edward Island" },
+  { value: "northwest-territories", label: "Northwest Territories" },
+  { value: "yukon", label: "Yukon" },
+  { value: "nunavut", label: "Nunavut" },
   { value: "federal", label: "Federal" },
+  { value: "multi-provincial", label: "Multi-provincial" },
 ];
 
 const REGISTRATION_CATEGORIES = [

@@ -13,7 +13,22 @@
 
 import { randomUUID } from "node:crypto";
 
-export type Jurisdiction = "ontario" | "quebec" | "british-columbia" | "alberta" | "federal";
+export type Jurisdiction =
+  | "ontario"
+  | "quebec"
+  | "british-columbia"
+  | "alberta"
+  | "saskatchewan"
+  | "manitoba"
+  | "nova-scotia"
+  | "new-brunswick"
+  | "newfoundland"
+  | "pei"
+  | "northwest-territories"
+  | "yukon"
+  | "nunavut"
+  | "federal"
+  | "multi-provincial";
 export type RegistrationCategory = "emd" | "pm" | "iiroc" | "issuer" | "none";
 export type TaskType = "om-review" | "kyc-gap-check" | "marketing-signoff" | "response-memo";
 /**
@@ -70,6 +85,12 @@ export type LegalRegime =
   | "cpa-quebec"
   | "cpa-bc"
   | "cpa-alberta"
+  | "cpa-saskatchewan"
+  | "cpa-manitoba"
+  | "cpa-nova-scotia"
+  | "cpa-new-brunswick"
+  | "cpa-newfoundland"
+  | "cpa-pei"
   | "competition-act"
   | "pipeda"
   | "casl"
@@ -77,6 +98,7 @@ export type LegalRegime =
   | "ni-45-106"
   | "ni-31-103"
   | "ni-81-102"
+  | "criminal-code"
   | "other";
 
 export type ClaimType =

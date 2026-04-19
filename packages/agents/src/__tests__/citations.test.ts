@@ -105,6 +105,76 @@ this is not valid json
     const result = parseModelOutput(raw);
     expect(result.citations[0]!.page).toBe(42);
   });
+
+  it("preserves source-locker fields on valid citations", () => {
+    const raw = `Analysis [c1].
+
+\`\`\`citations
+[
+  {
+    "id": "c1",
+    "authorityId": "ni-45-106",
+    "section": "2.9",
+    "quote": "test",
+    "docId": "d1",
+    "chunkId": "ch1",
+    "jurisdiction": "ontario",
+    "sourceType": "rule",
+    "authorityDate": "2024-06-30",
+    "pinpoint": "para. 14",
+    "confidence": 0.88
+  }
+]
+\`\`\``;
+
+    const result = parseModelOutput(raw);
+    const c = result.citations[0]!;
+    expect(c.jurisdiction).toBe("ontario");
+    expect(c.sourceType).toBe("rule");
+    expect(c.authorityDate).toBe("2024-06-30");
+    expect(c.pinpoint).toBe("para. 14");
+    expect(c.confidence).toBe(0.88);
+  });
+
+  it("drops unknown sourceType values but keeps the citation", () => {
+    const raw = `Analysis [c1].
+
+\`\`\`citations
+[
+  {
+    "id": "c1",
+    "authorityId": "ni-45-106",
+    "section": "2.9",
+    "quote": "test",
+    "docId": "d1",
+    "chunkId": "ch1",
+    "sourceType": "bogus-type",
+    "confidence": 0.5
+  }
+]
+\`\`\``;
+
+    const result = parseModelOutput(raw);
+    expect(result.citations).toHaveLength(1);
+    expect(result.citations[0]!.sourceType).toBeUndefined();
+    expect(result.citations[0]!.confidence).toBe(0.5);
+  });
+
+  it("drops out-of-range confidence but keeps the citation", () => {
+    const raw = `Analysis [c1] [c2].
+
+\`\`\`citations
+[
+  {"id": "c1", "authorityId": "a", "section": "1", "quote": "q", "docId": "d", "chunkId": "ch1", "confidence": 1.7},
+  {"id": "c2", "authorityId": "a", "section": "2", "quote": "q", "docId": "d", "chunkId": "ch2", "confidence": "not-a-number"}
+]
+\`\`\``;
+
+    const result = parseModelOutput(raw);
+    expect(result.citations).toHaveLength(2);
+    expect(result.citations[0]!.confidence).toBeUndefined();
+    expect(result.citations[1]!.confidence).toBeUndefined();
+  });
 });
 
 describe("validateCitations", () => {

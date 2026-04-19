@@ -12,6 +12,22 @@
 
 import type { FrameworkId } from "@compliance-ai/frameworks";
 
+/**
+ * Canonical source types for the Canadian legal source-locker. Kept in sync
+ * with `@compliance-ai/agents` `SourceType`. We duplicate the literal union
+ * here so cognition has no reverse dependency on agents.
+ */
+export type SourceType =
+  | "statute"
+  | "regulation"
+  | "rule"
+  | "case"
+  | "practice-direction"
+  | "regulator-notice"
+  | "commentary"
+  | "internal"
+  | "other";
+
 export interface CognitionItem {
   /** Stable id (UUID). Generated on add() if omitted. */
   id?: string;
@@ -31,6 +47,18 @@ export interface CognitionItem {
   jurisdiction?: string;
   /** Registration categories this item applies to — e.g. ["emd", "pm"]. */
   registrationCategories?: string[];
+  /**
+   * Canonical source type. Drives the source-locker badge rendered next to
+   * every citation, and helps the drafter weight primary authority over
+   * commentary. Optional because legacy seed items are untagged.
+   */
+  sourceType?: SourceType;
+  /**
+   * ISO-8601 publication / as-of date for the underlying authority —
+   * consolidation date for legislation, decision date for cases, publication
+   * date for regulator notices. Surfaced so reviewers can flag stale law.
+   */
+  authorityDate?: string;
   createdAt?: Date;
 }
 

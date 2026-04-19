@@ -19,6 +19,12 @@ interface Citation {
   docId: string;
   chunkId: string;
   page?: number;
+  /** Source-locker fields — see packages/agents/src/citations.ts. */
+  jurisdiction?: string;
+  sourceType?: string;
+  authorityDate?: string;
+  pinpoint?: string;
+  confidence?: number;
 }
 
 type JudgeVerdict = "READY_TO_SUBMIT" | "ITERATE" | "REWRITE";
@@ -541,10 +547,15 @@ export function OutputPane({
                 onMouseEnter={() => setHoveredCitation(c.id)}
                 onMouseLeave={() => setHoveredCitation(null)}
               >
-                <span className="font-mono font-semibold text-amber-600">[{c.id}]</span>{" "}
-                <span className="font-medium">
-                  {c.authorityId} § {c.section}
-                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-mono font-semibold text-amber-600">[{c.id}]</span>
+                  <span className="font-medium">
+                    {c.authorityId} § {c.section}
+                    {c.page ? `, p.${c.page}` : ""}
+                    {c.pinpoint ? `, ${c.pinpoint}` : ""}
+                  </span>
+                  <SourceLockerBadges c={c} />
+                </div>
                 <p className="mt-0.5 italic text-neutral-500">&ldquo;{c.quote}&rdquo;</p>
               </li>
             ))}
@@ -557,6 +568,91 @@ export function OutputPane({
 
 function stripCitationFence(value: string): string {
   return value.replace(/```citations\s*\n[\s\S]*?\n```/g, "").trim();
+}
+
+/**
+ * Source-locker badges — jurisdiction, source type, as-of date, confidence.
+ * Rendered inline with each citation so a Canadian reviewer can, at a glance,
+ * tell whether the cited authority is primary or secondary, binding in the
+ * relevant jurisdiction, and current. Confidence below 0.4 is flagged red —
+ * these are the claims a reviewer should verify before export.
+ */
+function SourceLockerBadges({ c }: { c: Citation }) {
+  const hasAny =
+    c.jurisdiction || c.sourceType || c.authorityDate || typeof c.confidence === "number";
+  if (!hasAny) return null;
+
+  return (
+    <span className="ml-1 inline-flex flex-wrap items-center gap-1">
+      {c.jurisdiction && (
+        <span
+          className="rounded border border-neutral-300 bg-white px-1 py-0 font-mono text-[9px] uppercase tracking-wide text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+          title="Jurisdiction"
+        >
+          {formatJurisdictionBadge(c.jurisdiction)}
+        </span>
+      )}
+      {c.sourceType && (
+        <span
+          className={`rounded px-1 py-0 text-[9px] font-medium uppercase tracking-wide ${sourceTypeStyle(c.sourceType)}`}
+          title="Source type"
+        >
+          {c.sourceType.replace("-", " ")}
+        </span>
+      )}
+      {c.authorityDate && (
+        <span
+          className="rounded bg-neutral-100 px-1 py-0 font-mono text-[9px] text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
+          title="Authority as-of date"
+        >
+          {c.authorityDate}
+        </span>
+      )}
+      {typeof c.confidence === "number" && (
+        <span
+          className={`rounded px-1 py-0 font-mono text-[9px] font-semibold ${confidenceStyle(c.confidence)}`}
+          title="Model-reported confidence this authority supports the proposition"
+        >
+          {Math.round(c.confidence * 100)}%
+        </span>
+      )}
+    </span>
+  );
+}
+
+function formatJurisdictionBadge(j: string): string {
+  if (j === "multi-provincial") return "multi-prov";
+  if (j.length <= 3) return j.toUpperCase();
+  return j.toUpperCase().slice(0, 8);
+}
+
+function sourceTypeStyle(t: string): string {
+  switch (t) {
+    case "statute":
+      return "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300";
+    case "regulation":
+      return "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300";
+    case "rule":
+      return "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300";
+    case "case":
+      return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300";
+    case "practice-direction":
+      return "bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300";
+    case "regulator-notice":
+      return "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300";
+    case "commentary":
+      return "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300";
+    case "internal":
+      return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
+    default:
+      return "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400";
+  }
+}
+
+function confidenceStyle(confidence: number): string {
+  if (confidence >= 0.75) return "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300";
+  if (confidence >= 0.4) return "bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-300";
+  return "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300";
 }
 
 async function sha256Hex(input: string): Promise<string> {

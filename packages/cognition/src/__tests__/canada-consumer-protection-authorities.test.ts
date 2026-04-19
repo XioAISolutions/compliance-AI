@@ -384,7 +384,11 @@ describe("BM25 retrieval — canonical consumer-protection queries", () => {
     });
   }
 
-  it("jurisdiction filter restricts results to the requested jurisdiction", async () => {
+  it("jurisdiction filter restricts results to the requested jurisdiction plus pan-Canadian items", async () => {
+    // The retrieval filter treats "multi-provincial" and "federal" items as
+    // universally applicable (NI / CSA rules, federal statutes like the
+    // Competition Act). An Ontario query should never surface Quebec, BC,
+    // or any other province's provincial law.
     const results = await store.retrieve({
       query: "unfair practice misleading representation",
       topK: 10,
@@ -392,7 +396,8 @@ describe("BM25 retrieval — canonical consumer-protection queries", () => {
     });
     expect(results.length).toBeGreaterThan(0);
     for (const r of results) {
-      expect(r.item.jurisdiction).toBe("ontario");
+      const j = r.item.jurisdiction ?? "";
+      expect(["ontario", "multi-provincial", "federal", ""]).toContain(j);
     }
   });
 });

@@ -16,13 +16,20 @@ describe("ONTARIO_EMD_AUTHORITIES seed data", () => {
   });
 
   it("every item has required fields", () => {
+    // Items in ONTARIO_EMD_AUTHORITIES may be tagged "ontario" (provincial),
+    // "multi-provincial" (NI / CSA rules that apply in every CSA
+    // jurisdiction), or "federal" (PCMLTFA, FINTRAC). All three are valid in
+    // an Ontario EMD review because the in-memory retrieval filter treats
+    // multi-provincial and federal items as universally applicable.
+    const OK_JURISDICTIONS = new Set(["ontario", "multi-provincial", "federal"]);
     for (const item of ONTARIO_EMD_AUTHORITIES) {
       expect(item.id).toBeTruthy();
       expect(item.title).toBeTruthy();
       expect(item.content).toBeTruthy();
       expect(item.source).toBeTruthy();
       expect(item.organizationId).toBe("preview");
-      expect(item.jurisdiction).toBe("ontario");
+      expect(item.jurisdiction).toBeDefined();
+      expect(OK_JURISDICTIONS.has(item.jurisdiction!)).toBe(true);
       expect(item.registrationCategories).toBeDefined();
       expect(item.registrationCategories!.length).toBeGreaterThan(0);
     }

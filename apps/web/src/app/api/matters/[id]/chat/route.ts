@@ -16,7 +16,16 @@ import { requireSession } from "../../../../../lib/auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const DEFAULT_TOP_K = 5;
+/**
+ * Matter-scoped chat uses a higher topK than ask/QA because the user's
+ * follow-ups often span the same authority surface the OM reviewer already
+ * cited — asking a rule-text specific question with only 5 snippets
+ * frequently starves the model of the exact authority the user is asking
+ * about. 16 is a compromise: wide enough to cover the reviewer's likely
+ * citation targets, narrow enough not to blow the context budget when a
+ * long chat history is also in the prompt.
+ */
+const DEFAULT_TOP_K = 16;
 
 interface MatterChatRequest {
   message: string;

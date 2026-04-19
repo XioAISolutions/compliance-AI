@@ -25,6 +25,7 @@ export {
 } from "./run.js";
 export { runAgentLoop, type RunAgentLoopOptions } from "./loop.js";
 export { PERSONA_SYSTEM_PROMPTS, PERSONA_LABELS, parseVerdict } from "./personas/index.js";
+export { OM_REVIEWER_RETRIEVAL_PLAN } from "./personas/om-reviewer.js";
 export {
   parseModelOutput,
   validateCitations,

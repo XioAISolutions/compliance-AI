@@ -12,6 +12,7 @@
 
 import { NextRequest } from "next/server";
 import {
+  OM_REVIEWER_RETRIEVAL_PLAN,
   parseModelOutput,
   runAgent,
   runAgentLoop,
@@ -37,6 +38,24 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DEFAULT_TOP_K = 8;
+/**
+ * Per-query top-K when we're running the OM reviewer's multi-query retrieval
+ * plan. Each plan query targets one authority cluster (e.g., Form F4, s.
+ * 130.1, NI 45-102 resale), so 4 is enough per query. The union across
+ * ~18 plan queries gives the reviewer a much richer authority deck than a
+ * single 8-snippet BM25 pass against the OM text, which biases toward
+ * issuer-specific vocabulary and against the rule-text items the reviewer
+ * actually needs to cite.
+ */
+const PLAN_PER_QUERY_TOP_K = 4;
+/**
+ * Ceiling on the merged authority deck handed to the model. ~40 covers the
+ * full set of checklist, gap-memo, risk-flag, resale, and post-filing
+ * authorities the reviewer persona expects without overwhelming the prompt
+ * budget. If the plan + document-content fallback surface fewer than this,
+ * we pass what we have.
+ */
+const MAX_MERGED_SNIPPETS = 40;
 // Threshold kept near zero: BM25 + RRF normalization returns scores on [0,1],
 // and for a broad query against a well-populated corpus the top-K items tend
 // to land between 0.1 and 1.0. Anything above zero is a positive lexical
@@ -226,11 +245,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Seed authorities for this tenant (idempotent)
   await ensureTenant(matter.organizationId);
 
-  // Retrieve relevant snippets filtered by matter scope. When a subject is
-  // present, use the document content as the retrieval query so authorities
-  // most relevant to the OM's topics come back.
+  // Retrieve relevant snippets filtered by matter scope.
+  //
+  // For OM review we run the persona's pre-defined retrieval plan — 18
+  // targeted queries, each hitting one authority cluster — and union the
+  // results. This surfaces rule-text items (e.g., Form 45-106F4, s. 130.1
+  // rights of action) that a single BM25 pass over the OM's issuer-specific
+  // vocabulary would miss. Results are deduped by item id; ranking is
+  // best-score-across-queries.
+  //
+  // For non-OM tasks we keep the legacy single-pass behaviour — those
+  // personas (KYC, marketing, response-memo) don't have a retrieval plan yet.
   const cognitionStore = getDefaultCognitionStore();
-  const retrievalQuery = reviewSubject
+  const usePlan = taskType === "om-review";
+  const documentQuery = reviewSubject
     ? reviewSubject.chunks
         .map((c) => c.content)
         .join(" ")
@@ -238,15 +266,59 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     : userMessage;
   let retrievedSnippets: RetrievedSnippet[] = [];
   try {
-    const results = await cognitionStore.retrieve({
-      query: retrievalQuery,
-      topK: DEFAULT_TOP_K,
-      organizationId: organizationId,
-      scoreThreshold: DEFAULT_SCORE_THRESHOLD,
-      jurisdiction: matter.jurisdiction,
-      registrationCategory: matter.registrationCategory,
-    });
-    retrievedSnippets = results.map(toRetrievedSnippet);
+    if (usePlan) {
+      // Plan queries first — one per authority cluster. Each returns a small
+      // per-query topK; the union gives the reviewer a wide authority deck
+      // without bloating any single retrieval.
+      const merged = new Map<string, RetrievalResult>();
+      for (const planQuery of OM_REVIEWER_RETRIEVAL_PLAN) {
+        const results = await cognitionStore.retrieve({
+          query: planQuery,
+          topK: PLAN_PER_QUERY_TOP_K,
+          organizationId,
+          scoreThreshold: DEFAULT_SCORE_THRESHOLD,
+          jurisdiction: matter.jurisdiction,
+          registrationCategory: matter.registrationCategory,
+        });
+        for (const r of results) {
+          const id = r.item.id ?? "";
+          if (!id) continue;
+          const prior = merged.get(id);
+          if (!prior || r.score > prior.score) merged.set(id, r);
+        }
+      }
+      // Fallback pass using the OM content itself — picks up anything
+      // issuer-specific the static plan misses (e.g., a sector-specific
+      // authority keyed on terms only in the OM).
+      const docResults = await cognitionStore.retrieve({
+        query: documentQuery,
+        topK: DEFAULT_TOP_K,
+        organizationId,
+        scoreThreshold: DEFAULT_SCORE_THRESHOLD,
+        jurisdiction: matter.jurisdiction,
+        registrationCategory: matter.registrationCategory,
+      });
+      for (const r of docResults) {
+        const id = r.item.id ?? "";
+        if (!id) continue;
+        const prior = merged.get(id);
+        if (!prior || r.score > prior.score) merged.set(id, r);
+      }
+      retrievedSnippets = [...merged.values()]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, MAX_MERGED_SNIPPETS)
+        .map(toRetrievedSnippet);
+    } else {
+      const results = await cognitionStore.retrieve({
+        query: documentQuery,
+        topK: DEFAULT_TOP_K,
+        organizationId,
+        scoreThreshold: DEFAULT_SCORE_THRESHOLD,
+        jurisdiction: matter.jurisdiction,
+        registrationCategory: matter.registrationCategory,
+      });
+      retrievedSnippets = results.map(toRetrievedSnippet);
+    }
   } catch {
     retrievedSnippets = [];
   }

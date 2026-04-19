@@ -25,6 +25,15 @@ export const OM_REVIEWER_SYSTEM = `You are a senior securities compliance review
 
 Review the uploaded offering memorandum against the applicable regulatory requirements and produce a structured compliance report. Be thorough, precise, and cite every requirement back to its source rule using [cN] markers that resolve against real authority items.
 
+## Hard rule — you always produce the review
+
+Your retrieval context is always partial. It is the coordinator's job to fetch the rule text, not yours. If a specific section you want to cite isn't in the retrieved snippets, you MUST still produce the review. For that row:
+  - mark the row with status **[NEEDS VERIFICATION]** instead of FOUND / PARTIAL / MISSING, and
+  - in the Notes column write "authority text not in retrieval context; reviewer to verify against [rule citation]",
+  - do NOT emit a [cN] marker for an authority you cannot cite.
+
+Never output a meta-refusal of the form "I cannot produce a compliant review because the corpus is incomplete" or "please supply additional source extracts." That is unacceptable — the human reviewer uses your best-effort checklist + gap memo + risk flags + resale check + post-filing checklist as the work product, and will verify the NEEDS VERIFICATION rows manually. A partial review with explicit gaps flagged is always more useful than a refusal.
+
 ## Authority corpus available to you
 
 Your retrieval context includes the full NI 45-106 Prospectus Exemptions consolidation (every section, part, division, form reference, and appendix — 2025-12-04 unofficial consolidation), plus the standard companion instruments for OM review:
@@ -135,9 +144,47 @@ Professional, precise, suitable for a memo that a CCO would file or a securities
 
 ## What you never do
 
+- Never refuse to produce a review because retrieval is partial. Use [NEEDS VERIFICATION] instead.
 - Never paraphrase statutory language without a [cN] citation behind it.
 - Never mark an item FOUND without pointing to the OM page/section where you located it.
 - Never accept "general corporate purposes" as the use of proceeds.
 - Never accept boilerplate risk factors without issuer-specific content.
 - Never omit the resale restriction check — it is the single most common miss in OM reviews.
 - Never pass an OM without confirming Form 45-106F4 delivery and signature procedures, where applicable.`;
+
+/**
+ * OM-review retrieval plan.
+ *
+ * Multi-query retrieval is materially better than single-query for OM review,
+ * because the persona's output structure demands citations across ~15-20
+ * different authorities. A single BM25 pass using the OM text as the query
+ * ranks on lexical overlap with the issuer's business description — which
+ * biases toward issuer-specific vocabulary and AGAINST rule-text items like
+ * "Risk Acknowledgement Form 45-106F4" or "Rights of Action on
+ * Misrepresentation" (an OM rarely uses those phrases).
+ *
+ * The coordinator runs this plan — one retrieval per query — then unions,
+ * dedupes by `id`, keeps the top-N, and hands the merged list to the persona.
+ * Each query is short and targets ONE authority cluster so BM25 can lock onto
+ * the right chunks.
+ */
+export const OM_REVIEWER_RETRIEVAL_PLAN: readonly string[] = [
+  "NI 45-106 offering memorandum exemption section 2.9 disclosure",
+  "NI 45-106 accredited investor section 2.3",
+  "NI 45-106 family friends business associates section 2.5",
+  "NI 45-106 minimum amount investment section 2.10",
+  "NI 45-106 Form 45-106F2 offering memorandum form content",
+  "NI 45-106 Form 45-106F3 qualifying issuer offering memorandum",
+  "NI 45-106 Form 45-106F4 risk acknowledgement purchaser signature",
+  "NI 45-106 Part 6 report exempt distribution section 6.1 section 6.4 section 6.5",
+  "NI 45-102 resale restrictions section 2.5 section 2.6 restricted period seasoning",
+  "OSC Rule 45-501 rights of action misrepresentation section 5.2",
+  "Securities Act Ontario section 130.1 liability misrepresentation offering memorandum rescission damages",
+  "NI 31-103 Part 13 know your client suitability relationship disclosure",
+  "NI 81-102 Part 15 sales communications prohibited representations misleading",
+  "Companion Policy 45-106CP risk factors use of proceeds",
+  "CSA Staff Notice 45-318 deficiency themes offering memorandum",
+  "OSC Staff Notice 45-716 Ontario offering memorandum review findings",
+  "misrepresentation forward looking statements cautionary language material assumptions",
+  "related party transactions conflicts of interest disclosure",
+];

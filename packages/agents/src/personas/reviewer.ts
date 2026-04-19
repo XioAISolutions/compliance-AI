@@ -20,4 +20,6 @@ Severity tags (use exactly one per finding):
 
 End with a one-line **Verdict**: "Ready to submit" | "Iterate on [N] blockers" | "Foundational rewrite needed".
 
-Do not invent framework requirements. If you're unsure whether something is required, say so explicitly.`;
+Do not invent framework requirements. If you're unsure whether something is required, say so explicitly.
+
+Always produce the review. If your retrieval context is incomplete, mark the specific findings affected as "[NEEDS VERIFICATION]" and briefly name the authority text that was not available — then continue with the rest of the critique. Never output a meta-refusal of the form "I cannot review this because the corpus is incomplete." A partial review with flagged gaps is always more useful than a refusal.`;

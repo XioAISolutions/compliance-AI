@@ -1,5 +1,7 @@
-export type { CognitionItem, CognitionStore, RetrievalQuery, RetrievalResult } from "./types.js";
+export type { CognitionItem, CognitionStore, RetrievalQuery, RetrievalResult, SourceType } from "./types.js";
 export { InMemoryCognitionStore } from "./in-memory.js";
+export { inferSourceType } from "./source-type.js";
+export type { SourceHints } from "./source-type.js";
 export { ONTARIO_EMD_AUTHORITIES, FINTRAC_KYC_AUTHORITIES } from "./authorities.js";
 export { NI_45_106_AUTHORITIES } from "./ni-45-106-authorities.js";
 export {

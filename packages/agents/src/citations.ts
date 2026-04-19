@@ -11,6 +11,23 @@
  *   - A validator that cross-checks inline markers against the array
  */
 
+/**
+ * Canonical source types a lawyer recognizes. Drives badge color and the
+ * ranking of how much weight a reviewer should give the citation.
+ * "statute" > "regulation" > "rule" > "case" > "practice-direction" >
+ * "regulator-notice" > "commentary".
+ */
+export type SourceType =
+  | "statute"
+  | "regulation"
+  | "rule"
+  | "case"
+  | "practice-direction"
+  | "regulator-notice"
+  | "commentary"
+  | "internal"
+  | "other";
+
 export interface Citation {
   /** In-doc unique, e.g. "c1", "c2". Referenced inline as [c1]. */
   id: string;
@@ -26,6 +43,30 @@ export interface Citation {
   chunkId: string;
   /** For PDFs, 1-indexed page number. */
   page?: number;
+  /**
+   * Source-locker fields — provenance a Canadian lawyer needs before trusting
+   * an AI-surfaced citation.
+   */
+  /** Jurisdiction scope — e.g. "ontario", "federal", "multi-provincial". */
+  jurisdiction?: string;
+  /** Canonical source type. */
+  sourceType?: SourceType;
+  /**
+   * Publication / as-of date of the authority in ISO-8601, e.g. "2024-06-30".
+   * For statutes this is the consolidation date; for cases, the decision date.
+   */
+  authorityDate?: string;
+  /**
+   * Pinpoint reference beyond section — paragraph number in a case, schedule
+   * number in a statute, page in a notice. Free-form.
+   */
+  pinpoint?: string;
+  /**
+   * Model-reported confidence that the cited authority actually supports the
+   * proposition in the prose. 0..1. Reviewers can filter low-confidence
+   * claims before export.
+   */
+  confidence?: number;
 }
 
 export interface ParsedOutput {
@@ -80,18 +121,43 @@ export function parseModelOutput(raw: string): ParsedOutput {
   return { prose, citations, orphanedMarkers, unusedCitations };
 }
 
-/** Type guard for a valid Citation shape. */
+const VALID_SOURCE_TYPES: ReadonlySet<SourceType> = new Set<SourceType>([
+  "statute",
+  "regulation",
+  "rule",
+  "case",
+  "practice-direction",
+  "regulator-notice",
+  "commentary",
+  "internal",
+  "other",
+]);
+
+/** Type guard for a valid Citation shape. Strict on required, tolerant of optional. */
 function isCitation(obj: unknown): obj is Citation {
   if (typeof obj !== "object" || obj === null) return false;
   const o = obj as Record<string, unknown>;
-  return (
-    typeof o.id === "string" &&
-    typeof o.authorityId === "string" &&
-    typeof o.section === "string" &&
-    typeof o.quote === "string" &&
-    typeof o.docId === "string" &&
-    typeof o.chunkId === "string"
-  );
+  if (
+    typeof o.id !== "string" ||
+    typeof o.authorityId !== "string" ||
+    typeof o.section !== "string" ||
+    typeof o.quote !== "string" ||
+    typeof o.docId !== "string" ||
+    typeof o.chunkId !== "string"
+  ) {
+    return false;
+  }
+  // Silently drop malformed optional fields instead of rejecting the whole
+  // citation — the core identifiers are intact, which is what validators need.
+  if (o.sourceType !== undefined && !VALID_SOURCE_TYPES.has(o.sourceType as SourceType)) {
+    delete o.sourceType;
+  }
+  if (o.confidence !== undefined) {
+    const n = Number(o.confidence);
+    if (!Number.isFinite(n) || n < 0 || n > 1) delete o.confidence;
+    else o.confidence = n;
+  }
+  return true;
 }
 
 /**
@@ -134,7 +200,12 @@ include a fenced block with the citation details:
     "section": "2.9(2)(a)",
     "quote": "exact text from the source",
     "docId": "the document id",
-    "chunkId": "the chunk id"
+    "chunkId": "the chunk id",
+    "jurisdiction": "ontario",
+    "sourceType": "rule",
+    "authorityDate": "2024-06-30",
+    "pinpoint": "para. 14",
+    "confidence": 0.88
   }
 ]
 \`\`\`
@@ -145,4 +216,20 @@ Rules:
 - The "quote" field must be an exact substring from the retrieved snippet, not a paraphrase.
 - If a snippet has a page number, include "page": N in the citation object.
 - Do not fabricate citations. If you cannot cite a source, do not use a marker.
+
+Source-locker fields (Canadian legal practice requires provenance):
+- "jurisdiction": copy from the retrieved snippet (e.g. "ontario", "federal",
+  "british-columbia", "multi-provincial"). Never guess.
+- "sourceType": one of "statute", "regulation", "rule", "case",
+  "practice-direction", "regulator-notice", "commentary", "internal", "other".
+  Pick the narrowest accurate label.
+- "authorityDate": the ISO-8601 date from the retrieved snippet (consolidation
+  date for legislation, decision date for cases). Omit if the snippet does not
+  carry one — do not guess.
+- "pinpoint": paragraph, schedule, or page beyond the section if the snippet
+  provides it.
+- "confidence": a number in [0,1] expressing how strongly the cited authority
+  supports the proposition in the prose. 1.0 = direct on-point text; 0.5 = the
+  authority is related but requires analogical reasoning; below 0.4 = you
+  should probably not rely on this citation. Reviewers filter on this value.
 `.trim();

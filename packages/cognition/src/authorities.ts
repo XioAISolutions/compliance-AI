@@ -22,8 +22,10 @@ export const FINTRAC_KYC_AUTHORITIES: CognitionItem[] = [
     organizationId: "preview",
     title: "PCMLTFA s. 6.2 — Ascertaining the Identity of Clients",
     source: "Proceeds of Crime (Money Laundering) and Terrorist Financing Act",
-    jurisdiction: "ontario",
+    jurisdiction: "federal",
     registrationCategories: ["emd", "pm", "iiroc"],
+    sourceType: "statute",
+    authorityDate: "2024-06-20",
     content: `Section 6.2 — Identification requirements
 A reporting entity shall ascertain the identity of every person with whom it enters into a business relationship, in accordance with the prescribed methods and within the prescribed timeframes.
 
@@ -44,8 +46,10 @@ Timing: identity must be ascertained at or before the first transaction, and in 
     organizationId: "preview",
     title: "FINTRAC Guideline 6G — Record Keeping and Client Identification for Securities Dealers",
     source: "FINTRAC Guideline 6G",
-    jurisdiction: "ontario",
+    jurisdiction: "federal",
     registrationCategories: ["emd", "pm", "iiroc"],
+    sourceType: "regulator-notice",
+    authorityDate: "2023-10-01",
     content: `Client records to be kept by securities dealers:
 - Client information record (CIR) including all PCMLTFA s. 6.2 fields
 - Beneficial ownership information for corporate/trust clients — 25% threshold
@@ -66,8 +70,10 @@ Retention: all records must be kept for at least 5 years from last activity.`,
     organizationId: "preview",
     title: "NI 31-103 s. 13.3 — Suitability Determination",
     source: "National Instrument 31-103 Registration Requirements",
-    jurisdiction: "ontario",
+    jurisdiction: "multi-provincial",
     registrationCategories: ["emd", "pm", "iiroc"],
+    sourceType: "rule",
+    authorityDate: "2021-12-31",
     content: `Section 13.3 — Suitability determination
 (1) Before a registrant makes a recommendation or accepts an instruction to buy, sell, or hold a security, the registrant must determine, on a reasonable basis, that the action is suitable for the client by reference to the client's:
 (a) personal circumstances (age, financial circumstances, investment objectives, time horizon, liquidity needs)
@@ -92,6 +98,8 @@ Retention: all records must be kept for at least 5 years from last activity.`,
     source: "Ontario Securities Commission Staff Notice 33-316",
     jurisdiction: "ontario",
     registrationCategories: ["emd", "pm"],
+    sourceType: "regulator-notice",
+    authorityDate: "2020-06-04",
     content: `Staff Notice 33-316 — Common suitability deficiencies observed in compliance reviews
 
 1. Generic KYC information: "conservative" without basis, "professional" as occupation, "moderate" risk tolerance without supporting factors.
@@ -121,8 +129,10 @@ export const MARKETING_AUTHORITIES: CognitionItem[] = [
     organizationId: "preview",
     title: "NI 31-103 s. 13.18 — Misleading Communications",
     source: "National Instrument 31-103 Registration Requirements",
-    jurisdiction: "ontario",
+    jurisdiction: "multi-provincial",
     registrationCategories: ["emd", "pm", "iiroc", "issuer"],
+    sourceType: "rule",
+    authorityDate: "2021-12-31",
     content: `Section 13.18 — Misleading communications
 (1) A registrant must not make a statement to a client, or in a sales communication, that:
 (a) is untrue or misleading
@@ -140,8 +150,10 @@ export const MARKETING_AUTHORITIES: CognitionItem[] = [
     organizationId: "preview",
     title: "NI 81-102 s. 15.2 — Prohibited Representations",
     source: "National Instrument 81-102 Investment Funds",
-    jurisdiction: "ontario",
+    jurisdiction: "multi-provincial",
     registrationCategories: ["emd", "pm"],
+    sourceType: "rule",
+    authorityDate: "2022-01-05",
     content: `Section 15.2 — Prohibited representations in sales communications
 
 A sales communication must not:
@@ -159,8 +171,10 @@ Note: Part 15 principles are routinely applied by securities regulators to marke
     organizationId: "preview",
     title: "NI 81-102 s. 15.3 — Sales Communication Standards",
     source: "National Instrument 81-102 Investment Funds",
-    jurisdiction: "ontario",
+    jurisdiction: "multi-provincial",
     registrationCategories: ["emd", "pm"],
+    sourceType: "rule",
+    authorityDate: "2022-01-05",
     content: `Section 15.3 — Sales communication standards
 
 (1) A sales communication must not be misleading.
@@ -192,6 +206,8 @@ export const REGULATOR_INQUIRY_AUTHORITIES: CognitionItem[] = [
     source: "OSC Staff Notice 33-747 Compliance Field Reviews (summary)",
     jurisdiction: "ontario",
     registrationCategories: ["emd", "pm"],
+    sourceType: "regulator-notice",
+    authorityDate: "2023-09-28",
     content: `Common OSC deficiency patterns in suitability reviews:
 
 1. KYC-KYP mismatch:
@@ -217,8 +233,10 @@ Expected response elements:
     organizationId: "preview",
     title: "CIRO (IIROC) Compliance Examination — Trade Surveillance Findings (Pattern)",
     source: "CIRO/IIROC dealer member examination reports (summary)",
-    jurisdiction: "ontario",
+    jurisdiction: "multi-provincial",
     registrationCategories: ["iiroc"],
+    sourceType: "regulator-notice",
+    authorityDate: "2024-03-15",
     content: `Common CIRO (formerly IIROC) findings in trade surveillance examinations:
 
 1. Inadequate alert triage:
@@ -238,8 +256,10 @@ Expected response elements:
     organizationId: "preview",
     title: "FINTRAC Compliance Examination — KYC Record Deficiencies (Pattern)",
     source: "FINTRAC compliance examination report summaries",
-    jurisdiction: "ontario",
+    jurisdiction: "federal",
     registrationCategories: ["emd", "pm", "iiroc"],
+    sourceType: "regulator-notice",
+    authorityDate: "2023-11-08",
     content: `Common FINTRAC findings in securities-dealer examinations:
 
 1. Incomplete client identification:
@@ -279,6 +299,8 @@ export const ONTARIO_EMD_AUTHORITIES: CognitionItem[] = [
     source: "Ontario Securities Commission Rule 45-501",
     jurisdiction: "ontario",
     registrationCategories: ["emd", "issuer"],
+    sourceType: "rule",
+    authorityDate: "2016-05-05",
     content: `Section 5.2 — Rights of action for damages and rescission
 An offering memorandum delivered under section 2.9 of NI 45-106 must contain:
 (a) a statement of the rights of action for damages or rescission available to the purchaser under section 130.1 of the Securities Act (Ontario), and
@@ -294,8 +316,10 @@ The rights of action must be disclosed prominently and must include:
     organizationId: "preview",
     title: "NI 31-103 Part 13 — Dealing with Clients (EMD Obligations)",
     source: "National Instrument 31-103 Registration Requirements",
-    jurisdiction: "ontario",
+    jurisdiction: "multi-provincial",
     registrationCategories: ["emd"],
+    sourceType: "rule",
+    authorityDate: "2021-12-31",
     content: `Part 13 — Dealing with clients
 
 13.2 Know your client (KYC)
@@ -324,6 +348,8 @@ An EMD must deliver to each client relationship disclosure information that incl
     source: "Securities Act, R.S.O. 1990, c. S.5",
     jurisdiction: "ontario",
     registrationCategories: ["emd", "issuer"],
+    sourceType: "statute",
+    authorityDate: "2024-06-06",
     content: `Section 130.1 — Liability for misrepresentation in an offering memorandum
 (1) Where an offering memorandum contains a misrepresentation, a purchaser who purchases a security offered by the offering memorandum during the period of distribution has, without regard to whether the purchaser relied on the misrepresentation:
 (a) a right of action for damages against:
@@ -341,8 +367,10 @@ An EMD must deliver to each client relationship disclosure information that incl
     organizationId: "preview",
     title: "CSA Staff Notice 45-309 — Guidance for OM Issuers Using the OM Exemption",
     source: "Canadian Securities Administrators Staff Notice 45-309",
-    jurisdiction: "ontario",
+    jurisdiction: "multi-provincial",
     registrationCategories: ["emd", "issuer"],
+    sourceType: "regulator-notice",
+    authorityDate: "2018-04-26",
     content: `Staff Notice 45-309 — Guidance for issuers relying on the OM exemption
 
 Key areas of concern identified by staff reviews:
@@ -361,8 +389,10 @@ Key areas of concern identified by staff reviews:
     organizationId: "preview",
     title: "NI 81-102 Part 15 — Sales Communications and Prohibited Representations",
     source: "National Instrument 81-102 Investment Funds",
-    jurisdiction: "ontario",
+    jurisdiction: "multi-provincial",
     registrationCategories: ["emd", "pm"],
+    sourceType: "rule",
+    authorityDate: "2022-01-05",
     content: `Part 15 — Sales communications and prohibited representations
 
 15.2 Prohibited representations

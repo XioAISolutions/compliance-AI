@@ -27,6 +27,11 @@ interface Citation {
   docId: string;
   chunkId: string;
   page?: number;
+  jurisdiction?: string;
+  sourceType?: string;
+  authorityDate?: string;
+  pinpoint?: string;
+  confidence?: number;
 }
 
 interface Props {
@@ -73,7 +78,7 @@ export function CitedMarkdown({ content, citations, hoveredCitation, onHoverCita
                   block: "center",
                 });
               }}
-              title={`${citation.authorityId} § ${citation.section}${citation.page ? `, p.${citation.page}` : ""}`}
+              title={buildCitationTooltip(citation)}
             >
               [{citId}]
             </sup>
@@ -116,4 +121,14 @@ export function CitedMarkdown({ content, citations, hoveredCitation, onHoverCita
       </ReactMarkdown>
     </div>
   );
+}
+
+function buildCitationTooltip(c: Citation): string {
+  const head = `${c.authorityId} § ${c.section}${c.page ? `, p.${c.page}` : ""}${c.pinpoint ? `, ${c.pinpoint}` : ""}`;
+  const tail: string[] = [];
+  if (c.jurisdiction) tail.push(c.jurisdiction.toUpperCase());
+  if (c.sourceType) tail.push(c.sourceType);
+  if (c.authorityDate) tail.push(`as-of ${c.authorityDate}`);
+  if (typeof c.confidence === "number") tail.push(`conf ${Math.round(c.confidence * 100)}%`);
+  return tail.length > 0 ? `${head} — ${tail.join(" · ")}` : head;
 }

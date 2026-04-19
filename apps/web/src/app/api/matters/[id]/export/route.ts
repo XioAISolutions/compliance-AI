@@ -40,6 +40,14 @@ interface Citation {
   docId: string;
   chunkId: string;
   page?: number;
+  /** Source-locker fields — preserved through DOCX export so the exhibits
+   * appendix can render the jurisdiction, source type, authority date, and
+   * confidence a Canadian lawyer needs to verify each cited authority. */
+  jurisdiction?: string;
+  sourceType?: string;
+  authorityDate?: string;
+  pinpoint?: string;
+  confidence?: number;
 }
 
 interface ExportBody {
@@ -267,13 +275,37 @@ async function renderDocx(opts: RenderOptions): Promise<Buffer> {
           heading: HeadingLevel.HEADING_2,
           children: [
             new TextRun({
-              text: `Exhibit ${idx + 1}: ${c.authorityId} § ${c.section}${c.page ? `, p.${c.page}` : ""}`,
+              text: `Exhibit ${idx + 1}: ${c.authorityId} § ${c.section}${c.page ? `, p.${c.page}` : ""}${c.pinpoint ? `, ${c.pinpoint}` : ""}`,
               bold: true,
             }),
           ],
           spacing: { before: 300, after: 100 },
         }),
       );
+      // Source-locker metadata line — renders as muted provenance text under
+      // each exhibit heading so a reviewer can verify jurisdiction and
+      // currency without leaving the filed document.
+      const provenanceBits: string[] = [];
+      if (c.jurisdiction) provenanceBits.push(`Jurisdiction: ${c.jurisdiction}`);
+      if (c.sourceType) provenanceBits.push(`Type: ${c.sourceType}`);
+      if (c.authorityDate) provenanceBits.push(`As-of: ${c.authorityDate}`);
+      if (typeof c.confidence === "number") {
+        provenanceBits.push(`Confidence: ${Math.round(c.confidence * 100)}%`);
+      }
+      if (provenanceBits.length > 0) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: provenanceBits.join(" · "),
+                color: "737373",
+                size: 18,
+              }),
+            ],
+            spacing: { after: 80 },
+          }),
+        );
+      }
       children.push(
         new Paragraph({
           children: [

@@ -180,8 +180,19 @@ export class InMemoryCognitionStore implements CognitionStore {
       if (query.organizationId && item.organizationId !== query.organizationId) continue;
       if (query.framework && item.framework !== query.framework) continue;
       if (query.controlSlug && item.controlSlug !== query.controlSlug) continue;
-      if (query.jurisdiction && item.jurisdiction && item.jurisdiction !== query.jurisdiction)
+      // Jurisdiction filter — exact match OR pan-Canadian applicability. A
+      // National Instrument tagged "multi-provincial" applies in every
+      // province; a federal statute tagged "federal" applies nationally. Both
+      // should surface when a provincial matter queries its own jurisdiction.
+      if (
+        query.jurisdiction &&
+        item.jurisdiction &&
+        item.jurisdiction !== query.jurisdiction &&
+        item.jurisdiction !== "multi-provincial" &&
+        item.jurisdiction !== "federal"
+      ) {
         continue;
+      }
       if (
         query.registrationCategory &&
         item.registrationCategories?.length &&

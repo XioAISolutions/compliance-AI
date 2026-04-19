@@ -92,6 +92,54 @@ describe("InMemoryCognitionStore", () => {
     expect(results[0]!.item.id).toBe("on");
   });
 
+  it("treats multi-provincial and federal items as universally applicable", async () => {
+    // National Instruments and federal statutes are not scoped to one
+    // province — a query for "ontario" should surface items tagged
+    // "multi-provincial" or "federal" alongside Ontario-specific items.
+    await store.addBatch([
+      {
+        id: "on-specific",
+        title: "Ontario-only rule",
+        content: "offering memorandum ontario",
+        organizationId: "org-1",
+        jurisdiction: "ontario",
+      },
+      {
+        id: "ni-45-106",
+        title: "National Instrument 45-106",
+        content: "offering memorandum national instrument",
+        organizationId: "org-1",
+        jurisdiction: "multi-provincial",
+      },
+      {
+        id: "pcmltfa",
+        title: "PCMLTFA",
+        content: "offering memorandum federal statute",
+        organizationId: "org-1",
+        jurisdiction: "federal",
+      },
+      {
+        id: "qc-only",
+        title: "Quebec-only rule",
+        content: "offering memorandum quebec",
+        organizationId: "org-1",
+        jurisdiction: "quebec",
+      },
+    ]);
+
+    const results = await store.retrieve({
+      query: "offering memorandum",
+      organizationId: "org-1",
+      jurisdiction: "ontario",
+    });
+
+    const ids = results.map((r) => r.item.id);
+    expect(ids).toContain("on-specific");
+    expect(ids).toContain("ni-45-106");
+    expect(ids).toContain("pcmltfa");
+    expect(ids).not.toContain("qc-only");
+  });
+
   it("filters by registration category", async () => {
     await store.addBatch([
       {

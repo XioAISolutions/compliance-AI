@@ -55,6 +55,28 @@ interface Citation {
   docId: string;
   chunkId: string;
   page?: number;
+  jurisdiction?: string;
+  sourceType?: string;
+  authorityDate?: string;
+  pinpoint?: string;
+  confidence?: number;
+}
+
+/** Mirrors the cognition-package VerificationResult. Kept inline so
+ * page.tsx doesn't pull a fresh package-level import just for the type. */
+interface VerificationResult {
+  citationId: string;
+  status: "verified" | "candidate-url" | "unsupported" | "not-found" | "error";
+  method: "offline-corpus" | "canlii-url-heuristic" | "canlii-live" | "none";
+  reason: string;
+  confidence: number;
+  evidence?: {
+    url?: string;
+    matchedAuthorityId?: string;
+    matchedTitle?: string;
+    matchedJurisdiction?: string;
+  };
+  verifiedAt: string;
 }
 
 interface AuditEntry {
@@ -92,6 +114,13 @@ export default function MatterDetailPage() {
 
   const [output, setOutput] = useState("");
   const [citations, setCitations] = useState<Citation[]>([]);
+  /**
+   * Server-side auto-verify results from the review SSE. Keyed to each
+   * citation by id. Passed to OutputPane so the footnote list lands
+   * already colour-coded instead of waiting for the user to click
+   * "Verify citations".
+   */
+  const [verifications, setVerifications] = useState<VerificationResult[]>([]);
   const [verdict, setVerdict] = useState<JudgeVerdict | null>(null);
   const [totalRounds, setTotalRounds] = useState<number | null>(null);
   const [streaming, setStreaming] = useState(false);
@@ -198,6 +227,7 @@ export default function MatterDetailPage() {
     setStreaming(true);
     setOutput("");
     setCitations([]);
+    setVerifications([]);
     setCitationRetry({ inFlight: false, reason: null, markerCount: 0, priorValidCount: 0 });
     setCitationWarnings(null);
     setVerdictRationale(null);
@@ -249,6 +279,7 @@ export default function MatterDetailPage() {
               if (persona !== "judge" && round > 1) {
                 setOutput("");
                 setCitations([]);
+                setVerifications([]);
               }
             } else if (event.type === "text-delta" && typeof event.delta === "string") {
               // Only the drafter's output is the deliverable. The judge's
@@ -278,6 +309,12 @@ export default function MatterDetailPage() {
                 priorValidCount:
                   typeof event.priorValidCount === "number" ? event.priorValidCount : 0,
               });
+            } else if (event.type === "verifications" && Array.isArray(event.results)) {
+              // Auto-verify ran server-side after the review finalized.
+              // Pre-populate the matter page's verification state so
+              // every footnote lands already colour-coded (green/blue/red)
+              // without the user clicking "Verify citations" first.
+              setVerifications(event.results as VerificationResult[]);
             } else if (event.type === "citation-warnings") {
               setCitationWarnings({
                 orphanedMarkers: Array.isArray(event.orphanedMarkers)
@@ -402,6 +439,7 @@ export default function MatterDetailPage() {
             onStartReview={startReview}
             citationRetry={citationRetry}
             citationWarnings={citationWarnings}
+            initialVerifications={verifications}
             verdictRationale={verdictRationale}
             matterStatus={matter?.status ?? null}
             onRetryDeeper={() => startReview({ maxRounds: 6 })}

@@ -24,6 +24,7 @@ import {
   type ReviewSubject,
 } from "@compliance-ai/agents";
 import { getDefaultCognitionStore, type RetrievalResult } from "@compliance-ai/cognition";
+import { emitAutoVerifySseFrame } from "../../../../../lib/auto-verify";
 import { getDefaultMatterStore } from "../../../../../lib/matter-store";
 import { getDefaultAuditStore, sha256 } from "../../../../../lib/audit-store";
 import { ensureTenant } from "../../../../../lib/bootstrap";
@@ -489,6 +490,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             controller.enqueue(
               encoder.encode(sseFrame({ type: "citations", citations: validCitations })),
             );
+            await emitAutoVerifySseFrame(controller, encoder, validCitations, organizationId);
             // Surface citation integrity warnings so the UI can flag "X
             // orphan marker(s)" — silently dropping them is what got us the
             // empty `authorities_used` audit rows in the first place.
@@ -635,6 +637,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             controller.enqueue(
               encoder.encode(sseFrame({ type: "citations", citations: validCitations })),
             );
+            await emitAutoVerifySseFrame(controller, encoder, validCitations, organizationId);
             if (orphanedMarkers.length > 0 || unusedCitations.length > 0 || dropped.length > 0) {
               controller.enqueue(
                 encoder.encode(

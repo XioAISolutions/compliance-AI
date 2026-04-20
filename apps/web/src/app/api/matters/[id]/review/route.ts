@@ -12,7 +12,7 @@
 
 import { NextRequest } from "next/server";
 import {
-  OM_REVIEWER_RETRIEVAL_PLAN,
+  getRetrievalPlan,
   parseModelOutput,
   runAgent,
   runAgentLoop,
@@ -72,6 +72,30 @@ function toRetrievedSnippet(result: RetrievalResult): RetrievedSnippet {
     source: result.item.source,
     score: result.score,
   };
+}
+
+interface RetrievalCoverage {
+  taskType: string;
+  snippetCount: number;
+  jurisdiction: string;
+  registrationCategory: string;
+  /** Plan length, or 0 if no plan was registered for this task type. */
+  plannedQueries: number;
+  /** How many of the plan queries returned at least one hit. */
+  queriesWithHits: number;
+}
+
+/**
+ * Audit-log note for the retrieval phase. Includes plan coverage so a
+ * reviewer or operator can spot a starvation regression — if `2/12 plan
+ * queries returned hits` then the corpus is stale, the seed bootstrap is
+ * misconfigured, or the jurisdiction filter is blocking results.
+ */
+function buildRetrievalCoverageNote(c: RetrievalCoverage): string {
+  const head = `Retrieved ${c.snippetCount} authorities for ${c.jurisdiction} / ${c.registrationCategory} (task=${c.taskType})`;
+  if (c.plannedQueries === 0) return `${head}; single-pass retrieval (no plan registered)`;
+  const pct = Math.round((c.queriesWithHits / c.plannedQueries) * 100);
+  return `${head}; plan coverage ${c.queriesWithHits}/${c.plannedQueries} (${pct}%) plan queries with hits`;
 }
 
 function sseFrame(payload: unknown): string {
@@ -247,17 +271,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // Retrieve relevant snippets filtered by matter scope.
   //
-  // For OM review we run the persona's pre-defined retrieval plan — 18
-  // targeted queries, each hitting one authority cluster — and union the
-  // results. This surfaces rule-text items (e.g., Form 45-106F4, s. 130.1
-  // rights of action) that a single BM25 pass over the OM's issuer-specific
-  // vocabulary would miss. Results are deduped by item id; ranking is
-  // best-score-across-queries.
+  // For task types with a registered retrieval plan (OM review, KYC gap
+  // check, marketing sign-off, response-memo) we run the plan — one short
+  // BM25 query per authority cluster — and union the results. This surfaces
+  // rule-text items that a single pass over the document's
+  // subject-specific vocabulary would miss. Results are deduped by item id;
+  // ranking is best-score-across-queries. A fallback pass over the document
+  // content itself catches anything subject-specific the static plan misses.
   //
-  // For non-OM tasks we keep the legacy single-pass behaviour — those
-  // personas (KYC, marketing, response-memo) don't have a retrieval plan yet.
+  // For task types without a registered plan we fall back to legacy
+  // single-pass retrieval over the document content.
   const cognitionStore = getDefaultCognitionStore();
-  const usePlan = taskType === "om-review";
+  const plan = getRetrievalPlan(taskType);
   const documentQuery = reviewSubject
     ? reviewSubject.chunks
         .map((c) => c.content)
@@ -265,13 +290,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         .slice(0, 2000)
     : userMessage;
   let retrievedSnippets: RetrievedSnippet[] = [];
+  // Retrieval coverage telemetry — surfaced in the audit log so we can spot
+  // a starvation regression (plan queries returning zero hits) before a
+  // user hits a "corpus is incomplete" refusal.
+  let plannedQueries = 0;
+  let queriesWithHits = 0;
   try {
-    if (usePlan) {
-      // Plan queries first — one per authority cluster. Each returns a small
-      // per-query topK; the union gives the reviewer a wide authority deck
-      // without bloating any single retrieval.
+    if (plan) {
+      plannedQueries = plan.length;
       const merged = new Map<string, RetrievalResult>();
-      for (const planQuery of OM_REVIEWER_RETRIEVAL_PLAN) {
+      for (const planQuery of plan) {
         const results = await cognitionStore.retrieve({
           query: planQuery,
           topK: PLAN_PER_QUERY_TOP_K,
@@ -280,6 +308,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           jurisdiction: matter.jurisdiction,
           registrationCategory: matter.registrationCategory,
         });
+        if (results.length > 0) queriesWithHits += 1;
         for (const r of results) {
           const id = r.item.id ?? "";
           if (!id) continue;
@@ -287,9 +316,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           if (!prior || r.score > prior.score) merged.set(id, r);
         }
       }
-      // Fallback pass using the OM content itself — picks up anything
-      // issuer-specific the static plan misses (e.g., a sector-specific
-      // authority keyed on terms only in the OM).
       const docResults = await cognitionStore.retrieve({
         query: documentQuery,
         topK: DEFAULT_TOP_K,
@@ -349,7 +375,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       authoritiesUsed: retrievedSnippets.map((s) => s.id),
       outputHash: sha256(retrievedSnippets.map((s) => s.title).join(",")),
       judgeVerdict: null,
-      inputContent: `Retrieved ${retrievedSnippets.length} authorities for ${matter.jurisdiction} / ${matter.registrationCategory}`,
+      inputContent: buildRetrievalCoverageNote({
+        taskType,
+        snippetCount: retrievedSnippets.length,
+        jurisdiction: matter.jurisdiction,
+        registrationCategory: matter.registrationCategory,
+        plannedQueries,
+        queriesWithHits,
+      }),
       outputContent: retrievedSnippets.map((s) => s.title).join("\n"),
     });
   }

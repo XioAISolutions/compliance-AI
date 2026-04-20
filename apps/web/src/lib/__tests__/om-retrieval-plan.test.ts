@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { OM_REVIEWER_RETRIEVAL_PLAN } from "@compliance-ai/agents";
+import {
+  KYC_REVIEWER_RETRIEVAL_PLAN,
+  MARKETING_REVIEWER_RETRIEVAL_PLAN,
+  OM_REVIEWER_RETRIEVAL_PLAN,
+  RESPONSE_MEMO_DRAFTER_RETRIEVAL_PLAN,
+} from "@compliance-ai/agents";
 import { InMemoryCognitionStore, ONTARIO_EMD_AUTHORITIES } from "@compliance-ai/cognition";
 
 /**
@@ -108,6 +113,90 @@ describe("OM retrieval plan — integration against Ontario EMD corpus", () => {
     ];
     for (const id of mustReach) {
       expect(planIds.has(id)).toBe(true);
+    }
+  });
+});
+
+/**
+ * Same regression guards for the KYC, marketing, and response-memo plans.
+ * The shared invariant: every plan must reach the persona-specific landmark
+ * authorities or the persona will hit a NEEDS-VERIFICATION wall on its
+ * core checklist rows.
+ */
+async function runPlan(
+  plan: readonly string[],
+  registrationCategory: "emd" | "pm" | "iiroc" = "emd",
+): Promise<Set<string>> {
+  const store = new InMemoryCognitionStore();
+  await store.addBatch(ONTARIO_EMD_AUTHORITIES);
+  const ids = new Set<string>();
+  for (const q of plan) {
+    const hits = await store.retrieve({
+      query: q,
+      topK: 4,
+      jurisdiction: "ontario",
+      registrationCategory,
+    });
+    for (const h of hits) {
+      const id = h.item.id ?? "";
+      if (id) ids.add(id);
+    }
+  }
+  return ids;
+}
+
+describe("KYC retrieval plan — integration against Ontario EMD corpus", () => {
+  it("reaches the KYC landmark authorities the persona's checklist cites", async () => {
+    const ids = await runPlan(KYC_REVIEWER_RETRIEVAL_PLAN);
+    for (const id of [
+      "auth-pcmltfa-6.2",
+      "auth-fintrac-guideline-6",
+      "auth-ni-31-103-13.3-suitability",
+      "auth-ni-31-103-part-13",
+      "auth-osc-sn-33-316-suitability",
+      "auth-fintrac-deficiency-kyc",
+    ]) {
+      expect(ids.has(id)).toBe(true);
+    }
+  });
+});
+
+describe("Marketing retrieval plan — integration against Ontario EMD corpus", () => {
+  it("reaches the marketing landmark authorities the persona's flagged-claims table cites", async () => {
+    const ids = await runPlan(MARKETING_REVIEWER_RETRIEVAL_PLAN);
+    for (const id of [
+      "auth-ni-81-102-15.2",
+      "auth-ni-81-102-15.3",
+      "auth-ni-81-102-part-15",
+      "auth-ni-31-103-13.18",
+      "auth-osc-sn-33-316-suitability",
+    ]) {
+      expect(ids.has(id)).toBe(true);
+    }
+  });
+});
+
+describe("Response-memo retrieval plan — integration against Ontario EMD corpus", () => {
+  it("reaches the EMD-applicable deficiency-pattern landmarks (OSC + FINTRAC)", async () => {
+    // CIRO/IIROC findings are tagged registrationCategories: ["iiroc"], so
+    // the registration filter correctly excludes them from an EMD matter.
+    // EMD matters get OSC + FINTRAC patterns; the iiroc-scoped test below
+    // covers the CIRO landmark separately.
+    const ids = await runPlan(RESPONSE_MEMO_DRAFTER_RETRIEVAL_PLAN, "emd");
+    for (const id of ["auth-osc-deficiency-pattern-suitability", "auth-fintrac-deficiency-kyc"]) {
+      expect(ids.has(id)).toBe(true);
+    }
+  });
+
+  it("reaches the CIRO/IIROC trade-surveillance landmark for IIROC matters", async () => {
+    const ids = await runPlan(RESPONSE_MEMO_DRAFTER_RETRIEVAL_PLAN, "iiroc");
+    expect(ids.has("auth-ciro-finding-trade-surveillance")).toBe(true);
+  });
+
+  it("reaches the underlying-rule landmarks the response will need to argue against", async () => {
+    const ids = await runPlan(RESPONSE_MEMO_DRAFTER_RETRIEVAL_PLAN, "emd");
+    for (const id of ["auth-ni-31-103-13.3-suitability", "auth-ni-31-103-part-13"]) {
+      expect(ids.has(id)).toBe(true);
     }
   });
 });

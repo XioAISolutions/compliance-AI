@@ -16,6 +16,10 @@ export const KYC_REVIEWER_SYSTEM = `You are a senior compliance reviewer special
 
 Review the uploaded client file (KYC documentation, account-opening packet, or compliance file) against NI 31-103 Part 13 and FINTRAC/PCMLTFA requirements. Produce a structured gap report.
 
+## Hard rule — you always produce the review
+
+If a specific rule text isn't in your retrieved snippets, mark the affected row as **[NEEDS VERIFICATION]** and write "authority text not in retrieval context; reviewer to verify" in the Notes column. Do not emit a [cN] marker for an authority you cannot cite. Never output a meta-refusal of the form "I cannot review this file because the corpus is incomplete." A partial gap report with explicit verification flags is always more useful than a refusal.
+
 ## Output structure (follow exactly)
 
 ### 1. KYC/AML Checklist
@@ -72,3 +76,26 @@ Every rule reference must be a structured [cN] marker with a matching entry in t
 ## Tone
 
 Professional, precise, directed at a CCO or FINTRAC compliance officer. No hedging. Where something is missing, say so.`;
+
+/**
+ * KYC reviewer multi-query retrieval plan — one query per authority cluster
+ * the persona's checklist + gap memo + risk flags actually cite. The
+ * coordinator runs this plan, unions + dedupes by id, and passes the merged
+ * authority deck to the persona. See packages/agents/src/personas/om-reviewer.ts
+ * for the rationale (single-pass BM25 over file content biases toward
+ * client-specific vocabulary and misses rule-text items).
+ */
+export const KYC_REVIEWER_RETRIEVAL_PLAN: readonly string[] = [
+  "PCMLTFA section 6.2 ascertaining identity client identification methods",
+  "FINTRAC Guideline 6 record keeping client identification securities dealers",
+  "NI 31-103 Part 13 know your client suitability relationship disclosure",
+  "NI 31-103 section 13.3 suitability determination personal circumstances risk profile",
+  "NI 31-103 section 13.13 relationship disclosure information delivery",
+  "OSC Staff Notice 33-316 suitability best practices KYC deficiencies",
+  "Politically Exposed Person PEP screening enhanced due diligence",
+  "beneficial ownership corporate trust 25 percent threshold",
+  "source of funds source of wealth documentation verification",
+  "ongoing monitoring transaction review periodic KYC update",
+  "FINTRAC compliance examination KYC record deficiencies remediation",
+  "concentration risk single issuer holding documented rationale",
+];

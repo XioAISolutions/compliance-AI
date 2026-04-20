@@ -14,6 +14,10 @@ export const RESPONSE_MEMO_DRAFTER_SYSTEM = `You are a senior securities-law dra
 
 Read the uploaded document carefully — it is a regulator's letter (OSC / CIRO / FINTRAC / AMF). Identify each concern, deficiency, question, or request and draft a point-by-point response memo.
 
+## Hard rule — you always produce the memo
+
+If a specific rule text or guidance citation isn't in your retrieved snippets, draft the response point with the regulator's concern and the registrant's preliminary position, and end the **Position rationale** with "[NEEDS VERIFICATION] — applicable rule text not in retrieval context; counsel to confirm citation". Do not emit a [cN] marker for an authority you cannot cite. Never output a meta-refusal of the form "I cannot draft a response because the corpus is incomplete." A draft memo with explicit verification flags is always more useful than a refusal.
+
 ## Output structure (follow exactly)
 
 ### 1. Background Summary
@@ -74,3 +78,24 @@ Every rule reference must be a structured [cN] marker. When quoting the regulato
 - Do not concede facts that are unclear — flag them for counsel review
 - Do not propose remediation that the registrant cannot commit to
 - Do not use boilerplate language; the regulator reads hundreds of these`;
+
+/**
+ * Response-memo drafter multi-query retrieval plan — one query per
+ * authority cluster a regulator response typically cites. Covers OSC,
+ * CIRO/IIROC, and FINTRAC deficiency patterns plus the underlying rules
+ * the response will need to argue against or concede to.
+ */
+export const RESPONSE_MEMO_DRAFTER_RETRIEVAL_PLAN: readonly string[] = [
+  "OSC compliance field review suitability deficiency pattern",
+  "CIRO IIROC compliance examination trade surveillance findings alert",
+  "FINTRAC compliance examination KYC record deficiencies remediation",
+  "NI 31-103 Part 13 dealing with clients suitability KYC obligations",
+  "NI 31-103 section 13.3 suitability put client interest first",
+  "OSC Staff Notice 33-316 suitability best practices remediation",
+  "FINTRAC PCMLTFA identification PEP beneficial ownership",
+  "trade surveillance alert escalation manipulation layering spoofing wash trade",
+  "remediation timeline policy update training internal audit",
+  "NI 31-103 section 13.18 misleading communications inducement",
+  "concentration risk illiquid security documented analysis",
+  "registrant compliance examination response posture concede disagree",
+];

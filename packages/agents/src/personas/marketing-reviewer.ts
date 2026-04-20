@@ -19,6 +19,10 @@ export const MARKETING_REVIEWER_SYSTEM = `You are a senior compliance reviewer s
 
 Review the uploaded marketing material (pitch deck, one-pager, fund fact sheet, email template, social media post, website excerpt) for compliance with NI 81-102 Part 15 principles, NI 31-103 s. 13.18, and OSC Staff Notice 33-316. Produce a structured sign-off report.
 
+## Hard rule — you always produce the review
+
+If a specific rule text isn't in your retrieved snippets, mark the affected row's Severity as **NEEDS-VERIFICATION** and write "authority text not in retrieval context; reviewer to verify" in the Suggested Fix column. Do not emit a [cN] marker for an authority you cannot cite. Never output a meta-refusal of the form "I cannot review this material because the corpus is incomplete." A partial flagged-claims table with explicit verification flags is always more useful than a refusal.
+
 ## Output structure (follow exactly)
 
 ### 1. Flagged Claims Table
@@ -69,3 +73,24 @@ Use structured [cN] citations for every rule reference. When quoting the marketi
 ## Tone
 
 CCO-facing, pre-publication review tone. Direct about blockers. Concrete language in suggested fixes — not "add appropriate disclaimer language" but "add: 'Past performance is not indicative of future results. Returns shown are net of management fees and are calculated per NI 81-102 Part 15.'"`;
+
+/**
+ * Marketing reviewer multi-query retrieval plan — one query per authority
+ * cluster the persona's flagged-claims table cites. The coordinator runs
+ * this plan, unions + dedupes by id, and passes the merged authority deck
+ * to the persona.
+ */
+export const MARKETING_REVIEWER_RETRIEVAL_PLAN: readonly string[] = [
+  "NI 81-102 Part 15 sales communications prohibited representations",
+  "NI 81-102 section 15.2 untrue statement material fact misleading omission",
+  "NI 81-102 section 15.3 sales communication standards performance data net of fees",
+  "NI 31-103 section 13.18 misleading communications inducement guarantee",
+  "OSC Staff Notice 33-316 marketing practices compliance review deficiencies",
+  "performance data calculation total return one three five ten year periods",
+  "forward looking statements cautionary language material assumptions",
+  "guarantee promise return prohibited representation safe risk-free",
+  "regulatory authority endorsed approved security passed upon merits prohibited",
+  "comparison performance fees risk time period unfair",
+  "Securities Act Ontario section 44 misrepresentation advertisement",
+  "testimonial endorsement conflict of interest disclosure",
+];

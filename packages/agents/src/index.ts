@@ -26,6 +26,14 @@ export {
 export { runAgentLoop, type RunAgentLoopOptions } from "./loop.js";
 export { PERSONA_SYSTEM_PROMPTS, PERSONA_LABELS, parseVerdict } from "./personas/index.js";
 export { OM_REVIEWER_RETRIEVAL_PLAN } from "./personas/om-reviewer.js";
+export { KYC_REVIEWER_RETRIEVAL_PLAN } from "./personas/kyc-reviewer.js";
+export { MARKETING_REVIEWER_RETRIEVAL_PLAN } from "./personas/marketing-reviewer.js";
+export { RESPONSE_MEMO_DRAFTER_RETRIEVAL_PLAN } from "./personas/response-memo-drafter.js";
+export {
+  getRetrievalPlan,
+  listPlanTaskTypes,
+  type RetrievalPlanTaskType,
+} from "./retrieval-plans.js";
 export {
   parseModelOutput,
   validateCitations,

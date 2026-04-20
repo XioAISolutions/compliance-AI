@@ -34,6 +34,7 @@ describe("Wizard ↔ /api/source-packs contract", () => {
     "court-ai-disclosure",
     "pipeda-check",
     "missing-authority-scan",
+    "contract-redline",
   ];
 
   for (const taskType of TASK_TYPES) {

@@ -27,6 +27,7 @@ export type PersonaId =
   | "court-ai-disclosure-drafter" // drafts AI-use disclosure memos for court filings
   | "missing-authority-scanner" // audits output for citation risk before signoff
   | "pipeda-reviewer" // reviews privacy materials against PIPEDA / Law 25 / PIPA
+  | "contract-redliner" // produces inline diff-token redlines of a draft
   | "qa-responder"; // answers jurisdictional Q&A via /api/ask — never routed, only force-selected
 
 /**

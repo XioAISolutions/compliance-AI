@@ -10,6 +10,7 @@ import { RESPONSE_MEMO_DRAFTER_SYSTEM } from "./response-memo-drafter.js";
 import { COURT_AI_DISCLOSURE_DRAFTER_SYSTEM } from "./court-ai-disclosure-drafter.js";
 import { MISSING_AUTHORITY_SCANNER_SYSTEM } from "./missing-authority-scanner.js";
 import { PIPEDA_REVIEWER_SYSTEM } from "./pipeda-reviewer.js";
+import { CONTRACT_REDLINER_SYSTEM } from "./contract-redliner.js";
 import { QA_RESPONDER_SYSTEM } from "./qa-responder.js";
 import type { PersonaId } from "../types.js";
 
@@ -26,6 +27,7 @@ export const PERSONA_SYSTEM_PROMPTS: Record<PersonaId, string> = {
   "court-ai-disclosure-drafter": COURT_AI_DISCLOSURE_DRAFTER_SYSTEM,
   "missing-authority-scanner": MISSING_AUTHORITY_SCANNER_SYSTEM,
   "pipeda-reviewer": PIPEDA_REVIEWER_SYSTEM,
+  "contract-redliner": CONTRACT_REDLINER_SYSTEM,
   "qa-responder": QA_RESPONDER_SYSTEM,
 };
 
@@ -42,6 +44,7 @@ export const PERSONA_LABELS: Record<PersonaId, string> = {
   "court-ai-disclosure-drafter": "Court AI-Disclosure Drafter",
   "missing-authority-scanner": "Missing-Authority Scanner",
   "pipeda-reviewer": "PIPEDA Reviewer",
+  "contract-redliner": "Contract Redliner",
   "qa-responder": "Q&A Responder",
 };
 

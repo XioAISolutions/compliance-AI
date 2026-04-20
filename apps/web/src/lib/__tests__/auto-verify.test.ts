@@ -81,17 +81,19 @@ describe("emitAutoVerifySseFrame", () => {
     // CanLII URL heuristic, which always succeeds. The review stream
     // still gets a `verifications` frame; the reviewer just sees
     // candidate-url badges instead of green verified ones.
+    // Intentionally partial CognitionStore — the fields we provide are
+    // enough for the CompositeVerifier to reach the URL heuristic.
+    // `as unknown as` silences the type checker; the verifier tolerates
+    // missing methods at runtime because it only ever calls these two.
     setDefaultCognitionStore(
       {
-        // @ts-expect-error intentionally partial — the fields we provide
-        // are enough for the CompositeVerifier to reach the URL heuristic.
         async get() {
           throw new Error("store unreachable");
         },
         async retrieve() {
           return [];
         },
-      },
+      } as unknown as Parameters<typeof setDefaultCognitionStore>[0],
       "securities",
     );
     const { controller, chunks } = makeFakeController();

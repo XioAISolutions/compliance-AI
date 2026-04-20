@@ -29,6 +29,7 @@ export { OM_REVIEWER_RETRIEVAL_PLAN } from "./personas/om-reviewer.js";
 export { KYC_REVIEWER_RETRIEVAL_PLAN } from "./personas/kyc-reviewer.js";
 export { MARKETING_REVIEWER_RETRIEVAL_PLAN } from "./personas/marketing-reviewer.js";
 export { RESPONSE_MEMO_DRAFTER_RETRIEVAL_PLAN } from "./personas/response-memo-drafter.js";
+export { COURT_AI_DISCLOSURE_DRAFTER_RETRIEVAL_PLAN } from "./personas/court-ai-disclosure-drafter.js";
 export {
   getRetrievalPlan,
   listPlanTaskTypes,

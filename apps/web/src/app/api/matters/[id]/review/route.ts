@@ -113,6 +113,8 @@ function personaForTask(taskType: string): PersonaId {
       return "marketing-reviewer";
     case "response-memo":
       return "response-memo-drafter";
+    case "court-ai-disclosure":
+      return "court-ai-disclosure-drafter";
     default:
       return "om-reviewer";
   }
@@ -155,6 +157,11 @@ async function buildReviewSubject(
     "kyc-gap-check": ["kyc-aml-file"],
     "marketing-signoff": ["marketing-material"],
     "response-memo": ["regulatory-guidance", "other"],
+    // Court AI-disclosure runs over the matter's substantive output, not a
+    // newly uploaded document. The handler still tries to assemble a
+    // ReviewSubject for compatibility, so we fall through to the most
+    // recent upload if present.
+    "court-ai-disclosure": ["other", "regulatory-guidance"],
   };
 
   const preferred = preferredType[taskType] ?? [];
@@ -214,6 +221,10 @@ Flag any misleading statements, missing risk disclosures, or prohibited represen
   "response-memo": `Draft a response memo addressing the regulatory inquiry described in the "Document under review" block above.
 
 Structure the response point-by-point, addressing each concern raised. Cite supporting authorities using [c1], [c2] markers. Reference specific chunkIds from the inquiry when quoting back concerns.`,
+
+  "court-ai-disclosure": `Draft an AI-use disclosure memo to accompany the filed material described in the "Document under review" block above (or, if no filing draft has been uploaded, for the substantive output the matter already contains).
+
+Produce the full structured output: (1) AI-Use Disclosure Statement, (2) Court-Specific Requirements Checklist, (3) Citation Verification Appendix, (4) Verification Blockers, (5) Counsel Signoff Appendix. Every court practice-direction reference must be cited against the retrieved snippets; if a specific practice direction isn't in the retrieval context, use [NEEDS VERIFICATION] and name the court so counsel knows where to look.`,
 };
 
 // Fallback prompts when no document has been uploaded yet. Instructs the
@@ -223,6 +234,7 @@ const TASK_PROMPTS_NO_SUBJECT: Record<string, string> = {
   "kyc-gap-check": `No client file has been uploaded to this matter yet. Ask the user to upload the client KYC/AML file to begin the gap check.`,
   "marketing-signoff": `No marketing material has been uploaded to this matter yet. Ask the user to upload the marketing document (deck, brochure, one-pager) to begin the sign-off review.`,
   "response-memo": `No inquiry or deficiency letter has been uploaded to this matter yet. Ask the user to upload the regulator's letter so the response can be drafted against its specific points.`,
+  "court-ai-disclosure": `Draft an AI-use disclosure memo for the material in this matter. If the matter has no substantive output yet, draft a GENERIC court-appropriate AI-use disclosure that counsel can adapt — cover the three obligations (transparency, accuracy, accountability), leave placeholders for court name and filing details, and include the Counsel Signoff Appendix. Never refuse to produce the memo.`,
 };
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

@@ -7,6 +7,7 @@ import { OM_REVIEWER_SYSTEM } from "./om-reviewer.js";
 import { KYC_REVIEWER_SYSTEM } from "./kyc-reviewer.js";
 import { MARKETING_REVIEWER_SYSTEM } from "./marketing-reviewer.js";
 import { RESPONSE_MEMO_DRAFTER_SYSTEM } from "./response-memo-drafter.js";
+import { COURT_AI_DISCLOSURE_DRAFTER_SYSTEM } from "./court-ai-disclosure-drafter.js";
 import { QA_RESPONDER_SYSTEM } from "./qa-responder.js";
 import type { PersonaId } from "../types.js";
 
@@ -20,6 +21,7 @@ export const PERSONA_SYSTEM_PROMPTS: Record<PersonaId, string> = {
   "kyc-reviewer": KYC_REVIEWER_SYSTEM,
   "marketing-reviewer": MARKETING_REVIEWER_SYSTEM,
   "response-memo-drafter": RESPONSE_MEMO_DRAFTER_SYSTEM,
+  "court-ai-disclosure-drafter": COURT_AI_DISCLOSURE_DRAFTER_SYSTEM,
   "qa-responder": QA_RESPONDER_SYSTEM,
 };
 
@@ -33,6 +35,7 @@ export const PERSONA_LABELS: Record<PersonaId, string> = {
   "kyc-reviewer": "KYC Reviewer",
   "marketing-reviewer": "Marketing Reviewer",
   "response-memo-drafter": "Response Drafter",
+  "court-ai-disclosure-drafter": "Court AI-Disclosure Drafter",
   "qa-responder": "Q&A Responder",
 };
 

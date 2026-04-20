@@ -17,6 +17,7 @@ import {
   type CognitionSurface,
   ONTARIO_EMD_AUTHORITIES,
   CANADA_CONSUMER_PROTECTION_AUTHORITIES,
+  COURT_AI_USE_AUTHORITIES,
 } from "@compliance-ai/cognition";
 
 const _seeded = new Set<string>();
@@ -62,6 +63,10 @@ export async function ensureTenant(
     const target = [
       ...ONTARIO_EMD_AUTHORITIES,
       ...CANADA_CONSUMER_PROTECTION_AUTHORITIES,
+      // Court AI-use practice directions + law society guidance — seeded
+      // across jurisdictions so the court-ai-disclosure drafter can cite
+      // the relevant court's notice regardless of matter jurisdiction.
+      ...COURT_AI_USE_AUTHORITIES,
     ];
     const missing = target
       .filter((item) => item.id && !existingIds.has(item.id))

@@ -55,6 +55,11 @@ const KEYWORDS: Record<PersonaId, RegExp[]> = {
     /\b(respond|draft\s+response|reply)\b.*\b(OSC|CIRO|IIROC|FINTRAC|AMF|regulator)\b/i,
     /\b(OSC|CIRO|IIROC|FINTRAC|AMF)\b.*\b(letter|inquiry|review|audit)\b/i,
   ],
+  "court-ai-disclosure-drafter": [
+    /\b(AI[- ]use|AI[- ]disclosure|generative\s+AI)\b.*\b(disclosure|memo|filing)\b/i,
+    /\b(court\s+filing|factum|pleading)\b.*\b(AI|generative)\b/i,
+    /\b(practice\s+direction|consolidated\s+notice)\b.*\b(AI|artificial\s+intelligence)\b/i,
+  ],
   // Judge is never selected by the heuristic router — it's invoked only by
   // the loop coordinator (`runAgentLoop`) which forces the persona explicitly.
   // We keep the empty entry so `Record<PersonaId, RegExp[]>` stays exhaustive.
@@ -80,6 +85,7 @@ export function routePersona(userMessage: string): RoutingDecision {
     "kyc-reviewer": 0,
     "marketing-reviewer": 0,
     "response-memo-drafter": 0,
+    "court-ai-disclosure-drafter": 0,
     judge: 0, // Never picked by router; kept here so the Record is exhaustive.
     "qa-responder": 0, // Force-only; exhaustive-Record placeholder.
   };

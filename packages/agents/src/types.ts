@@ -24,6 +24,7 @@ export type PersonaId =
   | "kyc-reviewer" // reviews client KYC files for NI 31-103 / FINTRAC gaps
   | "marketing-reviewer" // reviews marketing materials for NI 81-102 / 13.18
   | "response-memo-drafter" // drafts responses to regulator inquiries
+  | "court-ai-disclosure-drafter" // drafts AI-use disclosure memos for court filings
   | "qa-responder"; // answers jurisdictional Q&A via /api/ask — never routed, only force-selected
 
 /**

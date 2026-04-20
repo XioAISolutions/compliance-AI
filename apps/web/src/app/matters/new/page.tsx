@@ -8,7 +8,7 @@
  * legal regime, and claim type to reduce creation friction.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -105,7 +105,37 @@ const PRESETS: Array<{
       classActionFlag: true,
       proceduralPosture: "investigation",
       registrationCategory: "none",
-      taskType: "om-review",
+      taskType: "pipeda-check",
+    },
+  },
+  {
+    label: "PIPEDA / privacy review",
+    icon: "🔐",
+    defaults: {
+      kind: "securities",
+      jurisdiction: "federal",
+      registrationCategory: "none",
+      taskType: "pipeda-check",
+    },
+  },
+  {
+    label: "Court AI-use disclosure memo",
+    icon: "⚖️",
+    defaults: {
+      kind: "securities",
+      jurisdiction: "ontario",
+      registrationCategory: "none",
+      taskType: "court-ai-disclosure",
+    },
+  },
+  {
+    label: "Missing-authority scan (audit existing output)",
+    icon: "🧐",
+    defaults: {
+      kind: "securities",
+      jurisdiction: "ontario",
+      registrationCategory: "none",
+      taskType: "missing-authority-scan",
     },
   },
   {
@@ -213,10 +243,13 @@ const REGISTRATION_CATEGORIES = [
 ];
 
 const TASK_TYPES = [
-  { value: "om-review", label: "Review offering memo" },
-  { value: "kyc-gap-check", label: "KYC/AML gap check" },
-  { value: "marketing-signoff", label: "Marketing sign-off" },
-  { value: "response-memo", label: "Response memo" },
+  { value: "om-review", label: "Review offering memo", icon: "📄", lane: "securities" },
+  { value: "kyc-gap-check", label: "KYC / AML gap check", icon: "🔍", lane: "securities" },
+  { value: "marketing-signoff", label: "Marketing sign-off", icon: "📣", lane: "securities" },
+  { value: "response-memo", label: "Regulator response memo", icon: "✉️", lane: "regulator" },
+  { value: "court-ai-disclosure", label: "Court AI-use disclosure memo", icon: "⚖️", lane: "court" },
+  { value: "pipeda-check", label: "PIPEDA / privacy review", icon: "🔒", lane: "privacy" },
+  { value: "missing-authority-scan", label: "Missing-authority scan (audit existing output)", icon: "🧐", lane: "audit" },
 ];
 
 export default function NewMatterPage() {
@@ -350,17 +383,34 @@ export default function NewMatterPage() {
               placeholder="e.g., ABC Capital OM Review — Q2 2026"
               className="w-full rounded-md border border-neutral-300 bg-transparent px-3 py-2 text-sm dark:border-neutral-700" />
           </Field>
-          <div className="grid grid-cols-3 gap-4">
+          <Field label="Task type">
+            <TaskTypePicker
+              value={state.taskType}
+              onChange={(v) => set("taskType", v)}
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-4">
             <Field label="Jurisdiction">
-              <Select value={state.jurisdiction} onChange={(v) => set("jurisdiction", v)} options={JURISDICTIONS} />
+              <Select
+                value={state.jurisdiction}
+                onChange={(v) => set("jurisdiction", v)}
+                options={JURISDICTIONS}
+              />
             </Field>
             <Field label="Registration">
-              <Select value={state.registrationCategory} onChange={(v) => set("registrationCategory", v)} options={REGISTRATION_CATEGORIES} />
-            </Field>
-            <Field label="Task">
-              <Select value={state.taskType} onChange={(v) => set("taskType", v)} options={TASK_TYPES} />
+              <Select
+                value={state.registrationCategory}
+                onChange={(v) => set("registrationCategory", v)}
+                options={REGISTRATION_CATEGORIES}
+              />
             </Field>
           </div>
+          <Field label="Source packs in scope">
+            <SourcePackChips
+              taskType={state.taskType}
+              registrationCategory={state.registrationCategory}
+            />
+          </Field>
         </div>
       )}
 
@@ -555,6 +605,119 @@ function Select({ value, onChange, options }: {
       <option value="">Select…</option>
       {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
+  );
+}
+
+/**
+ * TaskTypePicker — grid of all 7 task types. Replaces the old `<select>`
+ * so the new review modes (PIPEDA, court AI disclosure, missing-authority
+ * scan) are discoverable without a dropdown dive.
+ */
+function TaskTypePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {TASK_TYPES.map((t) => {
+        const selected = t.value === value;
+        return (
+          <button
+            key={t.value}
+            type="button"
+            onClick={() => onChange(t.value)}
+            className={`flex items-start gap-2 rounded-md border px-3 py-2 text-left text-xs transition-colors ${
+              selected
+                ? "border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900"
+                : "border-neutral-200 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"
+            }`}
+          >
+            <span className="mt-0.5 text-sm">{t.icon}</span>
+            <span className="leading-snug">{t.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+interface SourcePackSummary {
+  id: string;
+  label: string;
+  description: string;
+  jurisdictions: string[];
+  practiceAreas: string[];
+  itemCount: number;
+}
+
+/**
+ * SourcePackChips — fetches /api/source-packs?taskType=...&registrationCategory=...
+ * and renders the bundled authority packs that WILL be in scope when the
+ * review runs. Gives the lawyer a "know what's in scope before running"
+ * moment that the flat task-type dropdown never did.
+ */
+function SourcePackChips({
+  taskType,
+  registrationCategory,
+}: {
+  taskType: string;
+  registrationCategory: string;
+}) {
+  const [packs, setPacks] = useState<SourcePackSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setErr(null);
+    const params = new URLSearchParams();
+    if (taskType) params.set("taskType", taskType);
+    if (registrationCategory) params.set("registrationCategory", registrationCategory);
+    fetch(`/api/source-packs?${params.toString()}`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((body: { packs: SourcePackSummary[] }) => {
+        if (!cancelled) setPacks(body.packs ?? []);
+      })
+      .catch((e) => {
+        if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [taskType, registrationCategory]);
+
+  if (loading) {
+    return <p className="mt-1 text-[10px] text-neutral-400">Loading packs…</p>;
+  }
+  if (err) {
+    return <p className="mt-1 text-[10px] text-red-500">Packs error: {err}</p>;
+  }
+  if (packs.length === 0) {
+    return (
+      <p className="mt-1 text-[10px] text-neutral-400">
+        No packs registered for this task type.
+      </p>
+    );
+  }
+  return (
+    <div className="mt-1 flex flex-wrap gap-2">
+      {packs.map((p) => (
+        <span
+          key={p.id}
+          title={p.description}
+          className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-[11px] dark:border-neutral-800 dark:bg-neutral-900"
+        >
+          <span className="font-medium">{p.label}</span>
+          <span className="rounded-sm bg-neutral-200 px-1 font-mono text-[9px] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+            {p.itemCount}
+          </span>
+        </span>
+      ))}
+    </div>
   );
 }
 

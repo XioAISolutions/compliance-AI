@@ -17,6 +17,7 @@ import { OM_REVIEWER_RETRIEVAL_PLAN } from "./personas/om-reviewer.js";
 import { KYC_REVIEWER_RETRIEVAL_PLAN } from "./personas/kyc-reviewer.js";
 import { MARKETING_REVIEWER_RETRIEVAL_PLAN } from "./personas/marketing-reviewer.js";
 import { RESPONSE_MEMO_DRAFTER_RETRIEVAL_PLAN } from "./personas/response-memo-drafter.js";
+import { COURT_AI_DISCLOSURE_DRAFTER_RETRIEVAL_PLAN } from "./personas/court-ai-disclosure-drafter.js";
 
 /**
  * Stable taskType identifiers used by /api/matters and the matter wizard.
@@ -26,13 +27,15 @@ export type RetrievalPlanTaskType =
   | "om-review"
   | "kyc-gap-check"
   | "marketing-signoff"
-  | "response-memo";
+  | "response-memo"
+  | "court-ai-disclosure";
 
 const REGISTRY: Record<RetrievalPlanTaskType, readonly string[]> = {
   "om-review": OM_REVIEWER_RETRIEVAL_PLAN,
   "kyc-gap-check": KYC_REVIEWER_RETRIEVAL_PLAN,
   "marketing-signoff": MARKETING_REVIEWER_RETRIEVAL_PLAN,
   "response-memo": RESPONSE_MEMO_DRAFTER_RETRIEVAL_PLAN,
+  "court-ai-disclosure": COURT_AI_DISCLOSURE_DRAFTER_RETRIEVAL_PLAN,
 };
 
 /**

@@ -16,14 +16,19 @@ import {
   RESPONSE_MEMO_DRAFTER_RETRIEVAL_PLAN,
   RESPONSE_MEMO_DRAFTER_SYSTEM,
 } from "../personas/response-memo-drafter";
+import {
+  COURT_AI_DISCLOSURE_DRAFTER_RETRIEVAL_PLAN,
+  COURT_AI_DISCLOSURE_DRAFTER_SYSTEM,
+} from "../personas/court-ai-disclosure-drafter";
 
 describe("retrieval plans registry", () => {
-  it("registers a plan for each of the four core task types", () => {
+  it("registers a plan for each of the five core task types", () => {
     const expected: RetrievalPlanTaskType[] = [
       "om-review",
       "kyc-gap-check",
       "marketing-signoff",
       "response-memo",
+      "court-ai-disclosure",
     ];
     const registered = listPlanTaskTypes().sort();
     expect(registered).toEqual([...expected].sort());
@@ -33,6 +38,9 @@ describe("retrieval plans registry", () => {
     expect(getRetrievalPlan("kyc-gap-check")).toBe(KYC_REVIEWER_RETRIEVAL_PLAN);
     expect(getRetrievalPlan("marketing-signoff")).toBe(MARKETING_REVIEWER_RETRIEVAL_PLAN);
     expect(getRetrievalPlan("response-memo")).toBe(RESPONSE_MEMO_DRAFTER_RETRIEVAL_PLAN);
+    expect(getRetrievalPlan("court-ai-disclosure")).toBe(
+      COURT_AI_DISCLOSURE_DRAFTER_RETRIEVAL_PLAN,
+    );
   });
 
   it("returns null for unknown task types so callers can fall back", () => {
@@ -133,5 +141,52 @@ describe("Response-memo drafter plan", () => {
   it("instructs the drafter to produce the memo even when retrieval is partial", () => {
     expect(RESPONSE_MEMO_DRAFTER_SYSTEM).toMatch(/NEEDS VERIFICATION/);
     expect(RESPONSE_MEMO_DRAFTER_SYSTEM).toMatch(/never\s+output\s+a\s+meta-refusal/i);
+  });
+});
+
+describe("Court AI-disclosure drafter plan", () => {
+  it("is non-empty and contains short, targeted queries", () => {
+    expect(COURT_AI_DISCLOSURE_DRAFTER_RETRIEVAL_PLAN.length).toBeGreaterThanOrEqual(8);
+    for (const q of COURT_AI_DISCLOSURE_DRAFTER_RETRIEVAL_PLAN) {
+      expect(q.length).toBeGreaterThan(10);
+      expect(q.length).toBeLessThan(200);
+    }
+  });
+
+  it("covers the Canadian court + law-society AI-use clusters the persona cites", () => {
+    const blob = COURT_AI_DISCLOSURE_DRAFTER_RETRIEVAL_PLAN.join(" | ").toLowerCase();
+    for (const needle of [
+      "federal court",
+      "ontario superior court",
+      "alberta",
+      "british columbia",
+      "law society",
+      "duty of candour",
+      "hallucinated citations",
+    ]) {
+      expect(blob).toContain(needle);
+    }
+  });
+
+  it("requires the five-section output structure", () => {
+    for (const heading of [
+      "AI-Use Disclosure Statement",
+      "Court-Specific Requirements Checklist",
+      "Citation Verification Appendix",
+      "Verification Blockers",
+      "Counsel Signoff Appendix",
+    ]) {
+      expect(COURT_AI_DISCLOSURE_DRAFTER_SYSTEM).toContain(heading);
+    }
+  });
+
+  it("instructs the drafter to produce the memo even when retrieval is partial", () => {
+    expect(COURT_AI_DISCLOSURE_DRAFTER_SYSTEM).toMatch(/NEEDS VERIFICATION/);
+    expect(COURT_AI_DISCLOSURE_DRAFTER_SYSTEM).toMatch(/never\s+output\s+a\s+meta-refusal/i);
+  });
+
+  it("mandates the counsel signoff block", () => {
+    expect(COURT_AI_DISCLOSURE_DRAFTER_SYSTEM).toMatch(/counsel of record/i);
+    expect(COURT_AI_DISCLOSURE_DRAFTER_SYSTEM).toMatch(/professional responsibility/i);
   });
 });

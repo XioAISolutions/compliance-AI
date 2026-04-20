@@ -605,6 +605,19 @@ export function OutputPane({
         </div>
       )}
 
+      {/* What-to-do-next hint — adapts to the current matter state so a
+          lawyer sees the single action that moves the matter forward,
+          without having to remember the approval/export/verification
+          contract. */}
+      <NextStepHint
+        streaming={streaming}
+        hasContent={Boolean(content)}
+        verdict={verdict}
+        approvalRequested={approvalRequested}
+        verifySummary={verifySummary}
+        citationCount={citations.length}
+      />
+
       {/* Transcript and graph are forensic views — only meaningful once a
           review has produced content. Keep the tab row collapsed until
           then so the first-time visitor sees subject doc → cited draft →
@@ -732,6 +745,125 @@ export function OutputPane({
 
 function stripCitationFence(value: string): string {
   return value.replace(/```citations\s*\n[\s\S]*?\n```/g, "").trim();
+}
+
+/**
+ * NextStepHint — one-line guidance banner that adapts to the matter's
+ * current workflow state. A lawyer should always be able to look at the
+ * top of the output pane and see the single action that moves the
+ * matter forward. Without this, the approval-export contract (hash
+ * binding, verify-before-request, etc.) is invisible until the user
+ * hits a 403.
+ *
+ * States, in order of precedence (first match wins):
+ *   1. streaming          → "review is running"
+ *   2. no content yet     → "drop a document, or hit Start review"
+ *   3. red citations      → "verify or replace red citations before approval"
+ *   4. READY_TO_SUBMIT, not yet requested → "request approval"
+ *   5. approval requested → "awaiting reviewer signoff"
+ *   6. verdict non-READY  → "retry with deeper rounds or refine via chat"
+ *   7. approved (inferred) → "export DOCX or export redline"
+ */
+function NextStepHint({
+  streaming,
+  hasContent,
+  verdict,
+  approvalRequested,
+  verifySummary,
+  citationCount,
+}: {
+  streaming: boolean;
+  hasContent: boolean;
+  verdict: JudgeVerdict | null;
+  approvalRequested: boolean;
+  verifySummary: VerificationSummary;
+  citationCount: number;
+}) {
+  let tone: "info" | "success" | "warn" = "info";
+  let body: React.ReactNode = null;
+
+  if (streaming) {
+    tone = "info";
+    body = (
+      <>
+        <span className="font-medium">Review streaming.</span>{" "}
+        Watch the citations land and colour-code themselves; leaving the
+        tab mid-stream is safe, the result is saved.
+      </>
+    );
+  } else if (!hasContent) {
+    tone = "info";
+    body = (
+      <>
+        <span className="font-medium">Step 1 of 5 — drop a document.</span>{" "}
+        Upload the document under review, then hit <em>Start review</em>.
+        Source packs in scope are shown on the matter info panel.
+      </>
+    );
+  } else if (verifySummary.total > 0 && verifySummary.notFound > 0) {
+    tone = "warn";
+    body = (
+      <>
+        <span className="font-medium">Citations flagged.</span>{" "}
+        {verifySummary.notFound} of {verifySummary.total} citations could
+        not be verified against the seed corpus and have no CanLII match
+        either. Open the red pills below, replace or remove the
+        offending authorities, then request approval.
+      </>
+    );
+  } else if (verdict === "READY_TO_SUBMIT" && !approvalRequested) {
+    tone = "success";
+    body = (
+      <>
+        <span className="font-medium">Step 4 of 5 — request approval.</span>{" "}
+        Reviewer persona marked this READY_TO_SUBMIT. Approval binds to
+        the SHA-256 of the output text, so any edit after approval
+        invalidates it.
+      </>
+    );
+  } else if (approvalRequested) {
+    tone = "info";
+    body = (
+      <>
+        <span className="font-medium">Awaiting signoff.</span>{" "}
+        Export is blocked until a reviewer approves. The reviewer can
+        approve from <code>/approvals</code> or via the approval-store
+        API. Once approved, the Export DOCX button unlocks.
+      </>
+    );
+  } else if (verdict && verdict !== "READY_TO_SUBMIT") {
+    tone = "warn";
+    body = (
+      <>
+        <span className="font-medium">Judge flagged issues ({verdict}).</span>{" "}
+        Retry with deeper rounds (below), or refine the draft via chat.
+        Re-running the review replaces the current output.
+      </>
+    );
+  } else if (citationCount > 0 && verifySummary.verified === verifySummary.total && verifySummary.total > 0) {
+    tone = "success";
+    body = (
+      <>
+        <span className="font-medium">Every citation verified.</span>{" "}
+        Step 5 of 5 — hit Export DOCX to generate the filed artifact, or
+        Export Redline for a track-changes DOCX if this matter is a
+        contract redline.
+      </>
+    );
+  }
+
+  if (!body) return null;
+
+  const palette =
+    tone === "success"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+      : tone === "warn"
+        ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+        : "border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200";
+
+  return (
+    <div className={`mt-2 rounded-md border px-3 py-2 text-xs ${palette}`}>{body}</div>
+  );
 }
 
 /**

@@ -81,6 +81,13 @@ interface Props {
   citationRetry?: CitationRetryState;
   citationWarnings?: CitationWarnings | null;
   /**
+   * Auto-verify results streamed from the server immediately after
+   * citations land. When present, the OutputPane seeds its local
+   * verifications map so the footnote list renders colour-coded
+   * badges on first paint — no "Verify citations" click required.
+   */
+  initialVerifications?: VerificationResult[];
+  /**
    * Judge's last-round rationale prose. Surfaced as an expandable panel
    * when the verdict isn't READY_TO_SUBMIT, so a compliance lawyer
    * landing on a `needs-revision` or `blocked` matter can read WHY the
@@ -159,6 +166,7 @@ export function OutputPane({
   verdictRationale,
   matterStatus,
   onRetryDeeper,
+  initialVerifications,
 }: Props) {
   const [hoveredCitation, setHoveredCitation] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -171,9 +179,24 @@ export function OutputPane({
    * three tabs, search, paste, verify" flow to a single click per
    * citation.
    */
-  const [verifications, setVerifications] = useState<Record<string, VerificationResult>>({});
+  const [verifications, setVerifications] = useState<Record<string, VerificationResult>>(() => {
+    const seeded: Record<string, VerificationResult> = {};
+    for (const r of initialVerifications ?? []) seeded[r.citationId] = r;
+    return seeded;
+  });
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
+
+  // Stream-driven prop updates: when the server emits new
+  // `verifications` frames (e.g., on a re-review), the parent passes a
+  // fresh array and we rebuild the map. A useEffect keeps local state in
+  // sync instead of stale-prop trapping the user on an earlier run.
+  useEffect(() => {
+    if (!initialVerifications) return;
+    const next: Record<string, VerificationResult> = {};
+    for (const r of initialVerifications) next[r.citationId] = r;
+    setVerifications(next);
+  }, [initialVerifications]);
   const [activeTab, setActiveTab] = useState<ActiveTab>("output");
   const [transcript, setTranscript] = useState<TranscriptEvent[]>([]);
   const [loadingTranscript, setLoadingTranscript] = useState(false);

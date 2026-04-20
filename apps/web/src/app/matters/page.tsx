@@ -327,11 +327,40 @@ export default function MattersPage() {
 
       <div className="mt-4 space-y-3">
         {matters.length === 0 && !creating && (
-          <div className="rounded-lg border border-dashed border-neutral-300 py-12 text-center dark:border-neutral-700">
-            <p className="text-neutral-500">No matters yet.</p>
-            <p className="mt-1 text-sm text-neutral-400">
+          <div className="rounded-lg border border-dashed border-neutral-300 py-10 px-6 text-left dark:border-neutral-700">
+            <p className="text-center text-neutral-500">No matters yet.</p>
+            <p className="mt-1 text-center text-sm text-neutral-400">
               Create your first matter to start reviewing.
             </p>
+            <div className="mt-6 mx-auto max-w-xl rounded-md bg-neutral-50 p-4 text-xs text-neutral-600 dark:bg-neutral-900/50 dark:text-neutral-300">
+              <p className="font-medium text-neutral-700 dark:text-neutral-200">
+                How it works
+              </p>
+              <ol className="mt-2 space-y-1 pl-5">
+                <li>
+                  1. <span className="font-medium">Pick a task type</span> — OM review,
+                  PIPEDA, court AI-disclosure, contract redline, and more.
+                </li>
+                <li>
+                  2. <span className="font-medium">Drop a document</span>. The app
+                  classifies and routes it to the right Canadian-law reviewer.
+                </li>
+                <li>
+                  3. <span className="font-medium">Review streams in</span> with
+                  auto-verified citations — green <span className="font-mono">✓ verified</span>,
+                  blue <span className="font-mono">↗ canlii</span>, or red if
+                  the authority can&apos;t be located.
+                </li>
+                <li>
+                  4. <span className="font-medium">Request approval</span> —
+                  bound to the output hash, so any edit invalidates it.
+                </li>
+                <li>
+                  5. <span className="font-medium">Export DOCX</span>. Blocked
+                  until an approved approval binds to your output.
+                </li>
+              </ol>
+            </div>
           </div>
         )}
         {matters

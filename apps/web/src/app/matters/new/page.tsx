@@ -348,6 +348,11 @@ export default function NewMatterPage() {
         </div>
       </div>
 
+      {/* Lawyer workflow in five steps — lands a first-time user cold
+          without needing to read docs. Dismissible so power users don't
+          re-read it on every matter creation. */}
+      <WorkflowCallout />
+
       {/* Presets */}
       <div className="mt-6">
         <p className="text-xs font-medium text-neutral-500">Quick start</p>
@@ -616,6 +621,56 @@ function Select({ value, onChange, options }: {
       <option value="">Select…</option>
       {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
+  );
+}
+
+/**
+ * WorkflowCallout — first-run lawyer-workflow explainer. Five steps,
+ * plain English, dismissible. Persists the dismissal in localStorage so
+ * the power user doesn't see it on every matter creation.
+ */
+function WorkflowCallout() {
+  // SSR-safe default: render the callout server-side (collapsed on SSR
+  // to avoid hydration mismatch) and flip it in after mount based on
+  // localStorage. First-time users get the explainer; returning users
+  // who dismissed it once never see it again.
+  const [mounted, setMounted] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+    if (typeof window !== "undefined") {
+      const stored = window.localStorage.getItem("xio.workflow-callout.dismissed");
+      if (stored === "1") setDismissed(true);
+    }
+  }, []);
+  if (!mounted) return null;
+  function dismiss() {
+    setDismissed(true);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("xio.workflow-callout.dismissed", "1");
+    }
+  }
+  if (dismissed) return null;
+  return (
+    <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
+      <div className="flex items-start justify-between gap-3">
+        <p className="font-medium">How a matter works (5 steps)</p>
+        <button
+          type="button"
+          onClick={dismiss}
+          className="text-[10px] uppercase tracking-wide text-blue-700 underline underline-offset-2 hover:text-blue-900 dark:text-blue-300"
+        >
+          Dismiss
+        </button>
+      </div>
+      <ol className="mt-2 space-y-1 pl-5 text-xs">
+        <li><span className="font-medium">1. Pick a task type</span> — OM review, PIPEDA, court AI-disclosure, redline, etc. The pack chips below show which Canadian authority bundles will be in scope.</li>
+        <li><span className="font-medium">2. Drop a document</span> (PDF / DOCX / TXT). The app classifies, chunks, and routes it to the matching reviewer persona.</li>
+        <li><span className="font-medium">3. Watch the review stream in</span> with structured `[c1]` citations. Every citation auto-verifies against the seed corpus and CanLII URL heuristics — no click required.</li>
+        <li><span className="font-medium">4. Request approval.</span> The approval binds to a SHA-256 of the output text; any edit invalidates it.</li>
+        <li><span className="font-medium">5. Export DOCX</span> (or redline DOCX for contract-redline matters). Export is blocked until the binding approval is in place. The exhibits appendix carries jurisdiction + source-type + as-of-date + confidence for every cite.</li>
+      </ol>
+    </div>
   );
 }
 

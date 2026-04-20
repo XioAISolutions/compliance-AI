@@ -244,6 +244,12 @@ export function selectPacksForTaskType(
       return selectPacksForLane("privacy");
     case "missing-authority-scan":
       return selectPacksForLane("cross-cutting");
+    case "contract-redline":
+      // Contract redlines span contract law + privacy (DPAs / PIPEDA
+      // clauses) + consumer protection (B2C terms). Load the broad
+      // multi-lane set so the redliner can reach every clause a
+      // Canadian contract might cite.
+      return [CA_SECURITIES_ONTARIO_PACK, CA_PRIVACY_PACK, CA_CONSUMER_PROTECTION_PACK];
     default:
       return selectPacksForLane("securities-emd");
   }

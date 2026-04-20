@@ -32,6 +32,7 @@ export { RESPONSE_MEMO_DRAFTER_RETRIEVAL_PLAN } from "./personas/response-memo-d
 export { COURT_AI_DISCLOSURE_DRAFTER_RETRIEVAL_PLAN } from "./personas/court-ai-disclosure-drafter.js";
 export { MISSING_AUTHORITY_SCANNER_RETRIEVAL_PLAN } from "./personas/missing-authority-scanner.js";
 export { PIPEDA_REVIEWER_RETRIEVAL_PLAN } from "./personas/pipeda-reviewer.js";
+export { CONTRACT_REDLINER_RETRIEVAL_PLAN } from "./personas/contract-redliner.js";
 export {
   getRetrievalPlan,
   listPlanTaskTypes,

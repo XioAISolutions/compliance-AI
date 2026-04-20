@@ -120,6 +120,8 @@ function personaForTask(taskType: string): PersonaId {
       return "missing-authority-scanner";
     case "pipeda-check":
       return "pipeda-reviewer";
+    case "contract-redline":
+      return "contract-redliner";
     default:
       return "om-reviewer";
   }
@@ -174,6 +176,10 @@ async function buildReviewSubject(
     // plan, consent form, or vendor DPA. All tagged as regulatory-guidance
     // or other in the existing document-type taxonomy.
     "pipeda-check": ["regulatory-guidance", "other"],
+    // Contract redline operates directly on the uploaded draft — any
+    // doc type is acceptable, but prefer offering-memo-ish drafts and
+    // explicit reference material.
+    "contract-redline": ["other", "reference-material", "offering-memo"],
   };
 
   const preferred = preferredType[taskType] ?? [];
@@ -245,6 +251,10 @@ Do NOT rewrite the output. Your job is to flag risk, not fix it. Every finding s
   "pipeda-check": `Review the privacy-related material described in the "Document under review" block above for compliance with PIPEDA Schedule 1 and, where applicable, Quebec Law 25 / Alberta PIPA / BC PIPA.
 
 Produce the full structured output: (1) Executive Summary, (2) Ten Fair Information Principles Conformance Checklist, (3) Breach-Notification Readiness, (4) Cross-Border and Third-Party Transfers, (5) Provincial Substantially-Similar Regime Check (where matter jurisdiction is QC/AB/BC), (6) Remediation Punch List. Every finding must cite the specific PIPEDA section, Schedule 1 principle, or provincial statute section.`,
+
+  "contract-redline": `Produce a redlined version of the draft described in the "Document under review" block above using the inline diff-token syntax from your instructions: [-deleted text-], {+inserted text+}, <<NOTE: rationale>>.
+
+Output is the redlined draft itself, preceded by a short Redline Summary and followed by a numbered Issue List. Preserve the draft's paragraph structure and numbering exactly. Every insertion (except pure corrections) must carry a NOTE. Pure deletions also require a NOTE. Use [cN] markers inside NOTEs for cited authority; pure drafting-preference changes can omit citations but the NOTE must still explain the rationale.`,
 };
 
 // Fallback prompts when no document has been uploaded yet. Instructs the
@@ -257,6 +267,7 @@ const TASK_PROMPTS_NO_SUBJECT: Record<string, string> = {
   "court-ai-disclosure": `Draft an AI-use disclosure memo for the material in this matter. If the matter has no substantive output yet, draft a GENERIC court-appropriate AI-use disclosure that counsel can adapt — cover the three obligations (transparency, accuracy, accountability), leave placeholders for court name and filing details, and include the Counsel Signoff Appendix. Never refuse to produce the memo.`,
   "missing-authority-scan": `No substantive output has been produced in this matter yet, so there is nothing to audit. Ask the user to run the primary review (OM / KYC / marketing / response memo / PIPEDA / etc.) first, then re-run the missing-authority scan against the resulting output.`,
   "pipeda-check": `No privacy material has been uploaded to this matter yet. Ask the user to upload the privacy policy, incident-response playbook, consent form, vendor DPA, or breach-notification draft so the PIPEDA conformance review can begin.`,
+  "contract-redline": `No draft has been uploaded to this matter yet. Ask the user to upload the contract, pleading, or policy draft so the redline can be produced directly against its text.`,
 };
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

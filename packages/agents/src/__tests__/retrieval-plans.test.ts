@@ -28,9 +28,13 @@ import {
   PIPEDA_REVIEWER_RETRIEVAL_PLAN,
   PIPEDA_REVIEWER_SYSTEM,
 } from "../personas/pipeda-reviewer";
+import {
+  CONTRACT_REDLINER_RETRIEVAL_PLAN,
+  CONTRACT_REDLINER_SYSTEM,
+} from "../personas/contract-redliner";
 
 describe("retrieval plans registry", () => {
-  it("registers a plan for each of the seven core task types", () => {
+  it("registers a plan for each of the eight core task types", () => {
     const expected: RetrievalPlanTaskType[] = [
       "om-review",
       "kyc-gap-check",
@@ -39,6 +43,7 @@ describe("retrieval plans registry", () => {
       "court-ai-disclosure",
       "missing-authority-scan",
       "pipeda-check",
+      "contract-redline",
     ];
     const registered = listPlanTaskTypes().sort();
     expect(registered).toEqual([...expected].sort());
@@ -55,6 +60,7 @@ describe("retrieval plans registry", () => {
       MISSING_AUTHORITY_SCANNER_RETRIEVAL_PLAN,
     );
     expect(getRetrievalPlan("pipeda-check")).toBe(PIPEDA_REVIEWER_RETRIEVAL_PLAN);
+    expect(getRetrievalPlan("contract-redline")).toBe(CONTRACT_REDLINER_RETRIEVAL_PLAN);
   });
 
   it("returns null for unknown task types so callers can fall back", () => {
@@ -300,5 +306,46 @@ describe("PIPEDA reviewer plan + persona", () => {
     ]) {
       expect(PIPEDA_REVIEWER_SYSTEM).toContain(heading);
     }
+  });
+});
+
+describe("Contract redliner plan + persona", () => {
+  it("plan is non-empty and targeted", () => {
+    expect(CONTRACT_REDLINER_RETRIEVAL_PLAN.length).toBeGreaterThanOrEqual(8);
+    for (const q of CONTRACT_REDLINER_RETRIEVAL_PLAN) {
+      expect(q.length).toBeGreaterThan(10);
+      expect(q.length).toBeLessThan(200);
+    }
+  });
+
+  it("plan covers the contract-law + adjacent-statute clusters", () => {
+    const blob = CONTRACT_REDLINER_RETRIEVAL_PLAN.join(" | ").toLowerCase();
+    for (const needle of [
+      "contract law",
+      "sale of goods",
+      "limitation of liability",
+      "indemnity",
+      "choice of law",
+      "pipeda",
+      "casl",
+      "limitation period",
+      "entire agreement",
+      "termination",
+      "confidentiality",
+      "intellectual property",
+    ]) {
+      expect(blob).toContain(needle);
+    }
+  });
+
+  it("persona documents the three diff tokens exactly", () => {
+    expect(CONTRACT_REDLINER_SYSTEM).toContain("[-old text-]");
+    expect(CONTRACT_REDLINER_SYSTEM).toContain("{+new text+}");
+    expect(CONTRACT_REDLINER_SYSTEM).toContain("<<NOTE:");
+  });
+
+  it("persona refuses meta-refusals and preserves structure", () => {
+    expect(CONTRACT_REDLINER_SYSTEM).toMatch(/never\s+output\s+a\s+meta-refusal/i);
+    expect(CONTRACT_REDLINER_SYSTEM).toMatch(/Never reformat paragraphs/i);
   });
 });

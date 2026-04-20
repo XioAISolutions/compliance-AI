@@ -20,6 +20,7 @@ import { RESPONSE_MEMO_DRAFTER_RETRIEVAL_PLAN } from "./personas/response-memo-d
 import { COURT_AI_DISCLOSURE_DRAFTER_RETRIEVAL_PLAN } from "./personas/court-ai-disclosure-drafter.js";
 import { MISSING_AUTHORITY_SCANNER_RETRIEVAL_PLAN } from "./personas/missing-authority-scanner.js";
 import { PIPEDA_REVIEWER_RETRIEVAL_PLAN } from "./personas/pipeda-reviewer.js";
+import { CONTRACT_REDLINER_RETRIEVAL_PLAN } from "./personas/contract-redliner.js";
 
 /**
  * Stable taskType identifiers used by /api/matters and the matter wizard.
@@ -32,7 +33,8 @@ export type RetrievalPlanTaskType =
   | "response-memo"
   | "court-ai-disclosure"
   | "missing-authority-scan"
-  | "pipeda-check";
+  | "pipeda-check"
+  | "contract-redline";
 
 const REGISTRY: Record<RetrievalPlanTaskType, readonly string[]> = {
   "om-review": OM_REVIEWER_RETRIEVAL_PLAN,
@@ -42,6 +44,7 @@ const REGISTRY: Record<RetrievalPlanTaskType, readonly string[]> = {
   "court-ai-disclosure": COURT_AI_DISCLOSURE_DRAFTER_RETRIEVAL_PLAN,
   "missing-authority-scan": MISSING_AUTHORITY_SCANNER_RETRIEVAL_PLAN,
   "pipeda-check": PIPEDA_REVIEWER_RETRIEVAL_PLAN,
+  "contract-redline": CONTRACT_REDLINER_RETRIEVAL_PLAN,
 };
 
 /**

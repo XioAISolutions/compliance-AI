@@ -30,7 +30,15 @@ export type Jurisdiction =
   | "federal"
   | "multi-provincial";
 export type RegistrationCategory = "emd" | "pm" | "iiroc" | "issuer" | "none";
-export type TaskType = "om-review" | "kyc-gap-check" | "marketing-signoff" | "response-memo";
+export type TaskType =
+  | "om-review"
+  | "kyc-gap-check"
+  | "marketing-signoff"
+  | "response-memo"
+  | "court-ai-disclosure"
+  | "missing-authority-scan"
+  | "pipeda-check"
+  | "contract-redline";
 /**
  * Matter state machine:
  *

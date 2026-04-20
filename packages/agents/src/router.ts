@@ -71,6 +71,11 @@ const KEYWORDS: Record<PersonaId, RegExp[]> = {
     /\b(Law\s*25|Quebec\s+privacy|Alberta\s+PIPA|BC\s+PIPA)\b/i,
     /\b(OPC|Privacy\s+Commissioner|cross[- ]border\s+transfer)\b/i,
   ],
+  "contract-redliner": [
+    /\b(redline|red[- ]?line|mark[- ]?up|track\s+changes)\b/i,
+    /\b(contract|agreement|MSA|NDA|licence|license)\b.*\b(review|redline|markup)\b/i,
+    /\b(draft|revise|edit)\b.*\b(contract|agreement|clause|section)\b/i,
+  ],
   // Judge is never selected by the heuristic router — it's invoked only by
   // the loop coordinator (`runAgentLoop`) which forces the persona explicitly.
   // We keep the empty entry so `Record<PersonaId, RegExp[]>` stays exhaustive.
@@ -99,6 +104,7 @@ export function routePersona(userMessage: string): RoutingDecision {
     "court-ai-disclosure-drafter": 0,
     "missing-authority-scanner": 0,
     "pipeda-reviewer": 0,
+    "contract-redliner": 0,
     judge: 0, // Never picked by router; kept here so the Record is exhaustive.
     "qa-responder": 0, // Force-only; exhaustive-Record placeholder.
   };

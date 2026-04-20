@@ -139,6 +139,16 @@ const PRESETS: Array<{
     },
   },
   {
+    label: "Contract / draft redline",
+    icon: "✍️",
+    defaults: {
+      kind: "securities",
+      jurisdiction: "ontario",
+      registrationCategory: "none",
+      taskType: "contract-redline",
+    },
+  },
+  {
     label: "Telemarketing / CASL complaint",
     icon: "📞",
     defaults: {
@@ -250,6 +260,7 @@ const TASK_TYPES = [
   { value: "court-ai-disclosure", label: "Court AI-use disclosure memo", icon: "⚖️", lane: "court" },
   { value: "pipeda-check", label: "PIPEDA / privacy review", icon: "🔒", lane: "privacy" },
   { value: "missing-authority-scan", label: "Missing-authority scan (audit existing output)", icon: "🧐", lane: "audit" },
+  { value: "contract-redline", label: "Contract / draft redline", icon: "✍️", lane: "drafting" },
 ];
 
 export default function NewMatterPage() {

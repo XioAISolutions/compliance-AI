@@ -57,6 +57,10 @@ export const taskTypeEnum = pgEnum("task_type", [
   "kyc-gap-check",
   "marketing-signoff",
   "response-memo",
+  "court-ai-disclosure",
+  "missing-authority-scan",
+  "pipeda-check",
+  "contract-redline",
 ]);
 
 export const claimTypeEnum = pgEnum("claim_type", [

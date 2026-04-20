@@ -28,6 +28,7 @@ import {
 } from "docx";
 import { getDefaultMatterStore } from "../../../../../lib/matter-store";
 import { getDefaultAuditStore, sha256 } from "../../../../../lib/audit-store";
+import { getDefaultApprovalStore } from "../../../../../lib/approvals-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -81,6 +82,58 @@ export async function POST(
 
   const citations = body.citations ?? [];
 
+  // Hard human signoff gate.
+  //
+  // An export is only permitted when a reviewer has approved THIS exact
+  // output. The approval is bound to the SHA-256 of the review prose, so a
+  // later edit invalidates the approval — the reviewer must re-approve the
+  // new text. This is the mechanism Canadian practice needs: AI-drafted
+  // work product cannot leave the workbench until a human lawyer has
+  // signed off, and that signoff is cryptographically tied to the specific
+  // artifact.
+  //
+  // Admin override: a caller can bypass the gate by passing the header
+  // `X-Approval-Override: <reason>`. The override is always audited with
+  // the supplied reason so a compliance review can see WHY the gate was
+  // bypassed. Empty or missing reason fails closed.
+  const outputHash = sha256(body.output);
+  const override = req.headers.get("x-approval-override")?.trim() ?? "";
+  const approvalStore = getDefaultApprovalStore();
+  const matterApprovals = await approvalStore.listByMatter(matterId);
+  const bindingApproval = matterApprovals.find(
+    (a) => a.status === "approved" && a.outputHash === outputHash,
+  );
+
+  if (!bindingApproval && !override) {
+    const pending = matterApprovals.filter((a) => a.status === "requested");
+    const auditStore = getDefaultAuditStore();
+    await auditStore.append(matterId, {
+      matterId,
+      organizationId: matter.organizationId,
+      actor: "system",
+      action: "export-blocked",
+      inputHash: outputHash,
+      authoritiesUsed: [],
+      outputHash: null,
+      judgeVerdict: null,
+      inputContent: `Export blocked: no approved approval bound to output hash ${outputHash.slice(0, 12)}…`,
+      outputContent:
+        pending.length > 0
+          ? `Pending approvals: ${pending.map((a) => a.id).join(", ")}`
+          : "No pending approvals — requester must submit for review before export.",
+    });
+    return NextResponse.json(
+      {
+        error: "approval-required",
+        message:
+          "Export is blocked until a reviewer approves this exact output. The approval binds to the output text, so any edit invalidates a prior approval.",
+        outputHash,
+        pendingApprovalIds: pending.map((a) => a.id),
+      },
+      { status: 403 },
+    );
+  }
+
   // DOCX rendering has to succeed — the client no longer falls back to
   // markdown on failure. Wrap the primary renderer so a parser bug on a
   // single markdown pattern can't break the entire export; on failure,
@@ -122,18 +175,22 @@ export async function POST(
     }
   }
 
-  // Audit entry for the export
+  // Audit entry for the export — record the signoff chain so a compliance
+  // reviewer can trace "which approval authorized this file."
   const auditStore = getDefaultAuditStore();
+  const signoffNote = bindingApproval
+    ? `approval=${bindingApproval.id} reviewer=${bindingApproval.reviewedBy ?? "unknown"}`
+    : `OVERRIDE reason=${override.slice(0, 200)}`;
   await auditStore.append(matterId, {
     matterId,
     organizationId: matter.organizationId,
     actor: "user",
     action: "export",
-    inputHash: sha256(body.output),
+    inputHash: outputHash,
     authoritiesUsed: citations.map((c) => c.authorityId),
     outputHash: sha256(docBytes.toString("base64")),
     judgeVerdict: null,
-    inputContent: `Export ${matter.title} (${citations.length} citations)`,
+    inputContent: `Export ${matter.title} (${citations.length} citations) — ${signoffNote}`,
     outputContent: `DOCX export (${renderMode}), ${docBytes.byteLength} bytes`,
   });
 

@@ -10,7 +10,18 @@
 
 import { createHash, randomUUID } from "node:crypto";
 
-export type AuditAction = "query" | "retrieval" | "generation" | "verdict" | "export";
+export type AuditAction =
+  | "query"
+  | "retrieval"
+  | "generation"
+  | "verdict"
+  | "export"
+  /**
+   * Hard human signoff gate denied an export attempt. The audit entry
+   * records the output hash and any pending approvals so a compliance
+   * review can see why the export was blocked.
+   */
+  | "export-blocked";
 
 export interface AuditEntry {
   id: string;

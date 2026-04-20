@@ -270,7 +270,16 @@ export function OutputPane({
         let serverMsg = `HTTP ${res.status}`;
         try {
           const body = await res.json();
-          if (body?.error) serverMsg = `${serverMsg} — ${body.error}`;
+          // Hard-signoff gate: surface the human-readable message, not the
+          // "approval-required" error code, so the user understands what
+          // to do next ("request approval, wait for approver, then export").
+          if (res.status === 403 && body?.error === "approval-required") {
+            serverMsg =
+              body.message ??
+              "Export blocked: this output must be approved by a reviewer before it can leave the workbench.";
+          } else if (body?.error) {
+            serverMsg = `${serverMsg} — ${body.error}`;
+          }
         } catch {
           // Response wasn't JSON (e.g., partial DOCX bytes). Leave the
           // HTTP status as the message.

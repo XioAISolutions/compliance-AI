@@ -6,6 +6,18 @@ export { ONTARIO_EMD_AUTHORITIES, FINTRAC_KYC_AUTHORITIES } from "./authorities.
 export { COURT_AI_USE_AUTHORITIES } from "./court-ai-use-authorities.js";
 export { PIPEDA_AUTHORITIES } from "./pipeda-authorities.js";
 export {
+  OfflineCorpusVerifier,
+  CanliiUrlHeuristicVerifier,
+  CompositeVerifier,
+  canliiCandidateUrl,
+  defaultVerifier,
+  summarizeVerifications,
+  type CitationVerifier,
+  type VerifierCitation,
+  type VerificationResult,
+  type VerificationSummary,
+} from "./citation-verifier.js";
+export {
   CA_SECURITIES_ONTARIO_PACK,
   CA_FEDERAL_AML_PACK,
   CA_CONSUMER_PROTECTION_PACK,

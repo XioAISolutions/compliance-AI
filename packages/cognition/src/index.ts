@@ -5,6 +5,21 @@ export type { SourceHints } from "./source-type.js";
 export { ONTARIO_EMD_AUTHORITIES, FINTRAC_KYC_AUTHORITIES } from "./authorities.js";
 export { COURT_AI_USE_AUTHORITIES } from "./court-ai-use-authorities.js";
 export { PIPEDA_AUTHORITIES } from "./pipeda-authorities.js";
+export {
+  CA_SECURITIES_ONTARIO_PACK,
+  CA_FEDERAL_AML_PACK,
+  CA_CONSUMER_PROTECTION_PACK,
+  CA_PRIVACY_PACK,
+  CA_COURT_AI_PACK,
+  SOURCE_PACKS,
+  selectPacksForLane,
+  selectPacksForTaskType,
+  flattenPacks,
+  summarizePack,
+  type SourcePack,
+  type SourcePackSummary,
+  type MatterLane,
+} from "./source-packs.js";
 export { NI_45_106_AUTHORITIES } from "./ni-45-106-authorities.js";
 export {
   NI_45_102_RESALE_AUTHORITIES,

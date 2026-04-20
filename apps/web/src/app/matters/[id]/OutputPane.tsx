@@ -27,6 +27,31 @@ interface Citation {
   confidence?: number;
 }
 
+/** Per-citation verification result — mirrors the cognition package type. */
+interface VerificationResult {
+  citationId: string;
+  status: "verified" | "candidate-url" | "unsupported" | "not-found" | "error";
+  method: "offline-corpus" | "canlii-url-heuristic" | "canlii-live" | "none";
+  reason: string;
+  confidence: number;
+  evidence?: {
+    url?: string;
+    matchedAuthorityId?: string;
+    matchedTitle?: string;
+    matchedJurisdiction?: string;
+  };
+  verifiedAt: string;
+}
+
+interface VerificationSummary {
+  total: number;
+  verified: number;
+  candidateUrl: number;
+  unsupported: number;
+  notFound: number;
+  error: number;
+}
+
 type JudgeVerdict = "READY_TO_SUBMIT" | "ITERATE" | "REWRITE";
 
 interface CitationRetryState {
@@ -138,6 +163,17 @@ export function OutputPane({
   const [hoveredCitation, setHoveredCitation] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  /**
+   * Per-citation verification results, keyed by citation id. Empty until
+   * the user hits "Verify citations"; rendered as badges next to each
+   * citation in the footnote list. The CanLII-verifier result is
+   * advisory — counsel still signs off — but it collapses the "open
+   * three tabs, search, paste, verify" flow to a single click per
+   * citation.
+   */
+  const [verifications, setVerifications] = useState<Record<string, VerificationResult>>({});
+  const [verifying, setVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>("output");
   const [transcript, setTranscript] = useState<TranscriptEvent[]>([]);
   const [loadingTranscript, setLoadingTranscript] = useState(false);
@@ -253,6 +289,72 @@ export function OutputPane({
       cancelled = true;
     };
   }, [activeTab, graph.nodes.length, loadingGraph, matterId]);
+
+  async function verifyCitations() {
+    if (verifying || citations.length === 0) return;
+    setVerifying(true);
+    setVerifyError(null);
+    try {
+      const res = await fetch(`/api/citations/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matterId, citations }),
+      });
+      if (!res.ok) {
+        let serverMsg = `HTTP ${res.status}`;
+        try {
+          const body = await res.json();
+          if (body?.error) serverMsg = `${serverMsg} — ${body.error}`;
+        } catch {
+          /* non-JSON */
+        }
+        throw new Error(serverMsg);
+      }
+      const body = (await res.json()) as {
+        summary: VerificationSummary;
+        results: VerificationResult[];
+      };
+      const next: Record<string, VerificationResult> = {};
+      for (const r of body.results) next[r.citationId] = r;
+      setVerifications(next);
+    } catch (err) {
+      setVerifyError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  const verifySummary = useMemo((): VerificationSummary => {
+    const s: VerificationSummary = {
+      total: 0,
+      verified: 0,
+      candidateUrl: 0,
+      unsupported: 0,
+      notFound: 0,
+      error: 0,
+    };
+    for (const r of Object.values(verifications)) {
+      s.total += 1;
+      switch (r.status) {
+        case "verified":
+          s.verified += 1;
+          break;
+        case "candidate-url":
+          s.candidateUrl += 1;
+          break;
+        case "unsupported":
+          s.unsupported += 1;
+          break;
+        case "not-found":
+          s.notFound += 1;
+          break;
+        case "error":
+          s.error += 1;
+          break;
+      }
+    }
+    return s;
+  }, [verifications]);
 
   async function exportDocx() {
     if (exporting || !content) return;
@@ -420,6 +522,20 @@ export function OutputPane({
           >
             Refine
           </button>
+          {citations.length > 0 && !streaming && (
+            <button
+              onClick={() => void verifyCitations()}
+              disabled={verifying}
+              title="Check every citation against the authority corpus and generate CanLII verification links."
+              className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-800 hover:bg-blue-100 disabled:opacity-40 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200 dark:hover:bg-blue-900"
+            >
+              {verifying
+                ? "Verifying…"
+                : verifySummary.total > 0
+                  ? `Re-verify (${verifySummary.verified}/${verifySummary.total} verified)`
+                  : "Verify citations"}
+            </button>
+          )}
           <button
             onClick={exportDocx}
             disabled={!content || streaming || exporting}
@@ -445,6 +561,21 @@ export function OutputPane({
             type="button"
             onClick={() => setExportError(null)}
             className="shrink-0 text-red-700 underline underline-offset-2 hover:text-red-900 dark:text-red-300 dark:hover:text-red-100"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+      {verifyError && (
+        <div className="mt-2 flex items-start justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          <span>
+            <span className="font-medium">Citation verification failed.</span>{" "}
+            {verifyError}
+          </span>
+          <button
+            type="button"
+            onClick={() => setVerifyError(null)}
+            className="shrink-0 text-amber-700 underline underline-offset-2 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100"
           >
             Dismiss
           </button>
@@ -564,6 +695,7 @@ export function OutputPane({
                     {c.pinpoint ? `, ${c.pinpoint}` : ""}
                   </span>
                   <SourceLockerBadges c={c} />
+                  {verifications[c.id] && <VerifyBadge result={verifications[c.id]!} />}
                 </div>
                 <p className="mt-0.5 italic text-neutral-500">&ldquo;{c.quote}&rdquo;</p>
               </li>
@@ -577,6 +709,60 @@ export function OutputPane({
 
 function stripCitationFence(value: string): string {
   return value.replace(/```citations\s*\n[\s\S]*?\n```/g, "").trim();
+}
+
+/**
+ * Verification badge — one per citation once the user has hit "Verify
+ * citations". Green = verified against the seed corpus; blue = we
+ * generated a CanLII URL, click to verify manually; red = no match in
+ * any strategy (likely hallucinated). The blue pill is a real link —
+ * the whole point of this badge is to collapse the verification flow
+ * to one click.
+ */
+function VerifyBadge({ result }: { result: VerificationResult }) {
+  const base =
+    "rounded px-1.5 py-0 text-[9px] font-medium uppercase tracking-wide";
+  if (result.status === "verified") {
+    return (
+      <span
+        title={result.reason}
+        className={`${base} bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300`}
+      >
+        ✓ verified
+      </span>
+    );
+  }
+  if (result.status === "candidate-url" && result.evidence?.url) {
+    return (
+      <a
+        href={result.evidence.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Open the candidate CanLII URL to verify this citation."
+        className={`${base} bg-blue-100 text-blue-800 underline-offset-2 hover:underline dark:bg-blue-950 dark:text-blue-300`}
+      >
+        ↗ canlii
+      </a>
+    );
+  }
+  if (result.status === "not-found") {
+    return (
+      <span
+        title={result.reason}
+        className={`${base} bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300`}
+      >
+        ✕ not found
+      </span>
+    );
+  }
+  return (
+    <span
+      title={result.reason}
+      className={`${base} bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300`}
+    >
+      {result.status}
+    </span>
+  );
 }
 
 /**

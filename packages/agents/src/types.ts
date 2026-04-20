@@ -25,6 +25,8 @@ export type PersonaId =
   | "marketing-reviewer" // reviews marketing materials for NI 81-102 / 13.18
   | "response-memo-drafter" // drafts responses to regulator inquiries
   | "court-ai-disclosure-drafter" // drafts AI-use disclosure memos for court filings
+  | "missing-authority-scanner" // audits output for citation risk before signoff
+  | "pipeda-reviewer" // reviews privacy materials against PIPEDA / Law 25 / PIPA
   | "qa-responder"; // answers jurisdictional Q&A via /api/ask — never routed, only force-selected
 
 /**

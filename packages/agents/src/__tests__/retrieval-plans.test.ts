@@ -20,15 +20,25 @@ import {
   COURT_AI_DISCLOSURE_DRAFTER_RETRIEVAL_PLAN,
   COURT_AI_DISCLOSURE_DRAFTER_SYSTEM,
 } from "../personas/court-ai-disclosure-drafter";
+import {
+  MISSING_AUTHORITY_SCANNER_RETRIEVAL_PLAN,
+  MISSING_AUTHORITY_SCANNER_SYSTEM,
+} from "../personas/missing-authority-scanner";
+import {
+  PIPEDA_REVIEWER_RETRIEVAL_PLAN,
+  PIPEDA_REVIEWER_SYSTEM,
+} from "../personas/pipeda-reviewer";
 
 describe("retrieval plans registry", () => {
-  it("registers a plan for each of the five core task types", () => {
+  it("registers a plan for each of the seven core task types", () => {
     const expected: RetrievalPlanTaskType[] = [
       "om-review",
       "kyc-gap-check",
       "marketing-signoff",
       "response-memo",
       "court-ai-disclosure",
+      "missing-authority-scan",
+      "pipeda-check",
     ];
     const registered = listPlanTaskTypes().sort();
     expect(registered).toEqual([...expected].sort());
@@ -41,6 +51,10 @@ describe("retrieval plans registry", () => {
     expect(getRetrievalPlan("court-ai-disclosure")).toBe(
       COURT_AI_DISCLOSURE_DRAFTER_RETRIEVAL_PLAN,
     );
+    expect(getRetrievalPlan("missing-authority-scan")).toBe(
+      MISSING_AUTHORITY_SCANNER_RETRIEVAL_PLAN,
+    );
+    expect(getRetrievalPlan("pipeda-check")).toBe(PIPEDA_REVIEWER_RETRIEVAL_PLAN);
   });
 
   it("returns null for unknown task types so callers can fall back", () => {
@@ -188,5 +202,103 @@ describe("Court AI-disclosure drafter plan", () => {
   it("mandates the counsel signoff block", () => {
     expect(COURT_AI_DISCLOSURE_DRAFTER_SYSTEM).toMatch(/counsel of record/i);
     expect(COURT_AI_DISCLOSURE_DRAFTER_SYSTEM).toMatch(/professional responsibility/i);
+  });
+});
+
+describe("Missing-authority scanner plan + persona", () => {
+  it("plan is non-empty and contains short, targeted queries", () => {
+    expect(MISSING_AUTHORITY_SCANNER_RETRIEVAL_PLAN.length).toBeGreaterThanOrEqual(5);
+    for (const q of MISSING_AUTHORITY_SCANNER_RETRIEVAL_PLAN) {
+      expect(q.length).toBeGreaterThan(10);
+      expect(q.length).toBeLessThan(200);
+    }
+  });
+
+  it("plan covers the professional-responsibility + verification clusters", () => {
+    const blob = MISSING_AUTHORITY_SCANNER_RETRIEVAL_PLAN.join(" | ").toLowerCase();
+    for (const needle of [
+      "verification",
+      "duty of candour",
+      "hallucinated",
+      "authoritative source",
+      "primary authority",
+    ]) {
+      expect(blob).toContain(needle);
+    }
+  });
+
+  it("persona emits a five-section audit structure", () => {
+    for (const heading of [
+      "Citation Risk Summary",
+      "Per-Citation Audit Table",
+      "Uncited Assertions",
+      "Corpus Coverage Gaps",
+      "Pre-Filing Punch List",
+    ]) {
+      expect(MISSING_AUTHORITY_SCANNER_SYSTEM).toContain(heading);
+    }
+  });
+
+  it("persona refuses to rewrite and never refuses outright", () => {
+    expect(MISSING_AUTHORITY_SCANNER_SYSTEM).toMatch(/never\s+rewrite/i);
+    expect(MISSING_AUTHORITY_SCANNER_SYSTEM).toMatch(/never\s+output\s+a\s+meta-refusal/i);
+  });
+
+  it("persona uses the core issue vocabulary", () => {
+    for (const token of [
+      "LOW-CONFIDENCE",
+      "STALE",
+      "WRONG-JURISDICTION",
+      "MISSING-METADATA",
+      "MISSING-QUOTE",
+      "UNSUPPORTED",
+    ]) {
+      expect(MISSING_AUTHORITY_SCANNER_SYSTEM).toContain(token);
+    }
+  });
+});
+
+describe("PIPEDA reviewer plan + persona", () => {
+  it("plan is non-empty and contains short, targeted queries", () => {
+    expect(PIPEDA_REVIEWER_RETRIEVAL_PLAN.length).toBeGreaterThanOrEqual(10);
+    for (const q of PIPEDA_REVIEWER_RETRIEVAL_PLAN) {
+      expect(q.length).toBeGreaterThan(10);
+      expect(q.length).toBeLessThan(200);
+    }
+  });
+
+  it("plan covers PIPEDA + OPC + provincial-substantially-similar clusters", () => {
+    const blob = PIPEDA_REVIEWER_RETRIEVAL_PLAN.join(" | ").toLowerCase();
+    for (const needle of [
+      "pipeda",
+      "schedule 1",
+      "breach",
+      "real risk significant harm",
+      "opc",
+      "cross-border",
+      "quebec law 25",
+      "alberta pipa",
+      "british columbia pipa",
+    ]) {
+      expect(blob).toContain(needle);
+    }
+  });
+
+  it("persona instructs the model to produce the review even when retrieval is partial", () => {
+    expect(PIPEDA_REVIEWER_SYSTEM).toMatch(/NEEDS VERIFICATION/);
+    expect(PIPEDA_REVIEWER_SYSTEM).toMatch(/never\s+output\s+a\s+meta-refusal/i);
+  });
+
+  it("persona requires the six-section output structure", () => {
+    for (const heading of [
+      "Executive Summary",
+      "PIPEDA Ten Fair Information Principles",
+      "Breach-Notification Readiness",
+      "Cross-Border and Third-Party Transfers",
+      "Provincial Substantially-Similar Regime Check",
+      "Remediation Punch List",
+    ]) {
+      expect(PIPEDA_REVIEWER_SYSTEM).toContain(heading);
+    }
   });
 });

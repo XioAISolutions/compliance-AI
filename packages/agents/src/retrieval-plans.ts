@@ -18,6 +18,8 @@ import { KYC_REVIEWER_RETRIEVAL_PLAN } from "./personas/kyc-reviewer.js";
 import { MARKETING_REVIEWER_RETRIEVAL_PLAN } from "./personas/marketing-reviewer.js";
 import { RESPONSE_MEMO_DRAFTER_RETRIEVAL_PLAN } from "./personas/response-memo-drafter.js";
 import { COURT_AI_DISCLOSURE_DRAFTER_RETRIEVAL_PLAN } from "./personas/court-ai-disclosure-drafter.js";
+import { MISSING_AUTHORITY_SCANNER_RETRIEVAL_PLAN } from "./personas/missing-authority-scanner.js";
+import { PIPEDA_REVIEWER_RETRIEVAL_PLAN } from "./personas/pipeda-reviewer.js";
 
 /**
  * Stable taskType identifiers used by /api/matters and the matter wizard.
@@ -28,7 +30,9 @@ export type RetrievalPlanTaskType =
   | "kyc-gap-check"
   | "marketing-signoff"
   | "response-memo"
-  | "court-ai-disclosure";
+  | "court-ai-disclosure"
+  | "missing-authority-scan"
+  | "pipeda-check";
 
 const REGISTRY: Record<RetrievalPlanTaskType, readonly string[]> = {
   "om-review": OM_REVIEWER_RETRIEVAL_PLAN,
@@ -36,6 +40,8 @@ const REGISTRY: Record<RetrievalPlanTaskType, readonly string[]> = {
   "marketing-signoff": MARKETING_REVIEWER_RETRIEVAL_PLAN,
   "response-memo": RESPONSE_MEMO_DRAFTER_RETRIEVAL_PLAN,
   "court-ai-disclosure": COURT_AI_DISCLOSURE_DRAFTER_RETRIEVAL_PLAN,
+  "missing-authority-scan": MISSING_AUTHORITY_SCANNER_RETRIEVAL_PLAN,
+  "pipeda-check": PIPEDA_REVIEWER_RETRIEVAL_PLAN,
 };
 
 /**

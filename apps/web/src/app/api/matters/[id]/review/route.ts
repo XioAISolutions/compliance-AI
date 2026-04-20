@@ -115,6 +115,10 @@ function personaForTask(taskType: string): PersonaId {
       return "response-memo-drafter";
     case "court-ai-disclosure":
       return "court-ai-disclosure-drafter";
+    case "missing-authority-scan":
+      return "missing-authority-scanner";
+    case "pipeda-check":
+      return "pipeda-reviewer";
     default:
       return "om-reviewer";
   }
@@ -162,6 +166,13 @@ async function buildReviewSubject(
     // ReviewSubject for compatibility, so we fall through to the most
     // recent upload if present.
     "court-ai-disclosure": ["other", "regulatory-guidance"],
+    // Missing-authority scan runs against the matter's existing output +
+    // citations; the document under review, if any, is the review draft.
+    "missing-authority-scan": ["other", "regulatory-guidance"],
+    // PIPEDA review runs over an uploaded privacy policy, incident-response
+    // plan, consent form, or vendor DPA. All tagged as regulatory-guidance
+    // or other in the existing document-type taxonomy.
+    "pipeda-check": ["regulatory-guidance", "other"],
   };
 
   const preferred = preferredType[taskType] ?? [];
@@ -225,6 +236,14 @@ Structure the response point-by-point, addressing each concern raised. Cite supp
   "court-ai-disclosure": `Draft an AI-use disclosure memo to accompany the filed material described in the "Document under review" block above (or, if no filing draft has been uploaded, for the substantive output the matter already contains).
 
 Produce the full structured output: (1) AI-Use Disclosure Statement, (2) Court-Specific Requirements Checklist, (3) Citation Verification Appendix, (4) Verification Blockers, (5) Counsel Signoff Appendix. Every court practice-direction reference must be cited against the retrieved snippets; if a specific practice direction isn't in the retrieval context, use [NEEDS VERIFICATION] and name the court so counsel knows where to look.`,
+
+  "missing-authority-scan": `Audit the matter's current substantive output (attached as "Document under review" above) for citation risk. Produce the five-section audit: (1) Citation Risk Summary, (2) Per-Citation Audit Table, (3) Uncited Assertions, (4) Corpus Coverage Gaps, (5) Pre-Filing Punch List.
+
+Do NOT rewrite the output. Your job is to flag risk, not fix it. Every finding should be actionable — name the specific citation id, the specific assertion, or the specific authority cluster that is missing.`,
+
+  "pipeda-check": `Review the privacy-related material described in the "Document under review" block above for compliance with PIPEDA Schedule 1 and, where applicable, Quebec Law 25 / Alberta PIPA / BC PIPA.
+
+Produce the full structured output: (1) Executive Summary, (2) Ten Fair Information Principles Conformance Checklist, (3) Breach-Notification Readiness, (4) Cross-Border and Third-Party Transfers, (5) Provincial Substantially-Similar Regime Check (where matter jurisdiction is QC/AB/BC), (6) Remediation Punch List. Every finding must cite the specific PIPEDA section, Schedule 1 principle, or provincial statute section.`,
 };
 
 // Fallback prompts when no document has been uploaded yet. Instructs the
@@ -235,6 +254,8 @@ const TASK_PROMPTS_NO_SUBJECT: Record<string, string> = {
   "marketing-signoff": `No marketing material has been uploaded to this matter yet. Ask the user to upload the marketing document (deck, brochure, one-pager) to begin the sign-off review.`,
   "response-memo": `No inquiry or deficiency letter has been uploaded to this matter yet. Ask the user to upload the regulator's letter so the response can be drafted against its specific points.`,
   "court-ai-disclosure": `Draft an AI-use disclosure memo for the material in this matter. If the matter has no substantive output yet, draft a GENERIC court-appropriate AI-use disclosure that counsel can adapt — cover the three obligations (transparency, accuracy, accountability), leave placeholders for court name and filing details, and include the Counsel Signoff Appendix. Never refuse to produce the memo.`,
+  "missing-authority-scan": `No substantive output has been produced in this matter yet, so there is nothing to audit. Ask the user to run the primary review (OM / KYC / marketing / response memo / PIPEDA / etc.) first, then re-run the missing-authority scan against the resulting output.`,
+  "pipeda-check": `No privacy material has been uploaded to this matter yet. Ask the user to upload the privacy policy, incident-response playbook, consent form, vendor DPA, or breach-notification draft so the PIPEDA conformance review can begin.`,
 };
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

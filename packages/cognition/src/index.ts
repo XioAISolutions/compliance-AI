@@ -4,6 +4,7 @@ export { inferSourceType } from "./source-type.js";
 export type { SourceHints } from "./source-type.js";
 export { ONTARIO_EMD_AUTHORITIES, FINTRAC_KYC_AUTHORITIES } from "./authorities.js";
 export { COURT_AI_USE_AUTHORITIES } from "./court-ai-use-authorities.js";
+export { PIPEDA_AUTHORITIES } from "./pipeda-authorities.js";
 export { NI_45_106_AUTHORITIES } from "./ni-45-106-authorities.js";
 export {
   NI_45_102_RESALE_AUTHORITIES,

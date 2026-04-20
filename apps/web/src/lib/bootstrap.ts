@@ -18,6 +18,7 @@ import {
   ONTARIO_EMD_AUTHORITIES,
   CANADA_CONSUMER_PROTECTION_AUTHORITIES,
   COURT_AI_USE_AUTHORITIES,
+  PIPEDA_AUTHORITIES,
 } from "@compliance-ai/cognition";
 
 const _seeded = new Set<string>();
@@ -67,6 +68,10 @@ export async function ensureTenant(
       // across jurisdictions so the court-ai-disclosure drafter can cite
       // the relevant court's notice regardless of matter jurisdiction.
       ...COURT_AI_USE_AUTHORITIES,
+      // PIPEDA + OPC guidance + Quebec Law 25 / Alberta PIPA / BC PIPA.
+      // Needed by the pipeda-reviewer task type; also useful context for
+      // cross-border consumer-protection matters.
+      ...PIPEDA_AUTHORITIES,
     ];
     const missing = target
       .filter((item) => item.id && !existingIds.has(item.id))

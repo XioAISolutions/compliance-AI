@@ -15,10 +15,8 @@
 import {
   getDefaultCognitionStore,
   type CognitionSurface,
-  ONTARIO_EMD_AUTHORITIES,
-  CANADA_CONSUMER_PROTECTION_AUTHORITIES,
-  COURT_AI_USE_AUTHORITIES,
-  PIPEDA_AUTHORITIES,
+  SOURCE_PACKS,
+  flattenPacks,
 } from "@compliance-ai/cognition";
 
 const _seeded = new Set<string>();
@@ -61,18 +59,14 @@ export async function ensureTenant(
         .map((item) => item.id)
         .filter((id): id is string => Boolean(id)),
     );
-    const target = [
-      ...ONTARIO_EMD_AUTHORITIES,
-      ...CANADA_CONSUMER_PROTECTION_AUTHORITIES,
-      // Court AI-use practice directions + law society guidance — seeded
-      // across jurisdictions so the court-ai-disclosure drafter can cite
-      // the relevant court's notice regardless of matter jurisdiction.
-      ...COURT_AI_USE_AUTHORITIES,
-      // PIPEDA + OPC guidance + Quebec Law 25 / Alberta PIPA / BC PIPA.
-      // Needed by the pipeda-reviewer task type; also useful context for
-      // cross-border consumer-protection matters.
-      ...PIPEDA_AUTHORITIES,
-    ];
+    // Source packs are the authoritative bundle spec: securities
+    // (Ontario + federal), AML (FINTRAC/PCMLTFA), pan-Canadian consumer
+    // protection, privacy (PIPEDA + provinces), and court AI-use. The
+    // flattener dedupes by id so overlapping packs (e.g., AML authorities
+    // in both the securities pack and the dedicated AML pack) only land
+    // once in the store. See packages/cognition/src/source-packs.ts for
+    // the lane-based selector a matter-scoped bootstrap would use.
+    const target = flattenPacks(SOURCE_PACKS);
     const missing = target
       .filter((item) => item.id && !existingIds.has(item.id))
       .map((item) => ({ ...item, organizationId }));

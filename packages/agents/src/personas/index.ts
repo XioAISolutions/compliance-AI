@@ -8,6 +8,8 @@ import { KYC_REVIEWER_SYSTEM } from "./kyc-reviewer.js";
 import { MARKETING_REVIEWER_SYSTEM } from "./marketing-reviewer.js";
 import { RESPONSE_MEMO_DRAFTER_SYSTEM } from "./response-memo-drafter.js";
 import { COURT_AI_DISCLOSURE_DRAFTER_SYSTEM } from "./court-ai-disclosure-drafter.js";
+import { MISSING_AUTHORITY_SCANNER_SYSTEM } from "./missing-authority-scanner.js";
+import { PIPEDA_REVIEWER_SYSTEM } from "./pipeda-reviewer.js";
 import { QA_RESPONDER_SYSTEM } from "./qa-responder.js";
 import type { PersonaId } from "../types.js";
 
@@ -22,6 +24,8 @@ export const PERSONA_SYSTEM_PROMPTS: Record<PersonaId, string> = {
   "marketing-reviewer": MARKETING_REVIEWER_SYSTEM,
   "response-memo-drafter": RESPONSE_MEMO_DRAFTER_SYSTEM,
   "court-ai-disclosure-drafter": COURT_AI_DISCLOSURE_DRAFTER_SYSTEM,
+  "missing-authority-scanner": MISSING_AUTHORITY_SCANNER_SYSTEM,
+  "pipeda-reviewer": PIPEDA_REVIEWER_SYSTEM,
   "qa-responder": QA_RESPONDER_SYSTEM,
 };
 
@@ -36,6 +40,8 @@ export const PERSONA_LABELS: Record<PersonaId, string> = {
   "marketing-reviewer": "Marketing Reviewer",
   "response-memo-drafter": "Response Drafter",
   "court-ai-disclosure-drafter": "Court AI-Disclosure Drafter",
+  "missing-authority-scanner": "Missing-Authority Scanner",
+  "pipeda-reviewer": "PIPEDA Reviewer",
   "qa-responder": "Q&A Responder",
 };
 

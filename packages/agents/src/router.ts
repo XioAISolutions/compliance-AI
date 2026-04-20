@@ -60,6 +60,17 @@ const KEYWORDS: Record<PersonaId, RegExp[]> = {
     /\b(court\s+filing|factum|pleading)\b.*\b(AI|generative)\b/i,
     /\b(practice\s+direction|consolidated\s+notice)\b.*\b(AI|artificial\s+intelligence)\b/i,
   ],
+  "missing-authority-scanner": [
+    /\b(missing|uncited|hallucinat|fabricat)\b.*\b(authorit|citation|cite)\b/i,
+    /\b(citation\s+risk|cite[- ]check|audit\s+the\s+citations)\b/i,
+    /\b(verify|verification)\b.*\b(citation|authority|source)\b/i,
+  ],
+  "pipeda-reviewer": [
+    /\b(PIPEDA|privacy\s+policy|privacy\s+impact|PIA)\b/i,
+    /\b(personal\s+information|data\s+breach|breach\s+notification)\b/i,
+    /\b(Law\s*25|Quebec\s+privacy|Alberta\s+PIPA|BC\s+PIPA)\b/i,
+    /\b(OPC|Privacy\s+Commissioner|cross[- ]border\s+transfer)\b/i,
+  ],
   // Judge is never selected by the heuristic router — it's invoked only by
   // the loop coordinator (`runAgentLoop`) which forces the persona explicitly.
   // We keep the empty entry so `Record<PersonaId, RegExp[]>` stays exhaustive.
@@ -86,6 +97,8 @@ export function routePersona(userMessage: string): RoutingDecision {
     "marketing-reviewer": 0,
     "response-memo-drafter": 0,
     "court-ai-disclosure-drafter": 0,
+    "missing-authority-scanner": 0,
+    "pipeda-reviewer": 0,
     judge: 0, // Never picked by router; kept here so the Record is exhaustive.
     "qa-responder": 0, // Force-only; exhaustive-Record placeholder.
   };

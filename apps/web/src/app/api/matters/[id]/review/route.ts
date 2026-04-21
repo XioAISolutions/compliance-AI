@@ -154,10 +154,29 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 async function buildReviewSubject(
   matterId: string,
   taskType: string,
+  /** Optional caller-supplied document id. When set, the named
+   * document is used as the review subject regardless of taskType
+   * preference. Honours the lawyer's explicit "review THIS one" choice
+   * over the persona's heuristic. */
+  subjectDocumentId?: string,
 ): Promise<ReviewSubject | null> {
   const store = getDefaultMatterStore();
   const documents = await store.getDocuments(matterId);
   if (documents.length === 0) return null;
+
+  // Caller-supplied subject wins. We still verify the doc belongs to
+  // this matter (getDocuments scoped by matterId guarantees the set);
+  // unknown ids fall through to the heuristic so a stale UI doesn't
+  // break the review.
+  if (subjectDocumentId) {
+    const explicit = documents.find((d) => d.id === subjectDocumentId);
+    if (explicit) {
+      const chunks = await store.getChunksByDoc(explicit.id);
+      if (chunks.length > 0) {
+        return assembleReviewSubject(explicit, chunks);
+      }
+    }
+  }
 
   const preferredType: Record<string, string[]> = {
     "om-review": ["offering-memo"],
@@ -190,9 +209,19 @@ async function buildReviewSubject(
 
   const chunks = await store.getChunksByDoc(match.id);
   if (chunks.length === 0) return null;
+  return assembleReviewSubject(match, chunks);
+}
 
-  // Token budget: cap subject chunks at ~25k tokens so authorities + output
-  // have room. Chunks sorted by ordinal; truncate tail if needed.
+/**
+ * Token-budget-aware assembly of a ReviewSubject from a single
+ * matter-document + its chunks. Caps the subject at ~25k tokens so
+ * the persona prompt + retrieved authorities + output have room
+ * inside the model's context window.
+ */
+function assembleReviewSubject(
+  doc: { id: string; documentType: string; filename: string },
+  chunks: ReadonlyArray<{ id: string; ordinal: number; page?: number; content: string; tokenCount: number }>,
+): ReviewSubject {
   const MAX_TOKENS = 25_000;
   const ordered = [...chunks].sort((a, b) => a.ordinal - b.ordinal);
   const selected: typeof ordered = [];
@@ -204,9 +233,9 @@ async function buildReviewSubject(
   }
 
   const subject: ReviewSubject = {
-    documentId: match.id,
-    documentType: DOC_TYPE_LABELS[match.documentType] ?? match.documentType,
-    title: match.filename,
+    documentId: doc.id,
+    documentType: DOC_TYPE_LABELS[doc.documentType] ?? doc.documentType,
+    title: doc.filename,
     chunks: selected.map((c) => ({
       chunkId: c.id,
       ordinal: c.ordinal,
@@ -288,9 +317,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return new Response("Matter not found", { status: 404 });
   }
 
-  let body: { taskType?: string; maxRounds?: number } = {};
+  let body: { taskType?: string; maxRounds?: number; subjectDocumentId?: string } = {};
   try {
-    body = (await req.json()) as { taskType?: string; maxRounds?: number };
+    body = (await req.json()) as {
+      taskType?: string;
+      maxRounds?: number;
+      subjectDocumentId?: string;
+    };
   } catch {
     // Use matter's task type + default rounds
   }
@@ -306,7 +339,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // Build the review subject from the matter's uploaded document chunks.
   // If no document has been uploaded, fall through to the no-subject prompt.
-  const reviewSubject = await buildReviewSubject(matterId, taskType);
+  // When the client supplies subjectDocumentId, that doc is used regardless
+  // of taskType preference — the lawyer's explicit "review THIS one"
+  // beats the persona heuristic.
+  const reviewSubject = await buildReviewSubject(
+    matterId,
+    taskType,
+    body.subjectDocumentId,
+  );
   const userMessage = reviewSubject
     ? (TASK_PROMPTS_WITH_SUBJECT[taskType] ?? TASK_PROMPTS_WITH_SUBJECT["om-review"]!)
     : (TASK_PROMPTS_NO_SUBJECT[taskType] ?? TASK_PROMPTS_NO_SUBJECT["om-review"]!);

@@ -121,6 +121,13 @@ export default function MatterDetailPage() {
    * "Verify citations".
    */
   const [verifications, setVerifications] = useState<VerificationResult[]>([]);
+  /**
+   * Sticky per-matter selection: which uploaded document is the
+   * subject of the next review run. Null = let the server pick by
+   * taskType preference. Set via the InputPane's "Set as subject"
+   * action; persists for the page session.
+   */
+  const [activeSubjectDocumentId, setActiveSubjectDocumentId] = useState<string | null>(null);
   const [verdict, setVerdict] = useState<JudgeVerdict | null>(null);
   const [totalRounds, setTotalRounds] = useState<number | null>(null);
   const [streaming, setStreaming] = useState(false);
@@ -222,7 +229,7 @@ export default function MatterDetailPage() {
     }
   }
 
-  async function startReview(opts: { maxRounds?: number } = {}) {
+  async function startReview(opts: { maxRounds?: number; subjectDocumentId?: string } = {}) {
     if (streaming || !matter) return;
     setStreaming(true);
     setOutput("");
@@ -235,6 +242,14 @@ export default function MatterDetailPage() {
     setTotalRounds(null);
     currentPersonaRef.current = null;
 
+    // Subject doc selection: explicit > matter-page sticky state >
+    // server heuristic. The InputPane lets the user mark any uploaded
+    // doc as the subject for the next review; that selection is held
+    // in `subjectDocumentId` and threaded through here. Without a
+    // selection the server falls back to its taskType-preference
+    // heuristic, so single-document matters Just Work.
+    const subjectDocumentId = opts.subjectDocumentId ?? activeSubjectDocumentId ?? undefined;
+
     try {
       const res = await fetch(`/api/matters/${matterId}/review`, {
         method: "POST",
@@ -242,6 +257,7 @@ export default function MatterDetailPage() {
         body: JSON.stringify({
           taskType: matter.taskType,
           ...(opts.maxRounds ? { maxRounds: opts.maxRounds } : {}),
+          ...(subjectDocumentId ? { subjectDocumentId } : {}),
         }),
       });
 
@@ -411,6 +427,8 @@ export default function MatterDetailPage() {
                 documents={documents}
                 onDocumentUpload={handleDocumentUpload}
                 uploading={uploading}
+                activeSubjectDocumentId={activeSubjectDocumentId}
+                onSelectSubject={setActiveSubjectDocumentId}
               />
               <div className="mt-6">
                 <ContextPane

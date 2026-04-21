@@ -122,8 +122,20 @@ let _override: EvidenceStore | null = null;
 export function getDefaultEvidenceStore(): EvidenceStore {
   if (_override) return _override;
   if (_default) return _default;
+
+  if (process.env.DATABASE_URL) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+      const mod = require("./postgres-evidence-store") as typeof import("./postgres-evidence-store");
+      _default = new mod.PostgresEvidenceStore();
+      return _default;
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("Postgres evidence store unavailable, using in-memory:", err);
+    }
+  }
+
   _default = new InMemoryEvidenceStore();
-  // Postgres swap mirrors matter-store; omitted for brevity — same pattern.
   return _default;
 }
 

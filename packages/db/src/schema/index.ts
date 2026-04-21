@@ -9,4 +9,5 @@ export * from "./audit_log.js";
 export * from "./document_chunks.js";
 export * from "./evidence_items.js";
 export * from "./approval_requests.js";
+export * from "./conflict_checks.js";
 export * from "./auth.js";

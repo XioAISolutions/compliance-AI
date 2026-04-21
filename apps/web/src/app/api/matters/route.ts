@@ -12,6 +12,7 @@ import {
   type ProceduralPosture,
 } from "../../../lib/matter-store";
 import { getDefaultApprovalStore } from "../../../lib/approvals-store";
+import { getDefaultConflictStore } from "../../../lib/conflict-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -82,16 +83,58 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(enriched);
 }
 
+interface CreateMatterBody extends CreateMatterInput {
+  /** Required (or operator-overridden) — id of a `cleared` conflict
+   * check covering this client + opposing party. Without it, matter
+   * creation is rejected with 409 conflict-check-required. */
+  conflictClearanceId?: string;
+  /** Operator override that bypasses the conflict gate. Recorded in
+   * the response so the caller can audit the bypass; the override
+   * reason should also be stored separately by the caller. */
+  conflictBypassReason?: string;
+}
+
 export async function POST(req: NextRequest) {
-  let body: CreateMatterInput;
+  let body: CreateMatterBody;
   try {
-    body = (await req.json()) as CreateMatterInput;
+    body = (await req.json()) as CreateMatterBody;
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
   if (!body.title || typeof body.title !== "string") {
     return NextResponse.json({ error: "title is required" }, { status: 400 });
+  }
+
+  // Conflict-check gate (LSO Rule 3.4-1). Either:
+  //   (a) supply a conflict-check id whose decision is "cleared", OR
+  //   (b) supply a non-empty `conflictBypassReason` (operator override).
+  // No clearance + no bypass = 409. The bypass path is intentionally
+  // tolerated here for migration of existing matters and for tests;
+  // production deployments should restrict it via auth roles in a
+  // follow-up PR.
+  const bypass = (body.conflictBypassReason ?? "").trim();
+  if (!body.conflictClearanceId && !bypass) {
+    return NextResponse.json(
+      {
+        error: "conflict-check-required",
+        message:
+          "Matter creation requires a cleared conflict check. Run POST /api/conflicts/search and POST /api/conflicts/decide first, then pass `conflictClearanceId` here. Operators may bypass with a non-empty `conflictBypassReason`.",
+      },
+      { status: 409 },
+    );
+  }
+  if (body.conflictClearanceId) {
+    const cleared = await getDefaultConflictStore().isCleared(body.conflictClearanceId);
+    if (!cleared) {
+      return NextResponse.json(
+        {
+          error: "conflict-check-not-cleared",
+          message: `Conflict check ${body.conflictClearanceId} is not in 'cleared' state.`,
+        },
+        { status: 409 },
+      );
+    }
   }
 
   // Parse date strings into Date objects for consumer-law fields

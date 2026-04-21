@@ -316,6 +316,72 @@ export default function NewMatterPage() {
         if (state.nextDeadline) body.nextDeadline = state.nextDeadline;
         if (state.nextDeadlineLabel) body.nextDeadlineLabel = state.nextDeadlineLabel;
       }
+
+      // LSO-mandated conflict gate. If the wizard collected a client
+      // name, run the search first; auto-clear when there are no
+      // hits; surface hits + require a clearance rationale when there
+      // are. If no client name was captured (legacy securities path
+      // or quick-spin matters), pass an explicit bypass reason so
+      // the gate is audited rather than silently absent.
+      if (state.clientName) {
+        const searchRes = await fetch("/api/conflicts/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientName: state.clientName,
+            ...(state.opposingParty ? { opposingParty: state.opposingParty } : {}),
+            scope: title,
+            searchedBy: "wizard",
+          }),
+        });
+        if (!searchRes.ok) {
+          throw new Error(`conflict search failed: HTTP ${searchRes.status}`);
+        }
+        const searchBody = (await searchRes.json()) as {
+          check: { id: string; decision: string };
+          hits: Array<{ id: string; title: string; clientName: string | null; opposingParty: string | null }>;
+        };
+        if (searchBody.check.decision === "pending") {
+          // Surface hits + collect a rationale via prompt() so we
+          // don't have to add a whole new wizard step in this PR.
+          const rationale = window.prompt(
+            `Conflict search returned ${searchBody.hits.length} potential match${searchBody.hits.length === 1 ? "" : "es"}:\n\n` +
+              searchBody.hits
+                .slice(0, 8)
+                .map(
+                  (h) =>
+                    `• ${h.title}` +
+                    (h.clientName ? ` — client: ${h.clientName}` : "") +
+                    (h.opposingParty ? ` — adverse: ${h.opposingParty}` : ""),
+                )
+                .join("\n") +
+              `\n\nIf you have determined there is no actual conflict, enter the partner name and rationale below to clear. Otherwise cancel and decline the engagement.`,
+          );
+          if (!rationale || rationale.trim().length < 5) {
+            throw new Error(
+              "Conflict check not cleared — engagement cannot proceed without partner clearance.",
+            );
+          }
+          const decideRes = await fetch("/api/conflicts/decide", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: searchBody.check.id,
+              decision: "cleared",
+              decidedBy: "wizard-user",
+              rationale,
+            }),
+          });
+          if (!decideRes.ok) {
+            throw new Error(`conflict clearance failed: HTTP ${decideRes.status}`);
+          }
+        }
+        body.conflictClearanceId = searchBody.check.id;
+      } else {
+        body.conflictBypassReason =
+          "No client party named at intake — first-pass screening; full conflict review at attachment.";
+      }
+
       const res = await fetch("/api/matters", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -323,7 +389,7 @@ export default function NewMatterPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.error ?? `HTTP ${res.status}`);
+        throw new Error(data?.error ?? data?.message ?? `HTTP ${res.status}`);
       }
       const matter = (await res.json()) as { id: string };
       router.push(`/matters/${matter.id}`);

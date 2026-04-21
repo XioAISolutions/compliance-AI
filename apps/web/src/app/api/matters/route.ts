@@ -11,13 +11,32 @@ import {
   type MatterStatus,
   type ProceduralPosture,
 } from "../../../lib/matter-store";
+import { getDefaultApprovalStore } from "../../../lib/approvals-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * Per-matter approval summary surfaced in the matters-list triage chips.
+ * Cheap to compute (one approval-store read per matter) but opt-in via
+ * ?withApprovals=1 so the legacy clients (handoff, transcript exporters)
+ * that only need the matter shape don't pay the cost.
+ */
+interface ApprovalSummary {
+  requested: number;
+  approved: number;
+  rejected: number;
+  withdrawn: number;
+  /** Most-recent approval status, regardless of whether it's terminal. */
+  latest: "requested" | "approved" | "rejected" | "withdrawn" | null;
+}
+
 export async function GET(req: NextRequest) {
   const store = getDefaultMatterStore();
-  const url = req.nextUrl;
+  // `new URL(req.url)` instead of `req.nextUrl` keeps this route
+  // testable with a plain `Request` (vitest) and identical at runtime
+  // — `req.nextUrl` is sugar over the same parsing.
+  const url = new URL(req.url);
 
   const filters: MatterListFilters = {};
   const status = url.searchParams.get("status");
@@ -33,7 +52,34 @@ export async function GET(req: NextRequest) {
 
   const hasFilters = Object.keys(filters).length > 0;
   const matters = await store.list(undefined, hasFilters ? filters : undefined);
-  return NextResponse.json(matters);
+
+  if (url.searchParams.get("withApprovals") !== "1") {
+    return NextResponse.json(matters);
+  }
+
+  // Enrich with per-matter approval summary. Sequential because the
+  // in-memory store is sync and the Postgres store benefits from
+  // connection-pool reuse over parallel fan-out.
+  const approvalStore = getDefaultApprovalStore();
+  const enriched = await Promise.all(
+    matters.map(async (m) => {
+      const approvals = await approvalStore.listByMatter(m.id);
+      const summary: ApprovalSummary = {
+        requested: 0,
+        approved: 0,
+        rejected: 0,
+        withdrawn: 0,
+        latest: null,
+      };
+      for (const a of approvals) {
+        summary[a.status] += 1;
+      }
+      // listByMatter returns newest-first.
+      summary.latest = (approvals[0]?.status as ApprovalSummary["latest"]) ?? null;
+      return { ...m, approvalSummary: summary };
+    }),
+  );
+  return NextResponse.json(enriched);
 }
 
 export async function POST(req: NextRequest) {

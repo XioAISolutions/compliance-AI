@@ -29,6 +29,11 @@ import {
 import { getDefaultMatterStore } from "../../../../../lib/matter-store";
 import { getDefaultAuditStore, sha256 } from "../../../../../lib/audit-store";
 import { getDefaultApprovalStore } from "../../../../../lib/approvals-store";
+import {
+  countPrivileged,
+  redactCitation,
+  resolveRedactionPolicy,
+} from "../../../../../lib/privilege";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,6 +54,8 @@ interface Citation {
   authorityDate?: string;
   pinpoint?: string;
   confidence?: number;
+  /** Privilege classification — see apps/web/src/lib/privilege.ts. */
+  privilege?: string;
 }
 
 interface ExportBody {
@@ -80,7 +87,19 @@ export async function POST(
     return NextResponse.json({ error: "`output` is required" }, { status: 400 });
   }
 
-  const citations = body.citations ?? [];
+  const rawCitations = body.citations ?? [];
+
+  // Privilege redaction policy. /export is an INTERNAL-audience
+  // endpoint (the artifact is the lawyer's own work product); the
+  // default is to show privileged citations intact. An operator
+  // can flip to redaction with ?redact=privilege — useful when
+  // producing an external-shareable copy of the memo.
+  const exportUrl = new URL(req.url);
+  const privilegePolicy = resolveRedactionPolicy(exportUrl, "internal");
+  const privilegedCount = countPrivileged(rawCitations);
+  const citations = privilegePolicy.redactPrivileged
+    ? rawCitations.map((c) => redactCitation(c, true))
+    : rawCitations;
 
   // Hard human signoff gate.
   //
@@ -200,6 +219,9 @@ export async function POST(
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "Content-Disposition": `attachment; filename="compliance-review.docx"`,
       "X-Docx-Render-Mode": renderMode,
+      "X-Privilege-Redacted": privilegePolicy.redactPrivileged ? "true" : "false",
+      "X-Privilege-Count": String(privilegedCount),
+      "X-Privilege-Policy-Source": privilegePolicy.source,
     },
   });
 }

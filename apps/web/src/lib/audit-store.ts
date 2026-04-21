@@ -37,6 +37,21 @@ export interface AuditEntry {
   prevRowHash: string | null;
   inputContent: string | null;
   outputContent: string | null;
+  /**
+   * Privilege classification for this entry's content. When non-"none",
+   * the audit-export redaction pass strips `inputContent` and
+   * `outputContent` on external exports (replacing with
+   * `"[REDACTED — privileged]"`) but keeps the hash chain + action
+   * metadata intact so the entry is still countable.
+   *
+   * See apps/web/src/lib/privilege.ts for the semantics.
+   */
+  privilege?:
+    | "none"
+    | "solicitor-client"
+    | "litigation"
+    | "work-product"
+    | "common-interest";
 }
 
 export function sha256(content: string): string {

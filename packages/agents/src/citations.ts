@@ -67,6 +67,25 @@ export interface Citation {
    * claims before export.
    */
   confidence?: number;
+  /**
+   * Privilege classification. "none" (or absent) means the citation
+   * is safe to include in any export. Any other value marks the
+   * citation as privileged; external exports (audit trail, client
+   * portal) redact privileged citations by default. See
+   * `apps/web/src/lib/privilege.ts` for the full semantics.
+   *
+   * Values: "none" | "solicitor-client" | "litigation" |
+   *         "work-product" | "common-interest"
+   *
+   * Kept as a string literal union rather than an imported enum so
+   * the agents package stays free of the web-app redaction helpers.
+   */
+  privilege?:
+    | "none"
+    | "solicitor-client"
+    | "litigation"
+    | "work-product"
+    | "common-interest";
 }
 
 export interface ParsedOutput {
@@ -121,6 +140,14 @@ export function parseModelOutput(raw: string): ParsedOutput {
   return { prose, citations, orphanedMarkers, unusedCitations };
 }
 
+const VALID_PRIVILEGE: ReadonlySet<string> = new Set([
+  "none",
+  "solicitor-client",
+  "litigation",
+  "work-product",
+  "common-interest",
+]);
+
 const VALID_SOURCE_TYPES: ReadonlySet<SourceType> = new Set<SourceType>([
   "statute",
   "regulation",
@@ -156,6 +183,9 @@ function isCitation(obj: unknown): obj is Citation {
     const n = Number(o.confidence);
     if (!Number.isFinite(n) || n < 0 || n > 1) delete o.confidence;
     else o.confidence = n;
+  }
+  if (o.privilege !== undefined && !VALID_PRIVILEGE.has(o.privilege as string)) {
+    delete o.privilege;
   }
   return true;
 }
@@ -232,4 +262,11 @@ Source-locker fields (Canadian legal practice requires provenance):
   supports the proposition in the prose. 1.0 = direct on-point text; 0.5 = the
   authority is related but requires analogical reasoning; below 0.4 = you
   should probably not rely on this citation. Reviewers filter on this value.
+- "privilege": copy from the retrieved snippet if it carries a privilege
+  tag. Allowed values: "none", "solicitor-client", "litigation",
+  "work-product", "common-interest". Default / unstated: omit the field.
+  Never mark a public authority (statute, case, rule, published notice)
+  as privileged — it isn't. Privilege applies to internal memos, client
+  communications, litigation strategy, and work-product items seeded
+  into the firm precedent corpus.
 `.trim();

@@ -59,6 +59,19 @@ export interface CognitionItem {
    * date for regulator notices. Surfaced so reviewers can flag stale law.
    */
   authorityDate?: string;
+  /**
+   * Privilege classification for this seed item. Matters when firm
+   * precedents are ingested into the corpus — a past memo may be
+   * solicitor-client-privileged and must not leak into
+   * client-facing audit exports. "none" (or absent) means the item
+   * is safe for any audience. See apps/web/src/lib/privilege.ts.
+   */
+  privilege?:
+    | "none"
+    | "solicitor-client"
+    | "litigation"
+    | "work-product"
+    | "common-interest";
   createdAt?: Date;
 }
 

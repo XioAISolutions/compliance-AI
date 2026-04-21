@@ -38,6 +38,11 @@ import { getDefaultMatterStore } from "../../../../../lib/matter-store";
 import { getDefaultAuditStore, type AuditEntry } from "../../../../../lib/audit-store";
 import { getDefaultApprovalStore } from "../../../../../lib/approvals-store";
 import type { ApprovalRequest } from "@compliance-ai/approvals";
+import {
+  countPrivileged,
+  redactAuditEntry,
+  resolveRedactionPolicy,
+} from "../../../../../lib/privilege";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,13 +67,26 @@ export async function GET(
   // entries come back newest-first; flip to chronological for export
   const chronological = [...entries].reverse();
 
-  const format = (new URL(req.url).searchParams.get("format") ?? "json").toLowerCase();
+  // Privilege redaction: /audit-export is an EXTERNAL-audience
+  // endpoint (the bundle is the artifact most likely to leave the
+  // firm), so the default strips privileged content. The operator
+  // may opt back into visibility with ?show=privilege; this choice
+  // is audited via the response metadata so the decision is
+  // provable.
+  const url = new URL(req.url);
+  const policy = resolveRedactionPolicy(url, "external");
+  const privilegedCount = countPrivileged(chronological);
+  const redactedEntries = policy.redactPrivileged
+    ? chronological.map((e) => redactAuditEntry(e, true))
+    : chronological;
+
+  const format = (url.searchParams.get("format") ?? "json").toLowerCase();
   const filenameBase = `audit-${matter.title.replace(/[^a-z0-9-]+/gi, "-").slice(0, 60)}`;
 
   if (format === "docx") {
     const bytes = await renderDocx({
       matter,
-      entries: chronological,
+      entries: redactedEntries,
       approvals,
       hashChainValid,
     });
@@ -77,6 +95,9 @@ export async function GET(
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "Content-Disposition": `attachment; filename="${filenameBase}.docx"`,
+        "X-Privilege-Redacted": policy.redactPrivileged ? "true" : "false",
+        "X-Privilege-Count": String(privilegedCount),
+        "X-Privilege-Policy-Source": policy.source,
       },
     });
   }
@@ -94,7 +115,12 @@ export async function GET(
       createdAt: matter.createdAt,
     },
     hashChainValid,
-    auditTrail: chronological.map((e) => ({
+    privilege: {
+      redactionApplied: policy.redactPrivileged,
+      policySource: policy.source,
+      privilegedEntryCount: privilegedCount,
+    },
+    auditTrail: redactedEntries.map((e) => ({
       id: e.id,
       timestamp: e.timestamp,
       actor: e.actor,
@@ -126,6 +152,9 @@ export async function GET(
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filenameBase}.json"`,
+      "X-Privilege-Redacted": policy.redactPrivileged ? "true" : "false",
+      "X-Privilege-Count": String(privilegedCount),
+      "X-Privilege-Policy-Source": policy.source,
     },
   });
 }

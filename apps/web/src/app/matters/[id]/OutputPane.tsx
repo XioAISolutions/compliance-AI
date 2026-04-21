@@ -26,6 +26,10 @@ interface Citation {
   authorityDate?: string;
   pinpoint?: string;
   confidence?: number;
+  /** Privilege classification — drives the PRIV badge in the
+   * footnote list + the export-time redaction. See
+   * apps/web/src/lib/privilege.ts. */
+  privilege?: string;
 }
 
 /** Per-citation verification result — mirrors the cognition package type. */
@@ -946,12 +950,25 @@ function VerifyBadge({ result }: { result: VerificationResult }) {
  * these are the claims a reviewer should verify before export.
  */
 function SourceLockerBadges({ c }: { c: Citation }) {
+  const isPriv = Boolean(c.privilege && c.privilege !== "none");
   const hasAny =
-    c.jurisdiction || c.sourceType || c.authorityDate || typeof c.confidence === "number";
+    c.jurisdiction ||
+    c.sourceType ||
+    c.authorityDate ||
+    typeof c.confidence === "number" ||
+    isPriv;
   if (!hasAny) return null;
 
   return (
     <span className="ml-1 inline-flex flex-wrap items-center gap-1">
+      {isPriv && (
+        <span
+          className="rounded bg-red-100 px-1 py-0 font-mono text-[9px] font-bold uppercase tracking-wide text-red-800 dark:bg-red-950 dark:text-red-300"
+          title={`Privilege: ${c.privilege}. External exports redact this citation by default; internal exports show it intact.`}
+        >
+          🔒 PRIV
+        </span>
+      )}
       {c.jurisdiction && (
         <span
           className="rounded border border-neutral-300 bg-white px-1 py-0 font-mono text-[9px] uppercase tracking-wide text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"

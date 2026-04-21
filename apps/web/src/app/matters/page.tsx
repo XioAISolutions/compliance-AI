@@ -10,6 +10,14 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 
+interface ApprovalSummary {
+  requested: number;
+  approved: number;
+  rejected: number;
+  withdrawn: number;
+  latest: "requested" | "approved" | "rejected" | "withdrawn" | null;
+}
+
 interface Matter {
   id: string;
   title: string;
@@ -27,6 +35,9 @@ interface Matter {
   nextDeadline?: string;
   nextDeadlineLabel?: string;
   limitationDate?: string;
+  /** Per-matter approval rollup — populated when the list is fetched
+   * with ?withApprovals=1. Drives the triage chip on each row. */
+  approvalSummary?: ApprovalSummary;
 }
 
 const JURISDICTIONS = [
@@ -155,7 +166,10 @@ export default function MattersPage() {
 
   async function fetchMatters() {
     try {
-      const res = await fetch("/api/matters");
+      // ?withApprovals=1 enriches each matter with the per-matter
+      // approval summary the triage chips render. Cheap (one extra
+      // store read per matter) and additive to the response shape.
+      const res = await fetch("/api/matters?withApprovals=1");
       if (res.ok) {
         const data = (await res.json()) as Matter[];
         setMatters(data);
@@ -412,6 +426,7 @@ export default function MattersPage() {
                   );
                 })()}
               </div>
+              <ApprovalChip summary={m.approvalSummary} />
               <span
                 className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE[m.status] ?? STATUS_BADGE.open}`}
               >
@@ -440,4 +455,62 @@ export default function MattersPage() {
       </div>
     </main>
   );
+}
+
+/**
+ * ApprovalChip — per-matter triage chip rendered next to the status
+ * badge in the matters list. Picks the most-actionable signal from the
+ * approval summary so a lawyer can scan the list and see which matters
+ * are waiting on someone.
+ *
+ * Precedence (first-match wins):
+ *   pending request →   amber "↻ awaiting"
+ *   approved (any) →    emerald "✓ approved"
+ *   rejected (any) →    rose "✕ rejected"
+ *   only withdrawn →    neutral "↶ withdrawn"
+ *   no approvals →      no chip (don't add visual noise to fresh matters)
+ */
+function ApprovalChip({ summary }: { summary?: ApprovalSummary }) {
+  if (!summary) return null;
+  if (summary.requested > 0) {
+    return (
+      <span
+        title={`${summary.requested} approval request${summary.requested === 1 ? "" : "s"} awaiting reviewer`}
+        className="ml-2 shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+      >
+        ↻ awaiting
+      </span>
+    );
+  }
+  if (summary.approved > 0) {
+    return (
+      <span
+        title={`${summary.approved} approval${summary.approved === 1 ? "" : "s"} on this matter`}
+        className="ml-2 shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+      >
+        ✓ approved
+      </span>
+    );
+  }
+  if (summary.rejected > 0) {
+    return (
+      <span
+        title={`${summary.rejected} approval rejection${summary.rejected === 1 ? "" : "s"} — reviewer flagged issues`}
+        className="ml-2 shrink-0 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-medium text-rose-800 dark:bg-rose-950 dark:text-rose-300"
+      >
+        ✕ rejected
+      </span>
+    );
+  }
+  if (summary.withdrawn > 0) {
+    return (
+      <span
+        title={`${summary.withdrawn} withdrawn approval request${summary.withdrawn === 1 ? "" : "s"}`}
+        className="ml-2 shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+      >
+        ↶ withdrawn
+      </span>
+    );
+  }
+  return null;
 }

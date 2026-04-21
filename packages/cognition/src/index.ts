@@ -18,6 +18,11 @@ export {
   type VerificationSummary,
 } from "./citation-verifier.js";
 export {
+  CanliiLiveFetchVerifier,
+  canliiLiveFetchEnabled,
+  type CanliiLiveFetchOptions,
+} from "./canlii-live-verifier.js";
+export {
   CA_SECURITIES_ONTARIO_PACK,
   CA_FEDERAL_AML_PACK,
   CA_CONSUMER_PROTECTION_PACK,

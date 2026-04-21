@@ -1033,6 +1033,11 @@ function sourceTypeStyle(t: string): string {
       return "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300";
     case "commentary":
       return "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300";
+    case "firm-precedent":
+      // Fuchsia — distinct from any of the primary-authority palettes
+      // so a reader scanning citations sees "this is our own prior
+      // work" at a glance, not a statute or a regulator notice.
+      return "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-950 dark:text-fuchsia-300";
     case "internal":
       return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
     default:

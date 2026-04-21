@@ -25,6 +25,7 @@ export type SourceType =
   | "practice-direction"
   | "regulator-notice"
   | "commentary"
+  | "firm-precedent"
   | "internal"
   | "other";
 

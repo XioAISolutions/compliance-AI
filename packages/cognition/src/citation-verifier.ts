@@ -35,6 +35,7 @@
  */
 
 import type { CognitionStore } from "./types.js";
+import { CanliiLiveFetchVerifier, canliiLiveFetchEnabled } from "./canlii-live-verifier.js";
 
 /**
  * A citation as the verifier expects to receive it. Structurally the
@@ -340,20 +341,29 @@ export class CompositeVerifier implements CitationVerifier {
 }
 
 /**
- * Default verifier: offline-corpus then CanLII URL heuristic. Wire in a
- * live CanLII adapter by passing a custom verifier list to
- * CompositeVerifier. Live fetch is out of scope here — adding it is
- * isolated to a new verifier class (e.g. CanliiLiveFetchVerifier) that
- * reads process.env.CANLII_API_KEY.
+ * Default verifier chain:
+ *
+ *   offline-corpus → [optional] canlii-live → canlii-url-heuristic
+ *
+ * Live CanLII fetching is opt-in via CANLII_FETCH_ENABLED so preview
+ * deployments stay deterministic and free of external network calls.
+ * When enabled, a URL candidate that actually resolves (and matches the
+ * cited quote when one is supplied) gets the "verified" stamp; a fetch
+ * failure falls through to the URL-heuristic "candidate-url" path.
+ *
+ * Composite is short-circuit on first "verified" — so an offline-corpus
+ * hit never triggers a live fetch.
  */
 export function defaultVerifier(
   store: CognitionStore,
   organizationId?: string,
 ): CitationVerifier {
-  return new CompositeVerifier([
-    new OfflineCorpusVerifier(store, organizationId),
-    new CanliiUrlHeuristicVerifier(),
-  ]);
+  const verifiers: CitationVerifier[] = [new OfflineCorpusVerifier(store, organizationId)];
+  if (canliiLiveFetchEnabled()) {
+    verifiers.push(new CanliiLiveFetchVerifier());
+  }
+  verifiers.push(new CanliiUrlHeuristicVerifier());
+  return new CompositeVerifier(verifiers);
 }
 
 /**

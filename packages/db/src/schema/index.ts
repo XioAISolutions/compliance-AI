@@ -8,4 +8,5 @@ export * from "./matters.js";
 export * from "./audit_log.js";
 export * from "./document_chunks.js";
 export * from "./evidence_items.js";
+export * from "./approval_requests.js";
 export * from "./auth.js";

@@ -15,6 +15,13 @@
       "when": 1776348000000,
       "tag": "0001_matter_status_verdict_states",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776372000000,
+      "tag": "0002_approval_requests",
+      "breakpoints": true
     }
   ]
 }

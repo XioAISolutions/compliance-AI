@@ -9,6 +9,11 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import {
+  pickMatterDeadline,
+  urgencyLabel,
+  urgencyPalette,
+} from "../../lib/deadline-urgency";
 
 interface ApprovalSummary {
   requested: number;
@@ -116,12 +121,9 @@ const POSTURE_LABELS: Record<string, string> = {
   closed: "Closed",
 };
 
-function daysUntil(dateStr?: string): number | null {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return null;
-  return Math.ceil((d.getTime() - Date.now()) / 86_400_000);
-}
+// Deadline calc lives in `lib/deadline-urgency.ts` so the matters
+// list, the cockpit, and the digest endpoint all classify the same
+// way. <DeadlineBadge> below is the shared visual.
 
 const STATUS_BADGE: Record<string, string> = {
   open: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
@@ -413,19 +415,8 @@ export default function MattersPage() {
                     : ` · ${TASK_TYPES.find((t) => t.value === m.taskType)?.label ?? m.taskType}`}
                   {m.proceduralPosture && ` · ${POSTURE_LABELS[m.proceduralPosture] ?? m.proceduralPosture}`}
                 </p>
-                {(() => {
-                  const days = daysUntil(m.nextDeadline ?? m.limitationDate);
-                  if (days === null) return null;
-                  const label = m.nextDeadlineLabel ?? (m.limitationDate ? "Limitation" : "Deadline");
-                  return (
-                    <p className={`mt-0.5 text-[10px] font-medium ${
-                      days < 0 ? "text-red-600" : days <= 30 ? "text-amber-600" : "text-neutral-400"
-                    }`}>
-                      {label}: {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d remaining`}
-                    </p>
-                  );
-                })()}
               </div>
+              <DeadlineBadge matter={m} />
               <ApprovalChip summary={m.approvalSummary} />
               <span
                 className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE[m.status] ?? STATUS_BADGE.open}`}
@@ -454,6 +445,26 @@ export default function MattersPage() {
           ))}
       </div>
     </main>
+  );
+}
+
+/**
+ * DeadlineBadge — shared visual for the matters list and (later) the
+ * cockpit. Uses the canonical pickMatterDeadline + urgencyLabel +
+ * urgencyPalette helpers so colour and threshold rules stay consistent
+ * across every place a deadline shows up.
+ */
+function DeadlineBadge({ matter }: { matter: Matter }) {
+  const summary = pickMatterDeadline(matter);
+  if (summary.urgency === "none" || summary.daysRemaining === null) return null;
+  const palette = urgencyPalette(summary.urgency);
+  return (
+    <span
+      title={`${summary.label}: ${summary.date} (${urgencyLabel(summary)})`}
+      className={`ml-2 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${palette.bg} ${palette.text} ${palette.border}`}
+    >
+      {summary.label} · {urgencyLabel(summary)}
+    </span>
   );
 }
 

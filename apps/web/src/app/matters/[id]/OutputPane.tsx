@@ -572,6 +572,13 @@ export function OutputPane({
           >
             Export handoff
           </button>
+          <a
+            href={`/api/matters/${matterId}/audit-export?format=docx`}
+            title="Download a tamper-evident AI-use audit trail (every query / retrieval / generation / verdict / approval / export, with hash chain integrity verdict). Suitable for client transparency or a firm's annual AI-use audit."
+            className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
+          >
+            Audit trail
+          </a>
         </div>
       </div>
       {exportError && (

@@ -25,6 +25,7 @@ export type SourceType =
   | "practice-direction"
   | "regulator-notice"
   | "commentary"
+  | "firm-precedent"
   | "internal"
   | "other";
 
@@ -156,6 +157,7 @@ const VALID_SOURCE_TYPES: ReadonlySet<SourceType> = new Set<SourceType>([
   "practice-direction",
   "regulator-notice",
   "commentary",
+  "firm-precedent",
   "internal",
   "other",
 ]);
@@ -251,8 +253,11 @@ Source-locker fields (Canadian legal practice requires provenance):
 - "jurisdiction": copy from the retrieved snippet (e.g. "ontario", "federal",
   "british-columbia", "multi-provincial"). Never guess.
 - "sourceType": one of "statute", "regulation", "rule", "case",
-  "practice-direction", "regulator-notice", "commentary", "internal", "other".
-  Pick the narrowest accurate label.
+  "practice-direction", "regulator-notice", "commentary",
+  "firm-precedent", "internal", "other". Pick the narrowest accurate
+  label. "firm-precedent" marks items from the firm's own past matters
+  (prior approved OMs, response memos, class-action filings). It is
+  persuasive but not binding; treat it as secondary authority.
 - "authorityDate": the ISO-8601 date from the retrieved snippet (consolidation
   date for legislation, decision date for cases). Omit if the snippet does not
   carry one — do not guess.

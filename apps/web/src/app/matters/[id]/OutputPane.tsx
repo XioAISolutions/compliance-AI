@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { CitedMarkdown } from "./CitedMarkdown";
+import { RedlinePreview, looksLikeRedline } from "./RedlinePreview";
 
 interface Citation {
   id: string;
@@ -660,12 +661,22 @@ export function OutputPane({
         )}
         {activeTab === "output" && (content || streaming) && (
           <>
-            <CitedMarkdown
-              content={displayContent}
-              citations={citations}
-              hoveredCitation={hoveredCitation}
-              onHoverCitation={setHoveredCitation}
-            />
+            {/* Redline mode: when the output carries the diff-token
+                syntax the contract-redliner persona emits, render it
+                with the visual track-change component instead of
+                markdown. The detection is content-based (not
+                taskType-based) so a refine via chat that produces
+                redline tokens lights up here too. */}
+            {looksLikeRedline(displayContent) ? (
+              <RedlinePreview content={displayContent} />
+            ) : (
+              <CitedMarkdown
+                content={displayContent}
+                citations={citations}
+                hoveredCitation={hoveredCitation}
+                onHoverCitation={setHoveredCitation}
+              />
+            )}
             {streaming && (
               <span className="mt-1 inline-block h-4 w-1 animate-pulse bg-neutral-400" />
             )}

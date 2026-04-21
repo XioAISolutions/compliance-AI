@@ -25,6 +25,7 @@ import {
 } from "@compliance-ai/agents";
 import { getDefaultCognitionStore, type RetrievalResult } from "@compliance-ai/cognition";
 import { emitAutoVerifySseFrame } from "../../../../../lib/auto-verify";
+import { getDefaultOutputSnapshotStore } from "../../../../../lib/output-snapshot-store";
 import { getDefaultMatterStore } from "../../../../../lib/matter-store";
 import { getDefaultAuditStore, sha256 } from "../../../../../lib/audit-store";
 import { ensureTenant } from "../../../../../lib/bootstrap";
@@ -541,6 +542,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             controller.enqueue(
               encoder.encode(sseFrame({ type: "citations", citations: validCitations })),
             );
+            // Snapshot the completed review so later rounds can be
+            // diffed against it. Fire-and-forget — a snapshot failure
+            // should not derail the stream; the user still gets their
+            // output.
+            try {
+              const snap = await getDefaultOutputSnapshotStore().append({
+                matterId,
+                content: prose,
+                citations: validCitations,
+                createdBy: "reviewer",
+              });
+              controller.enqueue(
+                encoder.encode(
+                  sseFrame({ type: "output-snapshot", versionNo: snap.versionNo, id: snap.id }),
+                ),
+              );
+            } catch (err) {
+              console.warn("[review] snapshot append failed", err);
+            }
             await emitAutoVerifySseFrame(controller, encoder, validCitations, organizationId);
             // Surface citation integrity warnings so the UI can flag "X
             // orphan marker(s)" — silently dropping them is what got us the

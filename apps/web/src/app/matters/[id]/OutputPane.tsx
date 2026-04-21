@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { CitedMarkdown } from "./CitedMarkdown";
 import { RedlinePreview, looksLikeRedline } from "./RedlinePreview";
+import { CompareToggle } from "./CompareToggle";
 
 interface Citation {
   id: string;
@@ -665,6 +666,11 @@ export function OutputPane({
         )}
         {activeTab === "output" && (content || streaming) && (
           <>
+            {/* Compare-to-prior-round toggle. Offered only when the
+                matter has >=2 snapshots. Selecting a prior version
+                swaps the output view for a word-level redline between
+                that version and the current one. */}
+            {!streaming && <CompareToggle matterId={matterId} currentContent={displayContent} />}
             {/* Redline mode: when the output carries the diff-token
                 syntax the contract-redliner persona emits, render it
                 with the visual track-change component instead of

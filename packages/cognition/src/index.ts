@@ -74,6 +74,57 @@ export { MULTI_PROVINCIAL_CONSUMER_PROTECTION_AUTHORITIES } from "./multi-provin
 export { CANADA_CONSUMER_PROTECTION_AUTHORITIES } from "./canada-consumer-protection-authorities.js";
 export { rrfFuse } from "./in-memory.js";
 
+// Lessons subpackage — Layer 1 sidecar + Layer 2 garden consolidation.
+// See packages/cognition/src/lessons/index.ts for the full surface.
+export {
+  InMemoryLessonStore,
+  CognitionSidecar,
+  CognitionGarden,
+  GardenScheduler,
+  ResourceCalculator,
+  InMemoryMetrics,
+  FileBackedWakeQueue,
+  InMemoryWakeQueue,
+  DeterministicEmbedder,
+  OpenAIEmbedder,
+  defaultEmbedder,
+  cosineSimilarity,
+  pickAmbientProvider,
+  listAmbientProviders,
+  detectContradiction,
+  parseCrumbToCandidates,
+} from "./lessons/index.js";
+export type {
+  Lesson,
+  LessonCandidate,
+  LessonRelation,
+  LessonRelationType,
+  LessonSource,
+  LessonStatus,
+  LessonStore,
+  Embedder,
+  SidecarAction,
+  SidecarOptions,
+  SidecarResult,
+  ResourceBudget,
+  CycleVerdict,
+  AmbientProvider,
+  AmbientProviderId,
+  WakeEnvelope,
+  WakeQueue,
+  WakeTrigger,
+  GardenCycleInput,
+  GardenCycleReport,
+  GardenOptions,
+  GardenStepResult,
+  SchedulerOptions,
+  MetricsRecorder,
+  MetricsSnapshot,
+  SidecarSample,
+  ContradictionResult,
+  ParseCrumbOptions,
+} from "./lessons/index.js";
+
 import { InMemoryCognitionStore } from "./in-memory.js";
 import type { CognitionStore } from "./types.js";
 

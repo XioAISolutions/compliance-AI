@@ -30,6 +30,15 @@ export interface ProviderPingOptions {
   prompt?: string;
 }
 
+export interface ProviderModelInfo {
+  /** Model id reported by /v1/models (often matches `model` but can include vendor prefix). */
+  id: string;
+  /** Maximum context length in tokens. Reported by vLLM; null if the provider doesn't surface it. */
+  maxContextTokens: number | null;
+  /** Inference engine name (e.g. "vllm" for AMD/local; "openai" for hosted OpenAI). */
+  ownedBy: string | null;
+}
+
 export interface ProviderPingResult {
   ok: boolean;
   provider: ModelProvider;
@@ -38,6 +47,12 @@ export interface ProviderPingResult {
   latencyMs: number;
   /** First ~120 chars of the model's response. Empty when the call errored. */
   sample: string;
+  /** Output tokens reported by the model (count of tokens we generated for the sample). */
+  outputTokens?: number;
+  /** Approximate tokens-per-second computed from sample length / latency. */
+  tokensPerSec?: number;
+  /** Model capabilities surfaced by /v1/models, when supported. */
+  modelInfo?: ProviderModelInfo;
   /** Set when ok=false. */
   error?: string;
 }
@@ -63,6 +78,7 @@ export async function pingProvider(options: ProviderPingOptions = {}): Promise<P
 
   let sample = "";
   let errored: string | null = null;
+  let outputTokens: number | undefined;
 
   const ping = (async () => {
     for await (const ev of runAgent(PING_CONTEXT, [], options.prompt ?? PING_PROMPT_DEFAULT, {
@@ -76,7 +92,10 @@ export async function pingProvider(options: ProviderPingOptions = {}): Promise<P
         errored = ev.message;
         break;
       }
-      if (ev.type === "done") break;
+      if (ev.type === "done") {
+        outputTokens = ev.usage.outputTokens;
+        break;
+      }
       // Cap sample length even if the model ignores instructions.
       if (sample.length > 200) break;
     }
@@ -119,6 +138,19 @@ export async function pingProvider(options: ProviderPingOptions = {}): Promise<P
     };
   }
 
+  // Approximate tokens-per-second from output tokens / latency. We only
+  // emit when both numbers are real — sample-only fallbacks would lie on
+  // anything beyond ASCII English. The sample completions for the ping are
+  // tiny (<32 tokens) so the ratio under-reports the steady-state TPS the
+  // GPU can sustain on longer responses, but it's a useful proof-of-life.
+  const tokensPerSec =
+    outputTokens && latencyMs > 0 ? Math.round((outputTokens / latencyMs) * 1000) : undefined;
+
+  // /v1/models is best-effort — we don't fail the ping if it errors. vLLM
+  // reports `max_model_len` per model; OpenAI returns the model exists but
+  // not a context length. Either way it's nice-to-have for the UI.
+  const modelInfo = await fetchModelInfo(config).catch(() => undefined);
+
   return {
     ok: sample.trim().length > 0,
     provider: config.provider,
@@ -126,5 +158,42 @@ export async function pingProvider(options: ProviderPingOptions = {}): Promise<P
     ...(config.baseUrl ? { baseUrl: config.baseUrl } : {}),
     latencyMs,
     sample: sample.slice(0, 120),
+    ...(outputTokens !== undefined ? { outputTokens } : {}),
+    ...(tokensPerSec !== undefined ? { tokensPerSec } : {}),
+    ...(modelInfo ? { modelInfo } : {}),
+  };
+}
+
+async function fetchModelInfo(config: {
+  provider: ModelProvider;
+  model: string;
+  baseUrl?: string;
+}): Promise<ProviderModelInfo | undefined> {
+  if (config.provider === "anthropic") return undefined; // no /v1/models on Anthropic SDK path
+  const baseUrl = config.baseUrl;
+  if (!baseUrl) return undefined;
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (config.provider === "openai" && process.env.OPENAI_API_KEY) {
+    headers.Authorization = `Bearer ${process.env.OPENAI_API_KEY}`;
+  } else if (config.provider === "amd_vllm" && process.env.AMD_VLLM_API_KEY) {
+    headers.Authorization = `Bearer ${process.env.AMD_VLLM_API_KEY}`;
+  }
+
+  const res = await fetch(`${baseUrl}/models`, { headers });
+  if (!res.ok) return undefined;
+  const json = (await res.json()) as { data?: Array<Record<string, unknown>> };
+  const match = json.data?.find((m) => m.id === config.model) ?? json.data?.[0];
+  if (!match) return undefined;
+
+  const ctxRaw =
+    match.max_model_len ??
+    (match as { context_length?: number }).context_length ??
+    (match as { context_window?: number }).context_window;
+
+  return {
+    id: typeof match.id === "string" ? match.id : config.model,
+    maxContextTokens: typeof ctxRaw === "number" ? ctxRaw : null,
+    ownedBy: typeof match.owned_by === "string" ? match.owned_by : null,
   };
 }

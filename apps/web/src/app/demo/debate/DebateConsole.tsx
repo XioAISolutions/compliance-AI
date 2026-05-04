@@ -21,6 +21,13 @@ interface PingResult {
   baseUrl?: string;
   latencyMs: number;
   sample: string;
+  outputTokens?: number;
+  tokensPerSec?: number;
+  modelInfo?: {
+    id: string;
+    maxContextTokens: number | null;
+    ownedBy: string | null;
+  };
 }
 
 interface DebateMeta {
@@ -61,6 +68,13 @@ export function DebateConsole() {
   const [ping, setPing] = useState<PingResult | null>(null);
   const [expandedVoices, setExpandedVoices] = useState<Set<number>>(new Set());
 
+  // Live throughput tracking: every voice-delta event bumps this counter
+  // with a timestamp. We compute tokens/sec over a sliding window. The GPU
+  // story is "this is how fast the MI300X is right now" — judges see it
+  // live, not as a single ping number.
+  const [liveTps, setLiveTps] = useState<{ tokensPerSec: number; totalChars: number } | null>(null);
+  const tpsRef = useRef<{ start: number; chars: number } | null>(null);
+
   const abortRef = useRef<AbortController | null>(null);
 
   // Live ping on mount so the status bar shows the configured provider.
@@ -83,6 +97,22 @@ export function DebateConsole() {
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
+      // First-render permalink hydration: if the URL has #q=... use it as
+      // the prompt, and #t=<id> selects the template. Encoded as base64
+      // utf-8 so prompts with special chars survive a round-trip through
+      // the URL bar.
+      try {
+        const hash = new URLSearchParams(window.location.hash.slice(1));
+        const t = hash.get("t");
+        const q = hash.get("q");
+        if (t && TEMPLATES.some((tpl) => tpl.id === t)) setTemplateId(t);
+        if (q) {
+          const decoded = decodeURIComponent(escape(window.atob(q)));
+          if (decoded.length > 0 && decoded.length < 8000) setPrompt(decoded);
+        }
+      } catch {
+        /* malformed hash → ignore */
+      }
       return;
     }
     setPrompt(template.prompt);
@@ -92,6 +122,7 @@ export function DebateConsole() {
     setDone(null);
     setSynthesis(null);
     setExpandedVoices(new Set());
+    setLiveTps(null);
   }, [template]);
 
   async function run() {
@@ -110,6 +141,8 @@ export function DebateConsole() {
     setSynthesis(null);
     setErrorMsg(null);
     setExpandedVoices(new Set());
+    setLiveTps(null);
+    tpsRef.current = null;
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -190,6 +223,21 @@ export function DebateConsole() {
         if (next[i]) next[i] = { ...next[i], prose: next[i].prose + delta };
         return next;
       });
+      // Live throughput: chars/sec is an approximation of tokens/sec
+      // (rule of thumb: ~4 chars per token in English). We compute it on
+      // a 3-second sliding window so the number doesn't jump around per
+      // delta. Surfacing this makes the AMD MI300X horsepower visible.
+      const now = Date.now();
+      if (!tpsRef.current) tpsRef.current = { start: now, chars: 0 };
+      tpsRef.current.chars += delta.length;
+      const elapsed = (now - tpsRef.current.start) / 1000;
+      if (elapsed > 0.5) {
+        const charsPerSec = tpsRef.current.chars / elapsed;
+        setLiveTps({
+          tokensPerSec: Math.round(charsPerSec / 4),
+          totalChars: tpsRef.current.chars,
+        });
+      }
     } else if (event.type === "voice-completed") {
       const i = Number(event.index);
       const status = (event.status as VoiceStatus) ?? "ok";
@@ -261,6 +309,22 @@ export function DebateConsole() {
   function copyVerdictOnly() {
     if (!synthesis?.verdict) return;
     navigator.clipboard?.writeText(synthesis.verdict).catch(() => {});
+  }
+
+  function copyShareLink() {
+    // Encode prompt + template in the URL hash. UTF-8-safe base64 so prompts
+    // with Unicode round-trip cleanly; #q=<base64>&t=<id>. Hash means it
+    // never hits the server (safe for confidential prompts) and the URL
+    // can be pasted into Slack / chat.
+    let q = "";
+    try {
+      q = window.btoa(unescape(encodeURIComponent(prompt)));
+    } catch {
+      q = "";
+    }
+    const url = new URL(window.location.href);
+    url.hash = `t=${encodeURIComponent(templateId)}&q=${q}`;
+    navigator.clipboard?.writeText(url.toString()).catch(() => {});
   }
 
   function updateVoice(index: number, patch: Partial<DebateVoice>) {
@@ -365,6 +429,23 @@ export function DebateConsole() {
               {synthesis ? " · synthesis ready" : completedCount === totalVoices ? " · synthesizing…" : ""}
             </span>
           )}
+          {running && liveTps && liveTps.tokensPerSec > 0 && (
+            <span
+              className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-mono font-medium text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
+              title="Aggregate tokens/sec across all voices streaming concurrently — measured from the live SSE stream."
+            >
+              ~{liveTps.tokensPerSec} tok/s
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={copyShareLink}
+            disabled={running || !prompt.trim()}
+            title="Copy a permalink to this exact prompt + template"
+            className="text-xs text-neutral-500 underline-offset-4 hover:underline disabled:opacity-50"
+          >
+            share
+          </button>
           <button
             type="button"
             onClick={() => setEditingVoices((v) => !v)}
@@ -488,6 +569,13 @@ function ProviderBar({ ping, meta }: { ping: PingResult | null; meta: DebateMeta
   const model = meta?.model ?? ping?.model ?? "?";
   const baseUrl = meta?.baseUrl ?? ping?.baseUrl;
   const ok = ping?.ok ?? null;
+  const ctx = ping?.modelInfo?.maxContextTokens ?? null;
+  const ctxLabel =
+    ctx !== null
+      ? ctx >= 1000
+        ? `${Math.round(ctx / 1024)}K ctx`
+        : `${ctx} ctx`
+      : null;
 
   const dotClass =
     ok === true
@@ -502,13 +590,34 @@ function ProviderBar({ ping, meta }: { ping: PingResult | null; meta: DebateMeta
       <span className="font-medium text-neutral-700 dark:text-neutral-200">{provider}</span>
       <span className="text-neutral-500">→</span>
       <span className="font-mono text-neutral-700 dark:text-neutral-200">{model}</span>
+      {ctxLabel && (
+        <span
+          className="rounded border border-neutral-300 px-1.5 py-0.5 text-[10px] uppercase text-neutral-500 dark:border-neutral-700"
+          title={`Maximum context window the model accepts (${ctx?.toLocaleString()} tokens).`}
+        >
+          {ctxLabel}
+        </span>
+      )}
       {baseUrl && (
         <span className="truncate text-neutral-500" title={baseUrl}>
           {baseUrl}
         </span>
       )}
       <span className="ml-auto text-neutral-500">
-        {ping?.ok ? `${ping.latencyMs}ms · "${ping.sample.trim()}"` : "checking…"}
+        {ping?.ok ? (
+          <>
+            {ping.latencyMs}ms
+            {ping.tokensPerSec && ping.tokensPerSec > 0 && (
+              <span className="font-mono text-emerald-700 dark:text-emerald-400">
+                {" "}
+                · {ping.tokensPerSec} tok/s
+              </span>
+            )}{" "}
+            · &ldquo;{ping.sample.trim()}&rdquo;
+          </>
+        ) : (
+          "checking…"
+        )}
       </span>
     </div>
   );

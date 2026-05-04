@@ -37,7 +37,12 @@ export {
   type DebateTemplate,
   type RunDebateOptions,
 } from "./debate.js";
-export { pingProvider, type ProviderPingOptions, type ProviderPingResult } from "./health.js";
+export {
+  pingProvider,
+  type ProviderModelInfo,
+  type ProviderPingOptions,
+  type ProviderPingResult,
+} from "./health.js";
 export { PERSONA_SYSTEM_PROMPTS, PERSONA_LABELS, parseVerdict } from "./personas/index.js";
 export {
   parseModelOutput,

@@ -278,16 +278,118 @@ export async function runDebate(
 }
 
 /**
+ * Synthesize a debate panel into one decision-grade summary.
+ *
+ * Takes the per-voice prose and asks the SAME model to surface where the
+ * voices agreed, where they disagreed, and what a human reader should take
+ * away. This is the "killer feature" for a non-expert viewer: three blobs
+ * of dense text become one paragraph of "here's what to do."
+ *
+ * Returns parsed structured fields. We ask the model for a fenced JSON
+ * block because conversation prose is unreliable to parse downstream.
+ */
+export interface DebateSynthesis {
+  agreed: string[];
+  disagreed: string[];
+  verdict: string;
+  rawText: string;
+}
+
+const SYNTHESIS_PROMPT = (
+  userMessage: string,
+  voices: DebateVoiceResult[],
+): string => {
+  const voicesBlock = voices
+    .filter((v) => v.status === "ok")
+    .map((v) => `### ${v.name}\n${v.prose.trim().slice(0, 1800)}`)
+    .join("\n\n");
+  return `You are an editor synthesizing three independent expert critiques of the same prompt. Your job is to produce ONE crisp summary the reader can act on.
+
+Original prompt:
+"""
+${userMessage.slice(0, 1200)}
+"""
+
+Voices:
+
+${voicesBlock}
+
+Output exactly this fenced JSON block, nothing else:
+\`\`\`json
+{
+  "agreed": ["short phrase", "short phrase", "..."],
+  "disagreed": ["short phrase", "..."],
+  "verdict": "one sentence — what the reader should do or believe"
+}
+\`\`\`
+Rules:
+- Each "agreed" / "disagreed" item: a short phrase (5-12 words), NOT a paragraph.
+- "agreed" = a finding or conclusion that ALL voices reached, even if worded differently.
+- "disagreed" = a real divergence in stance, recommendation, or risk-level.
+- "verdict" = the practical takeaway. If voices fundamentally disagreed, say so plainly.
+- Output the fenced JSON only. No preamble. No commentary after.`;
+};
+
+export async function synthesizeDebate(
+  result: DebateResult,
+  userMessage: string,
+  context: AgentContext,
+  options: Pick<RunDebateOptions, "provider" | "model" | "maxTokens" | "signal"> = {},
+): Promise<DebateSynthesis | null> {
+  const okVoices = result.voices.filter((v) => v.status === "ok");
+  if (okVoices.length < 2) return null;
+
+  const prompt = SYNTHESIS_PROMPT(userMessage, okVoices);
+  let buffer = "";
+  try {
+    for await (const ev of runAgent(context, [], prompt, {
+      forcePersona: "drafter",
+      systemPromptOverride:
+        "You are a precise editor. Output ONLY the requested fenced JSON block. No preamble. No trailing commentary.",
+      ...(options.provider ? { provider: options.provider } : {}),
+      ...(options.model ? { model: options.model } : {}),
+      maxTokens: options.maxTokens ?? 512,
+      ...(options.signal ? { signal: options.signal } : {}),
+    })) {
+      if (ev.type === "text-delta") buffer += ev.delta;
+      if (ev.type === "error") return null;
+    }
+  } catch {
+    return null;
+  }
+
+  const fence = buffer.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const jsonText = fence ? fence[1]!.trim() : buffer.trim();
+  try {
+    const parsed = JSON.parse(jsonText) as Partial<DebateSynthesis>;
+    return {
+      agreed: Array.isArray(parsed.agreed) ? parsed.agreed.map(String).slice(0, 6) : [],
+      disagreed: Array.isArray(parsed.disagreed) ? parsed.disagreed.map(String).slice(0, 6) : [],
+      verdict: typeof parsed.verdict === "string" ? parsed.verdict.slice(0, 400) : "",
+      rawText: buffer,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Universal use-case templates. Each ships its own prompt and voice set.
  * Intentionally generic — debate is a pattern (parallel critique against a
  * single endpoint), not a vertical. The compliance trio is the default
  * because that's the calling app's primary use case, but the same
  * machinery serves code review, decision making, and document critique.
+ *
+ * `useWhen`: a one-line answer to "when would I use this?" — surfaced as a
+ * hint on the chip. Without this, a judge looking at the chips has no way
+ * to map a label to their own situation.
  */
 export interface DebateTemplate {
   id: string;
   label: string;
   description: string;
+  /** Plain-English answer to "when would I use this?" */
+  useWhen: string;
   prompt: string;
   voices: DebateVoice[];
 }
@@ -318,6 +420,7 @@ export const DEBATE_TEMPLATES: DebateTemplate[] = [
     id: "compliance",
     label: "Compliance review",
     description: "OM disclosure check with three regulator stances.",
+    useWhen: "You're reviewing a legal/regulatory document and want to catch what one reviewer would miss.",
     prompt:
       'Review this offering memorandum excerpt against Ontario NI 45-106 and surface the top 3 disclosure gaps a compliance reviewer should raise:\n\n"The issuer offers Class A units to accredited investors only. Past performance has consistently exceeded benchmarks. Subscription proceeds will be applied to general working capital. Risk factors are listed in Schedule B."',
     voices: DEFAULT_COMPLIANCE_VOICES,
@@ -326,6 +429,7 @@ export const DEBATE_TEMPLATES: DebateTemplate[] = [
     id: "code-review",
     label: "Code review",
     description: "Engineer · Security · Performance critique the same diff.",
+    useWhen: "You're shipping a PR and want senior, security, and performance reads in one shot.",
     prompt:
       'Review this TypeScript snippet. Surface what you would request changes on, request style, and what ships.\n\n```ts\nasync function fetchUserOrders(userId: string) {\n  const orders = [];\n  const ids = await db.query("SELECT order_id FROM orders WHERE user_id = " + userId);\n  for (const id of ids) {\n    const order = await db.query(`SELECT * FROM orders WHERE id = ${id}`);\n    orders.push(order);\n  }\n  return JSON.stringify(orders);\n}\n```',
     voices: [
@@ -350,6 +454,7 @@ export const DEBATE_TEMPLATES: DebateTemplate[] = [
     id: "decision",
     label: "Decision making",
     description: "Optimist · Skeptic · Devil's advocate weigh the same call.",
+    useWhen: "You're stuck between two options and want the case for each, plus the one you haven't considered.",
     prompt:
       "Should our 12-person SaaS startup take a $3M seed round at a $20M post-money valuation from a top-tier VC, or bootstrap with $400K ARR growing at 25% MoM? Argue the case in 3-5 punchy bullets and end with an explicit recommendation.",
     voices: [
@@ -374,6 +479,7 @@ export const DEBATE_TEMPLATES: DebateTemplate[] = [
     id: "doc-critique",
     label: "Document critique",
     description: "Editor · Skeptical reader · Subject expert read the same paragraph.",
+    useWhen: "You wrote something (landing page, memo, pitch) and want three brutal-but-fair edits.",
     prompt:
       'Critique this paragraph from a startup\'s landing page. Output: 3 specific edits each, with the rationale.\n\n"Our AI-powered platform leverages cutting-edge machine learning algorithms to deliver unprecedented insights and drive transformative outcomes for forward-thinking enterprises. We empower decision-makers to harness the full potential of their data and unlock new opportunities for growth."',
     voices: [

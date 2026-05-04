@@ -26,12 +26,14 @@ export {
 export { runAgentLoop, type RunAgentLoopOptions } from "./loop.js";
 export {
   runDebate,
+  synthesizeDebate,
   DEFAULT_COMPLIANCE_VOICES,
   DEBATE_TEMPLATES,
   type DebateEvent,
   type DebateVoice,
   type DebateVoiceResult,
   type DebateResult,
+  type DebateSynthesis,
   type DebateTemplate,
   type RunDebateOptions,
 } from "./debate.js";

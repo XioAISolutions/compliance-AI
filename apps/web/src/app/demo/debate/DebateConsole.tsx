@@ -34,6 +34,12 @@ interface DoneInfo {
   wallClockMs: number;
 }
 
+interface SynthesisInfo {
+  agreed: string[];
+  disagreed: string[];
+  verdict: string;
+}
+
 const TEMPLATES: DebateTemplate[] = DEBATE_TEMPLATES;
 
 export function DebateConsole() {
@@ -50,6 +56,7 @@ export function DebateConsole() {
   const [voiceStates, setVoiceStates] = useState<VoiceState[]>([]);
   const [meta, setMeta] = useState<DebateMeta | null>(null);
   const [done, setDone] = useState<DoneInfo | null>(null);
+  const [synthesis, setSynthesis] = useState<SynthesisInfo | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [ping, setPing] = useState<PingResult | null>(null);
 
@@ -99,6 +106,7 @@ export function DebateConsole() {
     );
     setMeta(null);
     setDone(null);
+    setSynthesis(null);
     setErrorMsg(null);
 
     const controller = new AbortController();
@@ -202,6 +210,12 @@ export function DebateConsole() {
         }
         return next;
       });
+    } else if (event.type === "synthesis") {
+      setSynthesis({
+        agreed: Array.isArray(event.agreed) ? event.agreed.map(String) : [],
+        disagreed: Array.isArray(event.disagreed) ? event.disagreed.map(String) : [],
+        verdict: String(event.verdict ?? ""),
+      });
     } else if (event.type === "debate-done") {
       setDone({ wallClockMs: Number(event.wallClockMs ?? 0) });
     } else if (event.type === "error") {
@@ -245,7 +259,7 @@ export function DebateConsole() {
             type="button"
             onClick={() => setTemplateId(t.id)}
             disabled={running}
-            title={t.description}
+            title={t.useWhen}
             className={`rounded-full border px-3 py-1 text-xs ${
               t.id === templateId
                 ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900"
@@ -256,7 +270,10 @@ export function DebateConsole() {
           </button>
         ))}
       </div>
-      <p className="-mt-2 text-xs text-neutral-500">{template.description}</p>
+      <p className="-mt-2 text-xs text-neutral-500">
+        <span className="text-neutral-700 dark:text-neutral-300">{template.description}</span>{" "}
+        <span className="text-neutral-500">· Use when: {template.useWhen}</span>
+      </p>
 
       {/* Prompt textarea */}
       <div>
@@ -352,6 +369,14 @@ export function DebateConsole() {
         </div>
       )}
 
+      {/* Synthesis — the headline takeaway. Shown above the cards once
+          all voices land so a viewer reads the conclusion before the raw
+          critique. The "still synthesizing…" placeholder appears while
+          the post-debate model call is in flight. */}
+      {(synthesis || (done && !synthesis && !errorMsg)) && (
+        <SynthesisCard synthesis={synthesis} />
+      )}
+
       {/* Voice cards grid */}
       <div className="grid gap-4 lg:grid-cols-3">
         {voiceStates.length === 0 && !running && (
@@ -363,6 +388,60 @@ export function DebateConsole() {
         {voiceStates.map((voice, i) => (
           <VoiceCard key={`${voice.name}-${i}`} voice={voice} />
         ))}
+      </div>
+    </div>
+  );
+}
+
+function SynthesisCard({ synthesis }: { synthesis: SynthesisInfo | null }) {
+  if (!synthesis) {
+    return (
+      <div className="rounded-lg border-2 border-dashed border-neutral-300 p-5 text-sm text-neutral-500 dark:border-neutral-700">
+        <span className="italic">Synthesizing — reading all three voices to surface where they agree and diverge…</span>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-lg border-2 border-neutral-900 bg-neutral-50 p-5 dark:border-white dark:bg-neutral-900">
+      <p className="text-xs font-medium uppercase text-neutral-500">The takeaway</p>
+      <p className="mt-2 text-base font-medium leading-relaxed text-neutral-900 dark:text-white">
+        {synthesis.verdict || "—"}
+      </p>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div>
+          <p className="text-xs font-semibold uppercase text-emerald-700 dark:text-emerald-400">
+            All voices agreed
+          </p>
+          {synthesis.agreed.length === 0 ? (
+            <p className="mt-1 text-xs text-neutral-500">No common ground — read the cards.</p>
+          ) : (
+            <ul className="mt-1 space-y-1 text-sm text-neutral-700 dark:text-neutral-300">
+              {synthesis.agreed.map((a, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="mt-1 inline-block h-1.5 w-1.5 flex-none rounded-full bg-emerald-500" />
+                  <span>{a}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase text-amber-700 dark:text-amber-400">
+            Voices diverged
+          </p>
+          {synthesis.disagreed.length === 0 ? (
+            <p className="mt-1 text-xs text-neutral-500">Voices were aligned.</p>
+          ) : (
+            <ul className="mt-1 space-y-1 text-sm text-neutral-700 dark:text-neutral-300">
+              {synthesis.disagreed.map((d, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="mt-1 inline-block h-1.5 w-1.5 flex-none rounded-full bg-amber-500" />
+                  <span>{d}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   );

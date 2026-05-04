@@ -26,6 +26,7 @@ import {
   DEFAULT_COMPLIANCE_VOICES,
   resolveModelProvider,
   runDebate,
+  synthesizeDebate,
   type AgentContext,
   type DebateEvent,
   type DebateVoice,
@@ -173,6 +174,32 @@ export async function POST(req: NextRequest) {
           onEvent,
           ...(req.signal ? { signal: req.signal } : {}),
         });
+
+        // Synthesis pass: one extra LLM call that turns the three voices
+        // into agree / disagree / verdict. This is the load-bearing UX
+        // beat — three blobs of text become one sentence the viewer can
+        // act on. Failure is non-fatal; we still emit debate-done so the
+        // UI closes the panel cleanly.
+        try {
+          const synthesis = await synthesizeDebate(result, userMessage, context, {
+            ...(req.signal ? { signal: req.signal } : {}),
+          });
+          if (synthesis) {
+            controller.enqueue(
+              encoder.encode(
+                sseFrame({
+                  type: "synthesis",
+                  agreed: synthesis.agreed,
+                  disagreed: synthesis.disagreed,
+                  verdict: synthesis.verdict,
+                }),
+              ),
+            );
+          }
+        } catch {
+          // Synthesis is best-effort.
+        }
+
         controller.enqueue(
           encoder.encode(
             sseFrame({

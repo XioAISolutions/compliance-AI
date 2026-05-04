@@ -24,6 +24,15 @@ export {
   type RunAgentOptions,
 } from "./run.js";
 export { runAgentLoop, type RunAgentLoopOptions } from "./loop.js";
+export {
+  runDebate,
+  DEFAULT_COMPLIANCE_VOICES,
+  type DebateVoice,
+  type DebateVoiceResult,
+  type DebateResult,
+  type RunDebateOptions,
+} from "./debate.js";
+export { pingProvider, type ProviderPingOptions, type ProviderPingResult } from "./health.js";
 export { PERSONA_SYSTEM_PROMPTS, PERSONA_LABELS, parseVerdict } from "./personas/index.js";
 export {
   parseModelOutput,

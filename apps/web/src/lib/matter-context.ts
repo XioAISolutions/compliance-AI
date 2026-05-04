@@ -1,13 +1,33 @@
-import type { AgentTurn, EvidenceGraphEdge, EvidenceGraphNode, TranscriptEvent } from "./matter-context-types";
+import type {
+  AgentTurn,
+  EvidenceGraphEdge,
+  EvidenceGraphNode,
+  TranscriptEvent,
+} from "./matter-context-types";
+import { resolveModelProvider, type ModelProviderConfig } from "@compliance-ai/agents";
 import { toJsonl } from "@compliance-ai/chat-structure";
 import { getDefaultApprovalStore } from "./approvals-store";
 import { getDefaultAuditStore, sha256 } from "./audit-store";
 import { getDefaultEvidenceStore } from "./evidence-store";
-import { getDefaultMatterStore, type Matter, type MatterDocument, type StoredChunk } from "./matter-store";
+import {
+  getDefaultMatterStore,
+  type Matter,
+  type MatterDocument,
+  type StoredChunk,
+} from "./matter-store";
 
 export interface MatterContextBundle {
   version: "demo-case-pack/v1";
   exportedAt: string;
+  /**
+   * The LLM provider that served this matter at the moment of handoff. The
+   * audit chain only records actor + action (not which inference engine ran
+   * it), so when a matter migrates between Anthropic / OpenAI / Ollama / AMD
+   * vLLM the receipts would otherwise lose that context. This field gives the
+   * downstream agent (or auditor) one canonical "who answered" stamp without
+   * touching the per-row audit schema.
+   */
+  provider: Pick<ModelProviderConfig, "provider" | "model"> & { baseUrl?: string };
   matter: Matter;
   documents: MatterDocument[];
   chunks: Array<Pick<StoredChunk, "id" | "docId" | "ordinal" | "content" | "page" | "tokenCount">>;
@@ -123,7 +143,12 @@ export async function buildEvidenceGraph(matterId: string): Promise<{
       label: document.filename,
       detail: `${document.documentType} · ${document.chunkCount} chunks`,
     });
-    edges.push({ id: `${matter.id}:${document.id}`, source: matter.id, target: document.id, label: "contains" });
+    edges.push({
+      id: `${matter.id}:${document.id}`,
+      source: matter.id,
+      target: document.id,
+      label: "contains",
+    });
   }
 
   for (const chunk of chunks) {
@@ -133,7 +158,12 @@ export async function buildEvidenceGraph(matterId: string): Promise<{
       label: `Chunk ${chunk.ordinal + 1}`,
       detail: truncate(chunk.content, 160),
     });
-    edges.push({ id: `${chunk.docId}:${chunk.id}`, source: chunk.docId, target: chunk.id, label: "grounds" });
+    edges.push({
+      id: `${chunk.docId}:${chunk.id}`,
+      source: chunk.docId,
+      target: chunk.id,
+      label: "grounds",
+    });
   }
 
   for (const item of evidence) {
@@ -143,7 +173,12 @@ export async function buildEvidenceGraph(matterId: string): Promise<{
       label: item.title,
       detail: `${item.status}${item.source ? ` · ${item.source}` : ""}`,
     });
-    edges.push({ id: `${matter.id}:${item.id}`, source: matter.id, target: item.id, label: "needs" });
+    edges.push({
+      id: `${matter.id}:${item.id}`,
+      source: matter.id,
+      target: item.id,
+      label: "needs",
+    });
   }
 
   for (const entry of audit.slice(0, 12)) {
@@ -153,7 +188,12 @@ export async function buildEvidenceGraph(matterId: string): Promise<{
       label: `${entry.actor}: ${entry.action}`,
       detail: truncate(cleanText(entry.outputContent ?? entry.inputContent ?? ""), 180),
     });
-    edges.push({ id: `${matter.id}:${entry.id}`, source: matter.id, target: entry.id, label: "records" });
+    edges.push({
+      id: `${matter.id}:${entry.id}`,
+      source: matter.id,
+      target: entry.id,
+      label: "records",
+    });
 
     for (const authorityId of entry.authoritiesUsed.slice(0, 6)) {
       const authorityNodeId = `authority:${authorityId}`;
@@ -177,7 +217,9 @@ export async function buildEvidenceGraph(matterId: string): Promise<{
   return { nodes, edges };
 }
 
-export async function buildMatterContextBundle(matterId: string): Promise<MatterContextBundle | null> {
+export async function buildMatterContextBundle(
+  matterId: string,
+): Promise<MatterContextBundle | null> {
   const matterStore = getDefaultMatterStore();
   const evidenceStore = getDefaultEvidenceStore();
   const auditStore = getDefaultAuditStore();
@@ -200,9 +242,29 @@ export async function buildMatterContextBundle(matterId: string): Promise<Matter
   const transcript = await buildTranscriptEvents(matterId);
   const graph = await buildEvidenceGraph(matterId);
 
+  // Resolve provider at handoff time (not at audit-write time) — the handoff
+  // is a snapshot of the system as it serves the receipts, and we don't want
+  // to mutate the audit schema just to carry one field. If provider resolution
+  // fails (e.g. AMD endpoint unset on a fallback path) we still emit a bundle.
+  let provider: MatterContextBundle["provider"];
+  try {
+    const resolved = resolveModelProvider();
+    provider = {
+      provider: resolved.provider,
+      model: resolved.model,
+      ...(resolved.baseUrl ? { baseUrl: resolved.baseUrl } : {}),
+    };
+  } catch (err) {
+    provider = {
+      provider: "ollama",
+      model: `unresolved (${err instanceof Error ? err.message : String(err)})`,
+    };
+  }
+
   return {
     version: "demo-case-pack/v1",
     exportedAt: new Date().toISOString(),
+    provider,
     matter,
     documents,
     chunks,
@@ -215,8 +277,8 @@ export async function buildMatterContextBundle(matterId: string): Promise<Matter
 }
 
 export function renderCrumbHandoff(bundle: MatterContextBundle): string {
-  const missingEvidence = bundle.evidence.filter((item) =>
-    item.status === "missing" || item.status === "requested" || item.status === "stale",
+  const missingEvidence = bundle.evidence.filter(
+    (item) => item.status === "missing" || item.status === "requested" || item.status === "stale",
   );
   const latestGeneration = bundle.audit
     .slice()
@@ -225,11 +287,14 @@ export function renderCrumbHandoff(bundle: MatterContextBundle): string {
   const citations = new Set(bundle.audit.flatMap((entry) => entry.authoritiesUsed));
   const approval = bundle.approvals[0];
 
+  const providerLabel = `${bundle.provider.provider}/${bundle.provider.model}`;
   const lines = [
     "---",
     "type: task",
     "description: Compliance-AI demo handoff",
     "crumb-version: 1.2",
+    `provider: ${providerLabel}`,
+    ...(bundle.provider.baseUrl ? [`provider-base-url: ${bundle.provider.baseUrl}`] : []),
     "---",
     "",
     "# Compliance-AI Handoff",
@@ -240,6 +305,7 @@ export function renderCrumbHandoff(bundle: MatterContextBundle): string {
     `- Task: ${bundle.matter.taskType}`,
     `- Scope: ${bundle.matter.jurisdiction} / ${bundle.matter.registrationCategory}`,
     `- Status: ${bundle.matter.status}`,
+    `- LLM: ${providerLabel}${bundle.provider.baseUrl ? ` (${bundle.provider.baseUrl})` : ""}`,
     `- Export hash: ${sha256(bundle.matter.id + bundle.exportedAt)}`,
     "",
     "## Documents",

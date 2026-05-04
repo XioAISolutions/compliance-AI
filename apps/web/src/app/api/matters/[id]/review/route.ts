@@ -13,6 +13,7 @@
 import { NextRequest } from "next/server";
 import {
   parseModelOutput,
+  resolveModelProvider,
   runAgent,
   runAgentLoop,
   validateCitations,
@@ -524,6 +525,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const authoritiesUsed =
           citedAuthorityIds.length > 0 ? citedAuthorityIds : retrievedSnippets.map((s) => s.id);
 
+        // Stamp which inference engine served this generation. The audit row
+        // schema doesn't carry a typed `provider` column (and we don't want to
+        // migrate just to ship the AMD/Qwen demo), so we append it to the
+        // free-text inputContent summary. Cheapest legible receipt.
+        let providerStamp = "unknown";
+        try {
+          const resolved = resolveModelProvider();
+          providerStamp = `${resolved.provider}/${resolved.model}`;
+        } catch {
+          // Provider resolution can fail (e.g. amd_vllm with no base URL set).
+          // Don't block the audit write — record "unknown" and move on.
+        }
+
         // Write the generation audit entry using the CLEAN final prose so
         // regulators see the final deliverable, not the reasoning transcript.
         // The fullOutput transcript stays within the reviewer's working
@@ -541,7 +555,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             `${state.totalRounds} round(s) via judge loop · ` +
             `${validCitations.length}/${citations.length} citation(s) resolved · ` +
             `${orphanedMarkers.length} orphan marker(s) · ` +
-            `${unusedCitations.length} unused citation(s)`,
+            `${unusedCitations.length} unused citation(s) · ` +
+            `served by ${providerStamp}`,
           outputContent: prose.slice(0, 2000),
         });
 

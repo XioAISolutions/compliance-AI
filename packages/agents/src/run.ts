@@ -8,10 +8,12 @@
  * Provider strategy:
  *   - OpenAI for the hosted preview (`LLM_PROVIDER=openai`)
  *   - Ollama for private/local installs (`LLM_PROVIDER=ollama`)
+ *   - AMD vLLM for self-hosted MI300X / Qwen 2.5 endpoints (`LLM_PROVIDER=amd_vllm`)
  *   - Anthropic retained as a backwards-compatible legacy provider
  *
- * Anthropic keeps prompt caching on stable persona/control blocks. OpenAI and
- * Ollama receive the same blocks flattened into one system message.
+ * Anthropic keeps prompt caching on stable persona/control blocks. The
+ * OpenAI-compatible providers (OpenAI, Ollama, AMD vLLM) receive the same
+ * blocks flattened into one system message.
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -29,7 +31,7 @@ import type {
   ReviewSubject,
 } from "./types.js";
 
-export type ModelProvider = "anthropic" | "openai" | "ollama";
+export type ModelProvider = "anthropic" | "openai" | "ollama" | "amd_vllm";
 
 export interface ModelProviderEnv {
   [key: string]: string | undefined;
@@ -42,6 +44,12 @@ export interface ModelProviderEnv {
   OPENAI_API_KEY?: string;
   OPENAI_BASE_URL?: string;
   OPENAI_MODEL?: string;
+  /** Base URL of a self-hosted vLLM endpoint (e.g. AMD MI300X). With or without /v1 suffix. */
+  AMD_VLLM_BASE_URL?: string;
+  /** HuggingFace model id served by the vLLM endpoint, e.g. "Qwen/Qwen2.5-72B-Instruct". */
+  AMD_VLLM_MODEL?: string;
+  /** Optional bearer token if the vLLM endpoint is protected. vLLM serves unauthenticated by default. */
+  AMD_VLLM_API_KEY?: string;
 }
 
 export interface ModelProviderConfig {
@@ -53,6 +61,7 @@ export interface ModelProviderConfig {
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
 const DEFAULT_OPENAI_MODEL = "gpt-5.4-mini";
 const DEFAULT_OLLAMA_MODEL = "llama3.1:8b";
+const DEFAULT_AMD_VLLM_MODEL = "Qwen/Qwen2.5-72B-Instruct";
 // Compliance reviews routinely produce 15+ citations + 5000+ tokens of cited
 // prose (checklist + gap memo + risk flags + resale check + post-filing).
 // The citations block alone runs ~200 tokens per citation — at 16 cites that's
@@ -82,11 +91,16 @@ function hasValue(value: string | undefined): boolean {
 function normalizeProvider(value: string | undefined): ModelProvider | null {
   if (!value) return null;
   const normalized = value.trim().toLowerCase();
-  if (normalized === "anthropic" || normalized === "openai" || normalized === "ollama") {
+  if (
+    normalized === "anthropic" ||
+    normalized === "openai" ||
+    normalized === "ollama" ||
+    normalized === "amd_vllm"
+  ) {
     return normalized;
   }
   throw new Error(
-    `Unsupported LLM_PROVIDER "${value}". Expected one of: openai, ollama, anthropic.`,
+    `Unsupported LLM_PROVIDER "${value}". Expected one of: openai, ollama, anthropic, amd_vllm.`,
   );
 }
 
@@ -102,11 +116,17 @@ export function resolveModelProvider(
   const provider =
     options.provider ??
     normalizeProvider(env.LLM_PROVIDER) ??
-    (hasValue(env.OPENAI_API_KEY)
-      ? "openai"
-      : hasValue(env.ANTHROPIC_API_KEY)
-        ? "anthropic"
-        : "ollama");
+    // Auto-detect: AMD_VLLM_BASE_URL > OPENAI_API_KEY > ANTHROPIC_API_KEY > ollama.
+    // AMD takes precedence in auto-detect because setting AMD_VLLM_BASE_URL is
+    // explicit intent ("I have a vLLM endpoint pointed at me") whereas the
+    // other keys may be lying around for unrelated reasons.
+    (hasValue(env.AMD_VLLM_BASE_URL)
+      ? "amd_vllm"
+      : hasValue(env.OPENAI_API_KEY)
+        ? "openai"
+        : hasValue(env.ANTHROPIC_API_KEY)
+          ? "anthropic"
+          : "ollama");
 
   if (provider === "openai") {
     return {
@@ -121,6 +141,20 @@ export function resolveModelProvider(
       provider,
       model: options.model ?? env.OLLAMA_MODEL ?? env.OLLAMA_CHAT_MODEL ?? DEFAULT_OLLAMA_MODEL,
       baseUrl: normalizeBaseUrl(env.OLLAMA_BASE_URL ?? "http://localhost:11434"),
+    };
+  }
+
+  if (provider === "amd_vllm") {
+    if (!hasValue(env.AMD_VLLM_BASE_URL)) {
+      throw new Error(
+        "AMD_VLLM_BASE_URL is not set. Point it at your vLLM endpoint, e.g. " +
+          'AMD_VLLM_BASE_URL="http://<droplet-ip>:8000/v1".',
+      );
+    }
+    return {
+      provider,
+      model: options.model ?? env.AMD_VLLM_MODEL ?? DEFAULT_AMD_VLLM_MODEL,
+      baseUrl: normalizeBaseUrl(env.AMD_VLLM_BASE_URL!),
     };
   }
 
@@ -289,6 +323,13 @@ function openAiCompatibleAuthHeaders(config: ModelProviderConfig): Record<string
     return { Authorization: `Bearer ${apiKey}` };
   }
 
+  if (config.provider === "amd_vllm") {
+    // vLLM serves unauthenticated by default. Pass a bearer if AMD_VLLM_API_KEY
+    // is set (e.g. when fronting the endpoint with an API gateway).
+    const apiKey = process.env.AMD_VLLM_API_KEY;
+    return apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
+  }
+
   const apiKey = process.env.OLLAMA_API_KEY;
   return apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
 }
@@ -392,6 +433,11 @@ async function* runOpenAiCompatible(
 
   if (config.provider === "openai") {
     payload.max_completion_tokens = maxTokens;
+    payload.stream_options = { include_usage: true };
+  } else if (config.provider === "amd_vllm") {
+    // vLLM speaks the OpenAI protocol but historically only accepts max_tokens.
+    // include_usage IS supported and gives us the same usage stats as OpenAI.
+    payload.max_tokens = maxTokens;
     payload.stream_options = { include_usage: true };
   } else {
     payload.max_tokens = maxTokens;

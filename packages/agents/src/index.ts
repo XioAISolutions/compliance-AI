@@ -27,9 +27,12 @@ export { runAgentLoop, type RunAgentLoopOptions } from "./loop.js";
 export {
   runDebate,
   DEFAULT_COMPLIANCE_VOICES,
+  DEBATE_TEMPLATES,
+  type DebateEvent,
   type DebateVoice,
   type DebateVoiceResult,
   type DebateResult,
+  type DebateTemplate,
   type RunDebateOptions,
 } from "./debate.js";
 export { pingProvider, type ProviderPingOptions, type ProviderPingResult } from "./health.js";

@@ -2,7 +2,7 @@
  * Multi-voice debate.
  *
  * Runs N parallel `runAgent` calls against the SAME provider/model with
- * different system-prompt overrides ("voices"). Designed for the AMD-MI300X
+ * different system prompts ("voices"). Designed for the AMD-MI300X
  * hackathon path — a single Qwen 2.5 72B endpoint can host the whole panel —
  * but works equally well against any provider.
  *
@@ -12,16 +12,14 @@
  *   - The judge produces a verdict token; voices produce structured prose. The
  *     downstream consumer aggregates them, not a single judge.
  *
- * Streaming model: rather than interleave deltas across N voices (which would
- * require N-way SSE multiplexing in the route), this returns each voice's
- * COMPLETE result. The caller decides how to surface — e.g., one bubble per
- * voice that fills in as each call resolves. If interleaved streaming is ever
- * required, switch to `runDebateStream()` (not yet implemented).
+ * Streaming model: the caller can pass `onEvent` to receive per-voice deltas
+ * as they stream from the model — the UI uses this to fill voice cards in
+ * real time. The Promise resolves with the final aggregated `DebateResult`.
  *
- * Failure isolation: each voice runs under Promise.allSettled — one bad voice
- * doesn't tank the whole debate. The result preserves the ordering you passed
- * in and surfaces per-voice errors so the UI can show "voice X failed" without
- * dropping the others.
+ * Failure isolation: each voice runs under Promise.allSettled — one bad
+ * voice doesn't tank the whole debate. The result preserves the ordering
+ * you passed in and surfaces per-voice errors so the UI can show "voice X
+ * failed" without dropping the others.
  */
 
 import type { ModelProvider } from "./run.js";
@@ -49,6 +47,24 @@ export interface DebateVoice {
   systemPromptSuffix?: string;
 }
 
+/**
+ * Streaming events emitted via `onEvent` while a debate runs. The shape is
+ * stable across mock and real providers so the UI / tests can rely on it.
+ */
+export type DebateEvent =
+  | { type: "voice-started"; index: number; name: string }
+  | { type: "voice-delta"; index: number; name: string; delta: string }
+  | {
+      type: "voice-completed";
+      index: number;
+      name: string;
+      status: "ok" | "error" | "timeout";
+      prose: string;
+      citations: Citation[];
+      usage: AgentUsage;
+      error?: string;
+    };
+
 export interface RunDebateOptions {
   /** Override env-based provider resolution. Pass `"amd_vllm"` to pin the
    *  whole panel to a single self-hosted endpoint. */
@@ -60,6 +76,12 @@ export interface RunDebateOptions {
   /** Optional per-voice timeout. If a voice exceeds it, the result is
    *  returned with status="timeout". Default: no timeout. */
   timeoutMs?: number;
+  /** Streaming callback. Fires for every voice-started / voice-delta /
+   *  voice-completed event. Cheap synchronous callback; do not block. */
+  onEvent?: (event: DebateEvent) => void;
+  /** Cancel an in-flight panel. Voices not yet started are skipped; running
+   *  voices abort their fetch and resolve with status="error". */
+  signal?: AbortSignal;
 }
 
 export interface DebateVoiceResult {
@@ -92,79 +114,83 @@ function buildSystemForVoice(voice: DebateVoice): string {
     const base = PERSONA_SYSTEM_PROMPTS[voice.personaId];
     return voice.systemPromptSuffix ? `${base}\n\n${voice.systemPromptSuffix}` : base;
   }
-  throw new Error(`DebateVoice "${voice.name}" must set either personaId or systemPromptOverride.`);
+  throw new Error(
+    `DebateVoice "${voice.name}" must set either personaId or systemPromptOverride.`,
+  );
 }
 
 async function runOneVoice(
+  index: number,
   voice: DebateVoice,
   context: AgentContext,
   history: AgentMessage[],
   userMessage: string,
   options: RunDebateOptions,
 ): Promise<DebateVoiceResult> {
-  // Voices that supply a custom system prompt route through a synthetic
-  // persona slot. We piggyback on `forcePersona` + a temporary patch of the
-  // PERSONA_SYSTEM_PROMPTS registry so `runAgent` doesn't need to grow a
-  // systemPromptOverride parameter.
-  const synthSlot: PersonaId = (voice.personaId ?? "drafter") as PersonaId;
-  const customPrompt = voice.systemPromptOverride
-    ? voice.systemPromptOverride
-    : voice.systemPromptSuffix
-      ? `${PERSONA_SYSTEM_PROMPTS[synthSlot]}\n\n${voice.systemPromptSuffix}`
-      : null;
+  const systemPrompt = buildSystemForVoice(voice);
+  const persona: PersonaId = voice.personaId ?? "drafter";
 
-  const restore = customPrompt ? PERSONA_SYSTEM_PROMPTS[synthSlot] : null;
-  if (customPrompt) {
-    PERSONA_SYSTEM_PROMPTS[synthSlot] = customPrompt;
-  }
+  options.onEvent?.({ type: "voice-started", index, name: voice.name });
 
   let prose = "";
   let usage: AgentUsage = { ...DEFAULT_USAGE };
   let errored: string | null = null;
-  let persona: PersonaId | null = null;
 
   try {
     for await (const ev of runAgent(context, history, userMessage, {
-      forcePersona: synthSlot,
+      forcePersona: persona,
+      systemPromptOverride: systemPrompt,
       ...(options.provider ? { provider: options.provider } : {}),
       ...(options.model ? { model: options.model } : {}),
       ...(options.maxTokens !== undefined ? { maxTokens: options.maxTokens } : {}),
+      ...(options.signal ? { signal: options.signal } : {}),
     })) {
-      if (ev.type === "persona-selected") persona = ev.persona;
-      if (ev.type === "text-delta") prose += ev.delta;
+      if (ev.type === "text-delta") {
+        prose += ev.delta;
+        options.onEvent?.({ type: "voice-delta", index, name: voice.name, delta: ev.delta });
+      }
       if (ev.type === "done") usage = ev.usage;
       if (ev.type === "error") {
         errored = ev.message;
         break;
       }
     }
-  } finally {
-    if (restore !== null) {
-      PERSONA_SYSTEM_PROMPTS[synthSlot] = restore;
-    }
+  } catch (err) {
+    errored = err instanceof Error ? err.message : String(err);
   }
 
-  if (errored) {
-    return {
-      name: voice.name,
-      status: "error",
-      prose,
-      citations: [],
-      usage,
-      error: errored,
-      persona,
-    };
-  }
+  const parsed = errored ? null : parseModelOutput(prose);
+  const result: DebateVoiceResult = errored
+    ? {
+        name: voice.name,
+        status: "error",
+        prose,
+        citations: [],
+        usage,
+        error: errored,
+        persona,
+      }
+    : {
+        name: voice.name,
+        status: "ok",
+        prose: parsed?.prose ?? prose,
+        citations: parsed?.citations ?? [],
+        usage,
+        persona,
+      };
 
-  const parsed = parseModelOutput(prose);
-  return {
-    name: voice.name,
-    status: "ok",
-    prose: parsed.prose,
-    citations: parsed.citations,
-    usage,
-    persona,
-  };
+  options.onEvent?.({
+    type: "voice-completed",
+    index,
+    name: result.name,
+    status: result.status,
+    prose: result.prose,
+    citations: result.citations,
+    usage: result.usage,
+    ...(result.error ? { error: result.error } : {}),
+  });
+
+  return result;
 }
 
 /**
@@ -188,25 +214,34 @@ export async function runDebate(
   const startedAt = Date.now();
   const history: AgentMessage[] = [];
 
-  const wrapped = voices.map((voice) => {
-    const call = runOneVoice(voice, context, history, userMessage, options);
+  const wrapped = voices.map((voice, index) => {
+    const call = runOneVoice(index, voice, context, history, userMessage, options);
     if (options.timeoutMs && options.timeoutMs > 0) {
       return Promise.race<DebateVoiceResult>([
         call,
         new Promise<DebateVoiceResult>((resolve) =>
-          setTimeout(
-            () =>
-              resolve({
-                name: voice.name,
-                status: "timeout",
-                prose: "",
-                citations: [],
-                usage: { ...DEFAULT_USAGE },
-                error: `Voice "${voice.name}" exceeded ${options.timeoutMs}ms.`,
-                persona: null,
-              }),
-            options.timeoutMs,
-          ),
+          setTimeout(() => {
+            const timeoutResult: DebateVoiceResult = {
+              name: voice.name,
+              status: "timeout",
+              prose: "",
+              citations: [],
+              usage: { ...DEFAULT_USAGE },
+              error: `Voice "${voice.name}" exceeded ${options.timeoutMs}ms.`,
+              persona: voice.personaId ?? null,
+            };
+            options.onEvent?.({
+              type: "voice-completed",
+              index,
+              name: voice.name,
+              status: "timeout",
+              prose: "",
+              citations: [],
+              usage: { ...DEFAULT_USAGE },
+              error: timeoutResult.error,
+            });
+            resolve(timeoutResult);
+          }, options.timeoutMs),
         ),
       ]);
     }
@@ -243,13 +278,20 @@ export async function runDebate(
 }
 
 /**
- * A starter set of compliance-review voices. Tuned for securities-review
- * tasks (OM, KYC, marketing). Refine the suffixes to match your firm's
- * review style — they're the lightest-weight knob in this whole pipeline.
- *
- * NOTE: these are intentionally short. The base persona prompt does the
- * heavy lifting; the suffix nudges stance.
+ * Universal use-case templates. Each ships its own prompt and voice set.
+ * Intentionally generic — debate is a pattern (parallel critique against a
+ * single endpoint), not a vertical. The compliance trio is the default
+ * because that's the calling app's primary use case, but the same
+ * machinery serves code review, decision making, and document critique.
  */
+export interface DebateTemplate {
+  id: string;
+  label: string;
+  description: string;
+  prompt: string;
+  voices: DebateVoice[];
+}
+
 export const DEFAULT_COMPLIANCE_VOICES: DebateVoice[] = [
   {
     name: "Skeptical reviewer",
@@ -268,5 +310,88 @@ export const DEFAULT_COMPLIANCE_VOICES: DebateVoice[] = [
     personaId: "om-reviewer",
     systemPromptSuffix:
       "STANCE: Read this OM as an OSC reviewer on a 45-106 deficiency review. Focus on investor protections: rights of action, withdrawal rights, marketing-claim substantiation. If you'd write a deficiency letter on a point, mark it MISSING.",
+  },
+];
+
+export const DEBATE_TEMPLATES: DebateTemplate[] = [
+  {
+    id: "compliance",
+    label: "Compliance review",
+    description: "OM disclosure check with three regulator stances.",
+    prompt:
+      'Review this offering memorandum excerpt against Ontario NI 45-106 and surface the top 3 disclosure gaps a compliance reviewer should raise:\n\n"The issuer offers Class A units to accredited investors only. Past performance has consistently exceeded benchmarks. Subscription proceeds will be applied to general working capital. Risk factors are listed in Schedule B."',
+    voices: DEFAULT_COMPLIANCE_VOICES,
+  },
+  {
+    id: "code-review",
+    label: "Code review",
+    description: "Engineer · Security · Performance critique the same diff.",
+    prompt:
+      'Review this TypeScript snippet. Surface what you would request changes on, request style, and what ships.\n\n```ts\nasync function fetchUserOrders(userId: string) {\n  const orders = [];\n  const ids = await db.query("SELECT order_id FROM orders WHERE user_id = " + userId);\n  for (const id of ids) {\n    const order = await db.query(`SELECT * FROM orders WHERE id = ${id}`);\n    orders.push(order);\n  }\n  return JSON.stringify(orders);\n}\n```',
+    voices: [
+      {
+        name: "Senior engineer",
+        systemPromptOverride:
+          "You are a senior software engineer doing a code review. Focus on correctness, readability, idiomatic style, and maintainability. Be direct: tell the author what to change and why. Cite specific lines.",
+      },
+      {
+        name: "Security auditor",
+        systemPromptOverride:
+          "You are a security engineer reviewing this code as if it shipped to production. Identify injection risks, auth/authorization mistakes, secret leakage, unsafe deserialization, missing input validation, and any pattern listed in OWASP Top 10. Rate severity per finding.",
+      },
+      {
+        name: "Performance hawk",
+        systemPromptOverride:
+          "You are a performance engineer. Identify N+1 queries, unnecessary allocations, blocking I/O on hot paths, missing caching, and any quadratic-or-worse algorithmic complexity. Suggest the cheapest practical fix per finding.",
+      },
+    ],
+  },
+  {
+    id: "decision",
+    label: "Decision making",
+    description: "Optimist · Skeptic · Devil's advocate weigh the same call.",
+    prompt:
+      "Should our 12-person SaaS startup take a $3M seed round at a $20M post-money valuation from a top-tier VC, or bootstrap with $400K ARR growing at 25% MoM? Argue the case in 3-5 punchy bullets and end with an explicit recommendation.",
+    voices: [
+      {
+        name: "Optimist",
+        systemPromptOverride:
+          "You are a strategic optimist. Argue for the path with the highest expected upside. Surface the asymmetric bets where the downside is small and the upside is large. Be specific about WHY the optimistic case is realistic, not just possible.",
+      },
+      {
+        name: "Skeptic",
+        systemPromptOverride:
+          "You are a strategic skeptic. Argue for the path with the lowest catastrophic-failure risk. Surface the second-order effects most teams underweight: dilution, control, founder fatigue, customer concentration. Recommend the boring, robust answer when it's right.",
+      },
+      {
+        name: "Devil's advocate",
+        systemPromptOverride:
+          "You are a devil's advocate. Take whichever position the founders are LEAST likely to consider seriously, and argue it as if it's the obvious right call. Your goal is to stress-test the other voices' assumptions, not to be balanced.",
+      },
+    ],
+  },
+  {
+    id: "doc-critique",
+    label: "Document critique",
+    description: "Editor · Skeptical reader · Subject expert read the same paragraph.",
+    prompt:
+      'Critique this paragraph from a startup\'s landing page. Output: 3 specific edits each, with the rationale.\n\n"Our AI-powered platform leverages cutting-edge machine learning algorithms to deliver unprecedented insights and drive transformative outcomes for forward-thinking enterprises. We empower decision-makers to harness the full potential of their data and unlock new opportunities for growth."',
+    voices: [
+      {
+        name: "Strict editor",
+        systemPromptOverride:
+          "You are a strict copy editor in the style of Strunk & White and David Ogilvy. Cut every empty word. Replace abstractions with concrete claims. Demand verbs that mean something. Quote the original text and propose a tight rewrite.",
+      },
+      {
+        name: "Confused reader",
+        systemPromptOverride:
+          "You are a smart but skeptical first-time reader. After every sentence, ask 'wait, what does that actually mean?' Note where the prose loses you, what assumptions it makes, and what concrete question would make you trust the writer.",
+      },
+      {
+        name: "Subject expert",
+        systemPromptOverride:
+          "You are an expert in the relevant domain (sales, marketing, ML — pick whichever the prose claims). Flag every claim that is technically wrong, vague, or could not survive a hostile customer call. Suggest replacement claims that are specific and falsifiable.",
+      },
+    ],
   },
 ];

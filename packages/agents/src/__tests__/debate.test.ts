@@ -14,7 +14,7 @@ vi.mock("../run.js", async () => {
     _ctx: unknown,
     _history: unknown,
     userMessage: string,
-    options: { forcePersona?: string } = {},
+    options: { forcePersona?: string; systemPromptOverride?: string } = {},
   ) {
     const persona = options.forcePersona ?? "drafter";
     yield { type: "persona-selected", persona, reason: "mock" };
@@ -24,12 +24,16 @@ vi.mock("../run.js", async () => {
       return;
     }
     if (userMessage.includes("__hang__")) {
-      // Sleep longer than any sane timeout so the timeout branch can fire.
       await new Promise((resolve) => setTimeout(resolve, 10_000));
     }
 
-    // Echo the persona id so each voice's prose is distinguishable.
-    yield { type: "text-delta", delta: `voice=${persona}\n` };
+    // The override-aware mock: each voice's prose echoes a hash of its
+    // system prompt so concurrent voices are distinguishable. Confirms
+    // runDebate routes distinct prompts to each voice (no shared mutation).
+    const promptTag = options.systemPromptOverride
+      ? options.systemPromptOverride.slice(0, 24).replace(/\s+/g, "_")
+      : persona;
+    yield { type: "text-delta", delta: `voice=${persona}|prompt=${promptTag}\n` };
     yield { type: "text-delta", delta: "ok\n" };
     yield {
       type: "done",
@@ -43,7 +47,8 @@ vi.mock("../run.js", async () => {
   };
 });
 
-import { DEFAULT_COMPLIANCE_VOICES, runDebate } from "../debate";
+import { DEBATE_TEMPLATES, DEFAULT_COMPLIANCE_VOICES, runDebate } from "../debate";
+import type { DebateEvent } from "../debate";
 import type { AgentContext } from "../types";
 
 const CTX: AgentContext = {
@@ -130,6 +135,52 @@ describe("runDebate", () => {
     for (const v of DEFAULT_COMPLIANCE_VOICES) {
       expect(v.personaId).toBe("om-reviewer");
       expect(v.systemPromptSuffix).toMatch(/STANCE:/);
+    }
+  });
+
+  it("ships a universal template set covering compliance, code, decisions, doc critique", () => {
+    expect(DEBATE_TEMPLATES.length).toBeGreaterThanOrEqual(4);
+    const ids = DEBATE_TEMPLATES.map((t) => t.id);
+    expect(ids).toContain("compliance");
+    expect(ids).toContain("code-review");
+    expect(ids).toContain("decision");
+    expect(ids).toContain("doc-critique");
+    for (const template of DEBATE_TEMPLATES) {
+      expect(template.voices.length).toBeGreaterThanOrEqual(2);
+      expect(template.prompt.length).toBeGreaterThan(20);
+      // Universal templates either use a persona or a full override; never both undefined.
+      for (const voice of template.voices) {
+        expect(Boolean(voice.personaId ?? voice.systemPromptOverride)).toBe(true);
+      }
+    }
+  });
+
+  it("emits voice-started, voice-delta, and voice-completed via onEvent", async () => {
+    const events: DebateEvent[] = [];
+    await runDebate(
+      [
+        { name: "A", personaId: "om-reviewer" },
+        { name: "B", personaId: "om-reviewer" },
+      ],
+      CTX,
+      "review this OM",
+      { onEvent: (e) => events.push(e) },
+    );
+
+    const types = events.map((e) => e.type);
+    // Each voice fires exactly one started + at least one delta + one completed.
+    expect(types.filter((t) => t === "voice-started")).toHaveLength(2);
+    expect(types.filter((t) => t === "voice-delta").length).toBeGreaterThanOrEqual(2);
+    expect(types.filter((t) => t === "voice-completed")).toHaveLength(2);
+
+    const completed = events.filter((e) => e.type === "voice-completed") as Extract<
+      DebateEvent,
+      { type: "voice-completed" }
+    >[];
+    expect(completed.map((c) => c.name).sort()).toEqual(["A", "B"]);
+    for (const c of completed) {
+      expect(c.status).toBe("ok");
+      expect(c.prose).toContain("ok");
     }
   });
 });

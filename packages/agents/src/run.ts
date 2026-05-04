@@ -76,12 +76,28 @@ const MAX_TOKENS = 16000;
 export interface RunAgentOptions {
   /** Override the heuristic router with an explicit persona. */
   forcePersona?: PersonaId;
+  /**
+   * Override the persona system prompt entirely. When set, this string is
+   * used as the persona block (skipping `PERSONA_SYSTEM_PROMPTS[persona]`).
+   * Designed for parallel callers that want distinct stances against the
+   * same model — e.g. multi-voice debate where three voices share a
+   * persona slot but need three different prompts running concurrently.
+   * Without this, callers had to mutate the persona registry, which races
+   * across concurrent runs.
+   */
+  systemPromptOverride?: string;
   /** Override env-based provider resolution. */
   provider?: ModelProvider;
   /** Override the default model id. */
   model?: string;
   /** Override max output tokens. */
   maxTokens?: number;
+  /**
+   * AbortSignal for canceling an in-flight stream. The OpenAI-compatible
+   * fetch path forwards this; the Anthropic SDK path closes the stream.
+   * Used by the debate route's stop button.
+   */
+  signal?: AbortSignal;
 }
 
 function hasValue(value: string | undefined): boolean {
@@ -419,6 +435,7 @@ async function* runOpenAiCompatible(
   history: AgentMessage[],
   userMessage: string,
   maxTokens: number,
+  signal?: AbortSignal,
 ): AsyncGenerator<AgentEvent> {
   const baseUrl = config.baseUrl ?? "https://api.openai.com/v1";
   const payload: Record<string, unknown> = {
@@ -450,6 +467,7 @@ async function* runOpenAiCompatible(
       ...openAiCompatibleAuthHeaders(config),
     },
     body: JSON.stringify(payload),
+    ...(signal ? { signal } : {}),
   });
 
   if (!res.ok) {
@@ -516,10 +534,19 @@ export async function* runAgent(
 
   yield { type: "persona-selected", persona: decision.persona, reason: decision.reason };
 
-  const personaPrompt = PERSONA_SYSTEM_PROMPTS[decision.persona];
+  const personaPrompt = options.systemPromptOverride ?? PERSONA_SYSTEM_PROMPTS[decision.persona];
   const controlContext = renderControlContext(context.control, context.frameworkScope);
   const reviewSubjectContext = renderReviewSubject(context.reviewSubject);
-  const cognitionContext = renderCognitionContext(context.retrievedSnippets ?? []);
+  // Distinguish "snippets not provided" (undefined) from "snippets explicitly
+  // empty" (zero-length array): undefined skips the block entirely, while []
+  // still renders the RETRIEVAL-GAP directive. The compliance pipeline always
+  // passes an array; universal callers (debate code-review/decision/doc-critique)
+  // pass undefined so the model isn't told "no authorities were retrieved" for
+  // a query that has nothing to do with authorities.
+  const cognitionContext =
+    context.retrievedSnippets === undefined
+      ? ""
+      : renderCognitionContext(context.retrievedSnippets);
 
   // Cache strategy: persona + control are stable across turns (ephemeral cache).
   // Review subject and cognition blocks are non-cached — they change per matter
@@ -562,6 +589,7 @@ export async function* runAgent(
         history,
         userMessage,
         options.maxTokens ?? MAX_TOKENS,
+        options.signal,
       );
     }
   } catch (err) {

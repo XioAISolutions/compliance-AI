@@ -3,6 +3,11 @@
 Demo-ready compliance cockpit for securities review, infosec GRC, evidence,
 approval, transcript, graph, and handoff workflows.
 
+> **AMD Hackathon (May 2026)** — this branch (`feat/amd-mi300x-vllm`) wires
+> the whole pipeline onto Qwen 2.5 72B on a single AMD MI300X via vLLM. See
+> [`AMD_HACKATHON.md`](./AMD_HACKATHON.md) for the 60-second runbook and the
+> three new surfaces: `/demo/debate`, `/api/debate`, `/api/healthcheck/llm`.
+
 The primary demo path is `/demo`:
 
 1. Drop an offering memorandum, TXT, PDF, or DOCX.
@@ -30,14 +35,17 @@ The primary demo path is `/demo`:
 
 ## Provider Modes
 
-The agent runner supports three provider modes:
+The agent runner supports four provider modes:
 
 - Hosted preview: `LLM_PROVIDER=openai`, `OPENAI_API_KEY`, optional `OPENAI_MODEL`.
 - Private/local: `LLM_PROVIDER=ollama`, `OLLAMA_BASE_URL`, optional `OLLAMA_CHAT_MODEL`.
+- Self-hosted vLLM (e.g. AMD MI300X + Qwen 2.5): `LLM_PROVIDER=amd_vllm`,
+  `AMD_VLLM_BASE_URL`, optional `AMD_VLLM_MODEL` and `AMD_VLLM_API_KEY`.
 - Legacy: `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`.
 
-If `LLM_PROVIDER` is unset, the runtime picks OpenAI when `OPENAI_API_KEY` exists,
-Anthropic when only `ANTHROPIC_API_KEY` exists, and otherwise local Ollama.
+If `LLM_PROVIDER` is unset, the runtime auto-picks: `AMD_VLLM_BASE_URL` →
+`OPENAI_API_KEY` → `ANTHROPIC_API_KEY` → local Ollama. Explicit endpoint
+trumps ambient credentials.
 
 ## Quickstart
 

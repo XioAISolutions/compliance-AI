@@ -255,18 +255,18 @@ export const DEFAULT_COMPLIANCE_VOICES: DebateVoice[] = [
     name: "Skeptical reviewer",
     personaId: "om-reviewer",
     systemPromptSuffix:
-      "STANCE: Be the most cautious voice in the room. Flag anything that could expose the issuer to NI 45-106 / OSC sanction even if the language is technically defensible. When in doubt, mark FOUND items as PARTIAL and PARTIAL items as MISSING. Give regulators the benefit of every doubt.",
+      "STANCE: Be the most cautious voice. When in doubt, downgrade FOUND → PARTIAL and PARTIAL → MISSING. Flag anything that could draw a regulator's eye, even if technically defensible.",
   },
   {
     name: "Permissive reviewer",
     personaId: "om-reviewer",
     systemPromptSuffix:
-      "STANCE: Take the issuer's side within the bounds of the rules. Where the rule is silent or the language is conventional in Canadian private placements, mark items FOUND. Reserve PARTIAL/MISSING for genuine, citable gaps — not stylistic preferences. Your job is to keep the deal moving while staying compliant.",
+      "STANCE: Take the issuer's side within the rules. Where language is conventional for Canadian private placements, mark FOUND. Reserve PARTIAL/MISSING for genuine, citable gaps — not stylistic preferences.",
   },
   {
     name: "Regulator voice",
     personaId: "om-reviewer",
     systemPromptSuffix:
-      "STANCE: Read this OM the way an OSC reviewer would on a 45-106 deficiency review. Focus on protected investor interests: rights of action, withdrawal rights, statement of personal information completeness, marketing-claim substantiation. Cite the specific rule that supports each finding. If you would write a deficiency letter on a point, mark it MISSING.",
+      "STANCE: Read this OM as an OSC reviewer on a 45-106 deficiency review. Focus on investor protections: rights of action, withdrawal rights, marketing-claim substantiation. If you'd write a deficiency letter on a point, mark it MISSING.",
   },
 ];

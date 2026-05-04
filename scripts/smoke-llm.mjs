@@ -2,14 +2,12 @@
 /**
  * Standalone CLI smoke for the configured LLM provider.
  *
- * Usage:
- *   LLM_PROVIDER=amd_vllm AMD_VLLM_BASE_URL=http://<ip>:8000/v1 node scripts/smoke-llm.mjs
- *   AMD_VLLM_BASE_URL=http://<ip>:8000/v1 node scripts/smoke-llm.mjs   # auto-detects amd_vllm
- *
  * Hits /v1/models and /v1/chat/completions on the resolved provider, prints
  * latency + sample output. Exits 0 on success, 1 on failure. Doesn't touch
  * Next.js — useful for verifying the GPU side from CI or a hackathon demo
  * machine without booting the web app.
+ *
+ * Run with --help for usage.
  */
 
 const args = process.argv.slice(2);
@@ -18,6 +16,26 @@ const arg = (key, fallback) => {
   if (idx >= 0 && args[idx + 1]) return args[idx + 1];
   return fallback;
 };
+
+if (args.includes("--help") || args.includes("-h")) {
+  console.log(`smoke-llm — ping the configured LLM provider
+
+Usage:
+  pnpm smoke:llm                                # uses env vars
+  node scripts/smoke-llm.mjs --base-url <url>   # explicit override
+
+Env (any one of):
+  AMD_VLLM_BASE_URL  + AMD_VLLM_MODEL           # AMD MI300X / vLLM
+  OPENAI_BASE_URL    + OPENAI_MODEL  + OPENAI_API_KEY
+  OLLAMA_BASE_URL    + OLLAMA_MODEL
+
+Examples:
+  AMD_VLLM_BASE_URL=http://129.212.190.73:8000/v1 pnpm smoke:llm
+  OPENAI_API_KEY=sk-... OPENAI_MODEL=gpt-5.4-mini pnpm smoke:llm
+  pnpm smoke:llm --base-url http://localhost:11434/v1 --model llama3.1:8b
+`);
+  process.exit(0);
+}
 
 const baseUrl = (
   process.env.AMD_VLLM_BASE_URL ??

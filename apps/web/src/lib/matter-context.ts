@@ -305,7 +305,6 @@ export function renderCrumbHandoff(bundle: MatterContextBundle): string {
     `- Task: ${bundle.matter.taskType}`,
     `- Scope: ${bundle.matter.jurisdiction} / ${bundle.matter.registrationCategory}`,
     `- Status: ${bundle.matter.status}`,
-    `- LLM: ${providerLabel}${bundle.provider.baseUrl ? ` (${bundle.provider.baseUrl})` : ""}`,
     `- Export hash: ${sha256(bundle.matter.id + bundle.exportedAt)}`,
     "",
     "## Documents",

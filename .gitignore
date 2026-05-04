@@ -13,3 +13,4 @@ output/playwright/
 !.env.example
 .vercel
 .claude/
+.local-hackathon-notes.md

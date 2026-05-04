@@ -49,21 +49,36 @@ export function DemoCockpitTabs({ result }: { result: DemoAssessmentResult }) {
           <div>
             <QuickReviewDropZone />
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <Step label="1" title="Classify" body="Matter scope is inferred from the uploaded file." />
-              <Step label="2" title="Review" body="The judge loop streams a citation-backed draft." />
-              <Step label="3" title="Handoff" body="Transcript, graph, and export pack travel with the matter." />
+              <Step
+                label="1"
+                title="Classify"
+                body="Matter scope is inferred from the uploaded file."
+              />
+              <Step
+                label="2"
+                title="Review"
+                body="The judge loop streams a citation-backed draft."
+              />
+              <Step
+                label="3"
+                title="Handoff"
+                body="Transcript, graph, and export pack travel with the matter."
+              />
             </div>
           </div>
           <aside className="rounded-lg border border-neutral-200 p-5 dark:border-neutral-800">
             <h2 className="text-lg font-semibold">Live path</h2>
             <ol className="mt-4 space-y-3 text-sm text-neutral-600 dark:text-neutral-400">
-              <li>Drop an offering memorandum, KYC file, marketing document, or regulator letter.</li>
+              <li>
+                Drop an offering memorandum, KYC file, marketing document, or regulator letter.
+              </li>
               <li>Open the auto-created matter and let the first review round start.</li>
               <li>Use the Transcript and Graph tabs to explain how the answer was built.</li>
               <li>Export the handoff pack before the approval step.</li>
             </ol>
             <p className="mt-5 rounded-md bg-neutral-100 p-3 text-xs text-neutral-600 dark:bg-neutral-900 dark:text-neutral-400">
-              Hosted preview can use OpenAI with sample documents. Private installs can run local Ollama.
+              Hosted preview uses OpenAI with sample documents. Private installs can run on your own
+              AMD MI300X (vLLM + Qwen 2.5 72B), local Ollama, or any OpenAI-compatible endpoint.
             </p>
           </aside>
         </section>
@@ -98,7 +113,9 @@ export function DemoCockpitTabs({ result }: { result: DemoAssessmentResult }) {
                 <li key={finding.slug} className="py-3">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="text-sm font-medium">{finding.code}: {finding.title}</div>
+                      <div className="text-sm font-medium">
+                        {finding.code}: {finding.title}
+                      </div>
                       <p className="mt-1 text-xs text-neutral-500">{finding.recommendedAction}</p>
                     </div>
                     <div className="font-mono text-lg font-semibold">{finding.priorityScore}</div>

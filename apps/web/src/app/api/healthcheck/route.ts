@@ -38,7 +38,7 @@ export async function GET() {
       auth: { configured: Boolean(process.env.NEXTAUTH_SECRET) },
       provider: providerCheck(),
     },
-    version: process.env.NEXT_PUBLIC_APP_VERSION ?? "0.9.0-demo-cockpit",
+    version: process.env.NEXT_PUBLIC_APP_VERSION ?? "1.0.0-amd-mi300x",
     timestamp: new Date().toISOString(),
   };
 

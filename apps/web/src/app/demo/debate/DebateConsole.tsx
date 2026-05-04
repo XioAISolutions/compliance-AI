@@ -47,6 +47,13 @@ interface SynthesisInfo {
   verdict: string;
 }
 
+interface FollowupState {
+  name: string;
+  status: "pending" | "running" | "ok" | "error";
+  stance: "defended" | "updated" | "conceded" | "unclear";
+  prose: string;
+}
+
 const TEMPLATES: DebateTemplate[] = DEBATE_TEMPLATES;
 
 export function DebateConsole() {
@@ -64,6 +71,8 @@ export function DebateConsole() {
   const [meta, setMeta] = useState<DebateMeta | null>(null);
   const [done, setDone] = useState<DoneInfo | null>(null);
   const [synthesis, setSynthesis] = useState<SynthesisInfo | null>(null);
+  const [enableFollowup, setEnableFollowup] = useState(false);
+  const [followups, setFollowups] = useState<FollowupState[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [ping, setPing] = useState<PingResult | null>(null);
   const [expandedVoices, setExpandedVoices] = useState<Set<number>>(new Set());
@@ -139,6 +148,7 @@ export function DebateConsole() {
     setMeta(null);
     setDone(null);
     setSynthesis(null);
+    setFollowups([]);
     setErrorMsg(null);
     setExpandedVoices(new Set());
     setLiveTps(null);
@@ -155,6 +165,7 @@ export function DebateConsole() {
           userMessage: prompt,
           voices,
           retrieveAuthorities: templateId === "compliance",
+          followup: enableFollowup,
         }),
         signal: controller.signal,
       });
@@ -263,6 +274,57 @@ export function DebateConsole() {
         disagreed: Array.isArray(event.disagreed) ? event.disagreed.map(String) : [],
         verdict: String(event.verdict ?? ""),
       });
+    } else if (event.type === "followup-started") {
+      const i = Number(event.index);
+      const name = String(event.name ?? "");
+      setFollowups((prev) => {
+        const next = [...prev];
+        const idx = next.findIndex((f) => f.name === name);
+        const entry: FollowupState = {
+          name,
+          status: "running",
+          stance: "unclear",
+          prose: "",
+        };
+        if (idx >= 0) next[idx] = entry;
+        else next[i] = entry;
+        return next;
+      });
+    } else if (event.type === "followup-delta") {
+      const i = Number(event.index);
+      const delta = String(event.delta ?? "");
+      setFollowups((prev) => {
+        const next = [...prev];
+        if (next[i]) next[i] = { ...next[i], prose: next[i].prose + delta };
+        return next;
+      });
+    } else if (event.type === "followup-completed") {
+      const i = Number(event.index);
+      setFollowups((prev) => {
+        const next = [...prev];
+        if (next[i]) {
+          next[i] = {
+            ...next[i],
+            status: "ok",
+            stance: (event.stance as FollowupState["stance"]) ?? "unclear",
+            prose: String(event.prose ?? next[i].prose),
+          };
+        }
+        return next;
+      });
+    } else if (event.type === "followup-done") {
+      const arr = Array.isArray(event.followups) ? event.followups : [];
+      setFollowups(
+        arr.map((f) => {
+          const o = f as Record<string, unknown>;
+          return {
+            name: String(o.name ?? ""),
+            status: (o.status as FollowupState["status"]) ?? "ok",
+            stance: (o.stance as FollowupState["stance"]) ?? "unclear",
+            prose: String(o.prose ?? ""),
+          };
+        }),
+      );
     } else if (event.type === "debate-done") {
       setDone({ wallClockMs: Number(event.wallClockMs ?? 0) });
     } else if (event.type === "error") {
@@ -347,7 +409,9 @@ export function DebateConsole() {
   }
 
   const promptDirty = prompt !== template.prompt || voices !== template.voices;
-  const completedCount = voiceStates.filter((v) => v.status === "ok" || v.status === "error" || v.status === "timeout").length;
+  const completedCount = voiceStates.filter(
+    (v) => v.status === "ok" || v.status === "error" || v.status === "timeout",
+  ).length;
   const totalVoices = voiceStates.length;
 
   return (
@@ -376,7 +440,9 @@ export function DebateConsole() {
           ))}
         </div>
         <p className="text-xs text-neutral-500">
-          <span className="text-neutral-700 dark:text-neutral-300">Use when: {template.useWhen}</span>
+          <span className="text-neutral-700 dark:text-neutral-300">
+            Use when: {template.useWhen}
+          </span>
         </p>
       </div>
 
@@ -426,12 +492,16 @@ export function DebateConsole() {
           {running && totalVoices > 0 && (
             <span className="text-xs text-neutral-500">
               {completedCount}/{totalVoices} voices done
-              {synthesis ? " · synthesis ready" : completedCount === totalVoices ? " · synthesizing…" : ""}
+              {synthesis
+                ? " · synthesis ready"
+                : completedCount === totalVoices
+                  ? " · synthesizing…"
+                  : ""}
             </span>
           )}
           {running && liveTps && liveTps.tokensPerSec > 0 && (
             <span
-              className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-mono font-medium text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
+              className="rounded-full bg-emerald-100 px-2 py-0.5 font-mono text-[10px] font-medium text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
               title="Aggregate tokens/sec across all voices streaming concurrently — measured from the live SSE stream."
             >
               ~{liveTps.tokensPerSec} tok/s
@@ -454,15 +524,26 @@ export function DebateConsole() {
           >
             {editingVoices ? "hide voices" : `edit voices (${voices.length})`}
           </button>
+          <label
+            className="flex items-center gap-1.5 text-xs text-neutral-500"
+            title="After synthesis, ask each voice to defend, update, or concede their stance given the others. One extra parallel GPU batch."
+          >
+            <input
+              type="checkbox"
+              checked={enableFollowup}
+              onChange={(e) => setEnableFollowup(e.target.checked)}
+              disabled={running}
+              className="h-3 w-3"
+            />
+            round 2
+          </label>
           {done && !running && (
             <span className="text-xs text-neutral-500">
               {voiceStates.filter((v) => v.status === "ok").length}/{voiceStates.length} voices in{" "}
               {(done.wallClockMs / 1000).toFixed(1)}s
             </span>
           )}
-          {errorMsg && (
-            <span className="text-xs text-red-600 dark:text-red-400">{errorMsg}</span>
-          )}
+          {errorMsg && <span className="text-xs text-red-600 dark:text-red-400">{errorMsg}</span>}
         </div>
       </section>
 
@@ -553,14 +634,97 @@ export function DebateConsole() {
               <VoiceCard
                 key={`${voice.name}-${i}`}
                 voice={voice}
-                expanded={expandedVoices.has(i) || voice.status === "running" || voice.status === "pending"}
+                expanded={
+                  expandedVoices.has(i) || voice.status === "running" || voice.status === "pending"
+                }
                 onToggle={() => toggleVoiceExpanded(i)}
               />
             ))}
           </div>
+
+          {/* Round-2 follow-up (output #3 — appears only when round-2 enabled) */}
+          {followups.length > 0 && (
+            <FollowupSection followups={followups} voiceStates={voiceStates} />
+          )}
         </section>
       )}
     </div>
+  );
+}
+
+function FollowupSection({
+  followups,
+  voiceStates,
+}: {
+  followups: FollowupState[];
+  voiceStates: VoiceState[];
+}) {
+  const stanceCounts = followups.reduce(
+    (acc, f) => {
+      if (!f) return acc;
+      if (f.stance === "defended") acc.defended++;
+      else if (f.stance === "updated") acc.updated++;
+      else if (f.stance === "conceded") acc.conceded++;
+      return acc;
+    },
+    { defended: 0, updated: 0, conceded: 0 },
+  );
+  const summary =
+    [
+      stanceCounts.defended > 0 && `${stanceCounts.defended} defended`,
+      stanceCounts.updated > 0 && `${stanceCounts.updated} updated`,
+      stanceCounts.conceded > 0 && `${stanceCounts.conceded} conceded`,
+    ]
+      .filter(Boolean)
+      .join(" · ") || "running…";
+
+  return (
+    <div className="rounded-lg border border-neutral-300 bg-neutral-50/50 p-4 dark:border-neutral-700 dark:bg-neutral-900/40">
+      <div className="mb-3 flex items-baseline justify-between">
+        <p className="text-xs font-semibold uppercase text-neutral-700 dark:text-neutral-300">
+          Round 2 — voices respond to each other
+        </p>
+        <span className="text-xs text-neutral-500">{summary}</span>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {followups.map((f, i) => {
+          const voiceStatus = voiceStates[i]?.status;
+          if (!f && voiceStatus !== "ok") return <div key={i} />;
+          if (!f) return <div key={i} />;
+          return <FollowupCard key={`${f.name}-${i}`} followup={f} />;
+        })}
+      </div>
+    </div>
+  );
+}
+
+function FollowupCard({ followup }: { followup: FollowupState }) {
+  const stanceColor: Record<FollowupState["stance"], string> = {
+    defended: "border-blue-300 dark:border-blue-700",
+    updated: "border-amber-300 dark:border-amber-700",
+    conceded: "border-emerald-300 dark:border-emerald-700",
+    unclear: "border-neutral-300 dark:border-neutral-700",
+  };
+  const stancePillColor: Record<FollowupState["stance"], string> = {
+    defended: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+    updated: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+    conceded: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
+    unclear: "bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300",
+  };
+  return (
+    <article className={`rounded-lg border ${stanceColor[followup.stance]} p-3`}>
+      <header className="flex items-center justify-between">
+        <span className="text-xs font-semibold">{followup.name}</span>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase ${stancePillColor[followup.stance]}`}
+        >
+          {followup.status === "running" ? "thinking" : followup.stance}
+        </span>
+      </header>
+      <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-neutral-700 dark:text-neutral-300">
+        {followup.prose || <span className="italic text-neutral-500">streaming…</span>}
+      </p>
+    </article>
   );
 }
 
@@ -571,18 +735,10 @@ function ProviderBar({ ping, meta }: { ping: PingResult | null; meta: DebateMeta
   const ok = ping?.ok ?? null;
   const ctx = ping?.modelInfo?.maxContextTokens ?? null;
   const ctxLabel =
-    ctx !== null
-      ? ctx >= 1000
-        ? `${Math.round(ctx / 1024)}K ctx`
-        : `${ctx} ctx`
-      : null;
+    ctx !== null ? (ctx >= 1000 ? `${Math.round(ctx / 1024)}K ctx` : `${ctx} ctx`) : null;
 
   const dotClass =
-    ok === true
-      ? "bg-emerald-500"
-      : ok === false
-        ? "bg-red-500"
-        : "bg-yellow-500 animate-pulse";
+    ok === true ? "bg-emerald-500" : ok === false ? "bg-red-500" : "bg-yellow-500 animate-pulse";
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-2 text-xs dark:border-neutral-800 dark:bg-neutral-900">
@@ -627,7 +783,9 @@ function SynthesisCard({ synthesis }: { synthesis: SynthesisInfo | null }) {
   if (!synthesis) {
     return (
       <div className="rounded-lg border-2 border-dashed border-neutral-300 p-5 text-sm text-neutral-500 dark:border-neutral-700">
-        <span className="italic">Synthesizing — reading all three voices to surface where they agree and diverge…</span>
+        <span className="italic">
+          Synthesizing — reading all three voices to surface where they agree and diverge…
+        </span>
       </div>
     );
   }
@@ -726,9 +884,7 @@ function VoiceCard({
           )}
         </div>
       </header>
-      {voice.error && (
-        <p className="mt-2 text-xs text-red-600 dark:text-red-400">{voice.error}</p>
-      )}
+      {voice.error && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{voice.error}</p>}
 
       {expanded ? (
         <div className="mt-2 max-h-80 flex-1 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed text-neutral-700 dark:text-neutral-300">

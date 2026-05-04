@@ -26,6 +26,7 @@ export {
 export { runAgentLoop, type RunAgentLoopOptions } from "./loop.js";
 export {
   runDebate,
+  runFollowup,
   synthesizeDebate,
   DEFAULT_COMPLIANCE_VOICES,
   DEBATE_TEMPLATES,
@@ -36,6 +37,7 @@ export {
   type DebateSynthesis,
   type DebateTemplate,
   type RunDebateOptions,
+  type VoiceFollowup,
 } from "./debate.js";
 export {
   pingProvider,

@@ -86,9 +86,9 @@ export default function Home() {
           <span className="text-neutral-500 dark:text-neutral-400">Side by side.</span>
         </h1>
         <p className="mt-4 max-w-2xl text-lg leading-relaxed text-neutral-600 dark:text-neutral-400">
-          Most AI tools give you one answer. This one runs three at the same time —
-          each from a different angle — then summarises where they agree, where
-          they diverge, and what to do. All on a single AMD GPU.
+          Most AI tools give you one answer. This one runs three at the same time — each from a
+          different angle — then summarises where they agree, where they diverge, and what to do.
+          All on a single AMD GPU.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Link
@@ -149,20 +149,18 @@ export default function Home() {
 
       {/* Compliance workbench — demoted but still accessible */}
       <section className="mb-12 rounded-lg border border-neutral-200 p-6 dark:border-neutral-800">
-        <p className="text-xs font-medium uppercase text-neutral-500">
-          Have a real document?
-        </p>
+        <p className="text-xs font-medium uppercase text-neutral-500">Have a real document?</p>
         <h2 className="mt-1 text-xl font-semibold">Drop it for the full compliance workflow</h2>
         <p className="mt-2 max-w-2xl text-sm text-neutral-600 dark:text-neutral-400">
-          OM, KYC file, marketing deck, regulator letter — we classify, route to the right
-          reviewer, cite the rules, and emit a CRUMB-style audit pack.
+          OM, KYC file, marketing deck, regulator letter — we classify, route to the right reviewer,
+          cite the rules, and emit a CRUMB-style audit pack.
         </p>
         <div className="mt-4">
           <QuickReviewDropZone onAuthorityIntake={() => setSnapshotRefreshToken((t) => t + 1)} />
         </div>
         <p className="mt-3 text-xs text-neutral-500">
-          Hosted demo uses sample documents. Private installs run on your own AMD MI300X
-          (or any OpenAI-compatible provider).
+          Hosted demo uses sample documents. Private installs run on your own AMD MI300X (or any
+          OpenAI-compatible provider).
         </p>
       </section>
 
@@ -208,7 +206,7 @@ export default function Home() {
           Built for the{" "}
           <Link
             href="https://lablab.ai/ai-hackathons/amd-developer"
-            className="underline-offset-4 hover:underline hover:text-neutral-900 dark:hover:text-white"
+            className="underline-offset-4 hover:text-neutral-900 hover:underline dark:hover:text-white"
             target="_blank"
             rel="noopener"
           >
@@ -217,7 +215,7 @@ export default function Home() {
           , May 2026 · #AMDDevHackathon ·{" "}
           <Link
             href="https://github.com/XioAISolutions/compliance-AI"
-            className="underline-offset-4 hover:underline hover:text-neutral-900 dark:hover:text-white"
+            className="underline-offset-4 hover:text-neutral-900 hover:underline dark:hover:text-white"
             target="_blank"
             rel="noopener"
           >
@@ -241,24 +239,43 @@ function ValueProp({ title, body }: { title: string; body: string }) {
 function ProviderPill({ ping }: { ping: PingResult | null }) {
   const ok = ping?.ok ?? null;
   const dotClass =
-    ok === true
-      ? "bg-emerald-500"
-      : ok === false
-        ? "bg-red-500"
-        : "bg-yellow-500 animate-pulse";
+    ok === true ? "bg-emerald-500" : ok === false ? "bg-red-500" : "bg-yellow-500 animate-pulse";
+  const ctx = ping?.modelInfo?.maxContextTokens ?? null;
+  const ctxLabel =
+    ctx !== null ? (ctx >= 1000 ? `${Math.round(ctx / 1024)}K ctx` : `${ctx} ctx`) : null;
 
   return (
     <div className="flex items-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs dark:border-neutral-800 dark:bg-neutral-900">
       <span className={`inline-block h-1.5 w-1.5 rounded-full ${dotClass}`} />
       {ping?.ok ? (
         <>
-          <span className="font-medium text-neutral-700 dark:text-neutral-200">{ping.provider}</span>
+          <span className="font-medium text-neutral-700 dark:text-neutral-200">
+            {ping.provider}
+          </span>
           <span className="text-neutral-500">·</span>
           <span className="font-mono text-neutral-600 dark:text-neutral-300">
             {abbreviateModel(ping.model)}
           </span>
+          {ctxLabel && (
+            <>
+              <span className="text-neutral-500">·</span>
+              <span
+                className="font-mono text-neutral-600 dark:text-neutral-300"
+                title={`Max context: ${ctx?.toLocaleString()} tokens`}
+              >
+                {ctxLabel}
+              </span>
+            </>
+          )}
           <span className="text-neutral-500">· {ping.latencyMs}ms</span>
         </>
+      ) : ok === false ? (
+        <span
+          className="text-neutral-500"
+          title="GPU droplet may be offline. Try the static sample below."
+        >
+          provider offline
+        </span>
       ) : (
         <span className="text-neutral-500">checking provider…</span>
       )}

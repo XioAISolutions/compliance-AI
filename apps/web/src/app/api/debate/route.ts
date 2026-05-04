@@ -26,6 +26,7 @@ import {
   DEFAULT_COMPLIANCE_VOICES,
   resolveModelProvider,
   runDebate,
+  runFollowup,
   synthesizeDebate,
   type AgentContext,
   type DebateEvent,
@@ -44,6 +45,12 @@ interface DebateRequestBody {
   timeoutMs?: number;
   maxTokens?: number;
   retrieveAuthorities?: boolean;
+  /**
+   * When true (default false), after the synthesis lands the route fires a
+   * round-2 follow-up where each voice defends, updates, or concedes its
+   * stance given the others. Costs one extra parallel batch on the GPU.
+   */
+  followup?: boolean;
 }
 
 const DEFAULT_PROMPT = DEFAULT_COMPLIANCE_VOICES[0]?.systemPromptSuffix
@@ -79,6 +86,7 @@ export async function POST(req: NextRequest) {
   const timeoutMs = Math.min(180_000, Math.max(5_000, body.timeoutMs ?? 90_000));
   const maxTokens = Math.min(2048, Math.max(64, body.maxTokens ?? 768));
   const retrieveAuthorities = body.retrieveAuthorities ?? !body.voices?.length;
+  const runFollowupRound = body.followup ?? false;
 
   // Authority retrieval is only meaningful for the compliance voices. For
   // universal use cases (code review, decision making, doc critique) the
@@ -180,8 +188,9 @@ export async function POST(req: NextRequest) {
         // beat — three blobs of text become one sentence the viewer can
         // act on. Failure is non-fatal; we still emit debate-done so the
         // UI closes the panel cleanly.
+        let synthesis = null;
         try {
-          const synthesis = await synthesizeDebate(result, userMessage, context, {
+          synthesis = await synthesizeDebate(result, userMessage, context, {
             ...(req.signal ? { signal: req.signal } : {}),
           });
           if (synthesis) {
@@ -198,6 +207,44 @@ export async function POST(req: NextRequest) {
           }
         } catch {
           // Synthesis is best-effort.
+        }
+
+        // Round-2 follow-up. Each surviving voice gets a second turn
+        // where it sees the other voices' responses and the synthesis,
+        // then defends / updates / concedes its stance. This is a real
+        // demonstration of the AMD / MI300X memory headroom: another
+        // parallel batch of N inferences on the same single GPU,
+        // running through the same vLLM endpoint.
+        if (runFollowupRound && synthesis) {
+          try {
+            const followups = await runFollowup(result, synthesis, userMessage, context, {
+              ...(req.signal ? { signal: req.signal } : {}),
+              onFollowupEvent: (ev) => {
+                try {
+                  controller.enqueue(encoder.encode(sseFrame(ev)));
+                } catch {
+                  /* stream closed */
+                }
+              },
+            });
+            controller.enqueue(
+              encoder.encode(
+                sseFrame({
+                  type: "followup-done",
+                  followups: followups.map((f) => ({
+                    index: f.index,
+                    name: f.name,
+                    status: f.status,
+                    stance: f.stance,
+                    prose: f.prose,
+                    ...(f.error ? { error: f.error } : {}),
+                  })),
+                }),
+              ),
+            );
+          } catch {
+            /* follow-up is best-effort too */
+          }
         }
 
         controller.enqueue(

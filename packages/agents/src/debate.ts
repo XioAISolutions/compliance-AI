@@ -114,9 +114,7 @@ function buildSystemForVoice(voice: DebateVoice): string {
     const base = PERSONA_SYSTEM_PROMPTS[voice.personaId];
     return voice.systemPromptSuffix ? `${base}\n\n${voice.systemPromptSuffix}` : base;
   }
-  throw new Error(
-    `DebateVoice "${voice.name}" must set either personaId or systemPromptOverride.`,
-  );
+  throw new Error(`DebateVoice "${voice.name}" must set either personaId or systemPromptOverride.`);
 }
 
 async function runOneVoice(
@@ -295,10 +293,7 @@ export interface DebateSynthesis {
   rawText: string;
 }
 
-const SYNTHESIS_PROMPT = (
-  userMessage: string,
-  voices: DebateVoiceResult[],
-): string => {
+const SYNTHESIS_PROMPT = (userMessage: string, voices: DebateVoiceResult[]): string => {
   const voicesBlock = voices
     .filter((v) => v.status === "ok")
     .map((v) => `### ${v.name}\n${v.prose.trim().slice(0, 1800)}`)
@@ -329,6 +324,217 @@ Rules:
 - "verdict" = the practical takeaway. If voices fundamentally disagreed, say so plainly.
 - Output the fenced JSON only. No preamble. No commentary after.`;
 };
+
+/**
+ * Round-2 follow-up. After synthesis identifies divergences, ask each voice:
+ * "Given the synthesis and the other voices, do you defend or update your
+ * position?" This produces a SECOND wave of inference on the same single
+ * GPU — a literal demonstration of MI300X memory headroom and the value of
+ * multi-pass deliberation in a way a non-expert viewer can read.
+ *
+ * Why a separate function (not just another runDebate call):
+ *   - Each voice sees its OWN prior round-1 prose + the synthesis as
+ *     context. Different voices get different rendered prompts.
+ *   - The output is a "stance update" — short by design (≤300 tokens) so
+ *     all three updates fit on one screen below round-1.
+ *
+ * Returns one update per ok-status round-1 voice, in input order. Voices
+ * that errored in round 1 are skipped (no point asking them to defend a
+ * non-answer).
+ */
+export interface VoiceFollowup {
+  index: number;
+  name: string;
+  status: "ok" | "error" | "timeout";
+  /** "defended" | "updated" | "conceded" — extracted from the model's response. */
+  stance: "defended" | "updated" | "conceded" | "unclear";
+  prose: string;
+  usage: AgentUsage;
+  error?: string;
+}
+
+const FOLLOWUP_PROMPT = (
+  voiceName: string,
+  voicePriorProse: string,
+  otherVoices: { name: string; prose: string }[],
+  synthesis: DebateSynthesis,
+  userMessage: string,
+): string => {
+  const others = otherVoices
+    .map((v) => `### ${v.name} said:\n${v.prose.trim().slice(0, 1200)}`)
+    .join("\n\n");
+  return `You previously gave the critique below. Now you've seen the other voices and an editor's synthesis. Decide whether you DEFEND, UPDATE, or CONCEDE — and explain in 2-4 short sentences. Be concrete: cite what changed your mind or what you still hold to.
+
+Original prompt:
+"""
+${userMessage.slice(0, 800)}
+"""
+
+Your prior critique (as ${voiceName}):
+"""
+${voicePriorProse.trim().slice(0, 1500)}
+"""
+
+What the other voices said:
+
+${others}
+
+Editor's synthesis:
+- Verdict: ${synthesis.verdict}
+- All voices agreed: ${synthesis.agreed.join("; ") || "(none)"}
+- Voices diverged on: ${synthesis.disagreed.join("; ") || "(none)"}
+
+Output exactly this fenced JSON block, nothing else:
+\`\`\`json
+{
+  "stance": "DEFENDED" | "UPDATED" | "CONCEDED",
+  "prose": "2-4 sentences explaining your stance. Quote specifics."
+}
+\`\`\`
+Rules:
+- "DEFENDED" — you stand by your prior critique unchanged.
+- "UPDATED"  — you're refining your position based on what the others said.
+- "CONCEDED" — you now think one of the other voices had it more right than you.
+- Output ONLY the fenced JSON. No commentary outside it.`;
+};
+
+function parseStance(raw: string): { stance: VoiceFollowup["stance"]; prose: string } {
+  const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const text = fence ? fence[1]!.trim() : raw.trim();
+  try {
+    const parsed = JSON.parse(text) as { stance?: string; prose?: string };
+    const tag = (parsed.stance ?? "").toString().toUpperCase();
+    const stance: VoiceFollowup["stance"] =
+      tag === "DEFENDED"
+        ? "defended"
+        : tag === "UPDATED"
+          ? "updated"
+          : tag === "CONCEDED"
+            ? "conceded"
+            : "unclear";
+    return {
+      stance,
+      prose: typeof parsed.prose === "string" ? parsed.prose.slice(0, 800) : "",
+    };
+  } catch {
+    return { stance: "unclear", prose: raw.slice(0, 800) };
+  }
+}
+
+export async function runFollowup(
+  result: DebateResult,
+  synthesis: DebateSynthesis,
+  userMessage: string,
+  context: AgentContext,
+  options: Pick<RunDebateOptions, "provider" | "model" | "maxTokens" | "signal" | "onEvent"> & {
+    onFollowupEvent?: (event: {
+      type: "followup-started" | "followup-delta" | "followup-completed";
+      index: number;
+      name: string;
+      delta?: string;
+      stance?: VoiceFollowup["stance"];
+      prose?: string;
+    }) => void;
+  } = {},
+): Promise<VoiceFollowup[]> {
+  const okVoices = result.voices.map((v, i) => ({ v, i })).filter(({ v }) => v.status === "ok");
+  if (okVoices.length < 2) return [];
+
+  const callOne = async ({ v, i }: { v: DebateVoiceResult; i: number }): Promise<VoiceFollowup> => {
+    const others = okVoices
+      .filter((x) => x.i !== i)
+      .map(({ v: ov }) => ({ name: ov.name, prose: ov.prose }));
+    const prompt = FOLLOWUP_PROMPT(v.name, v.prose, others, synthesis, userMessage);
+
+    options.onFollowupEvent?.({ type: "followup-started", index: i, name: v.name });
+
+    let buffer = "";
+    let usage: AgentUsage = { ...DEFAULT_USAGE };
+    let errored: string | null = null;
+
+    try {
+      for await (const ev of runAgent(context, [], prompt, {
+        forcePersona: "drafter",
+        systemPromptOverride:
+          "You are a debate participant defending or updating your stance. Output ONLY the requested fenced JSON. No preamble. No commentary outside.",
+        ...(options.provider ? { provider: options.provider } : {}),
+        ...(options.model ? { model: options.model } : {}),
+        maxTokens: options.maxTokens ?? 320,
+        ...(options.signal ? { signal: options.signal } : {}),
+      })) {
+        if (ev.type === "text-delta") {
+          buffer += ev.delta;
+          options.onFollowupEvent?.({
+            type: "followup-delta",
+            index: i,
+            name: v.name,
+            delta: ev.delta,
+          });
+        }
+        if (ev.type === "done") usage = ev.usage;
+        if (ev.type === "error") {
+          errored = ev.message;
+          break;
+        }
+      }
+    } catch (err) {
+      errored = err instanceof Error ? err.message : String(err);
+    }
+
+    if (errored) {
+      const result: VoiceFollowup = {
+        index: i,
+        name: v.name,
+        status: "error",
+        stance: "unclear",
+        prose: "",
+        usage,
+        error: errored,
+      };
+      options.onFollowupEvent?.({
+        type: "followup-completed",
+        index: i,
+        name: v.name,
+        stance: "unclear",
+        prose: "",
+      });
+      return result;
+    }
+
+    const { stance, prose } = parseStance(buffer);
+    const result: VoiceFollowup = {
+      index: i,
+      name: v.name,
+      status: "ok",
+      stance,
+      prose,
+      usage,
+    };
+    options.onFollowupEvent?.({
+      type: "followup-completed",
+      index: i,
+      name: v.name,
+      stance,
+      prose,
+    });
+    return result;
+  };
+
+  const settled = await Promise.allSettled(okVoices.map(callOne));
+  return settled.map((s, idx) => {
+    if (s.status === "fulfilled") return s.value;
+    const v = okVoices[idx]!;
+    return {
+      index: v.i,
+      name: v.v.name,
+      status: "error",
+      stance: "unclear",
+      prose: "",
+      usage: { ...DEFAULT_USAGE },
+      error: s.reason instanceof Error ? s.reason.message : String(s.reason),
+    };
+  });
+}
 
 export async function synthesizeDebate(
   result: DebateResult,
@@ -420,7 +626,8 @@ export const DEBATE_TEMPLATES: DebateTemplate[] = [
     id: "compliance",
     label: "Compliance review",
     description: "OM disclosure check with three regulator stances.",
-    useWhen: "You're reviewing a legal/regulatory document and want to catch what one reviewer would miss.",
+    useWhen:
+      "You're reviewing a legal/regulatory document and want to catch what one reviewer would miss.",
     prompt:
       'Review this offering memorandum excerpt against Ontario NI 45-106 and surface the top 3 disclosure gaps a compliance reviewer should raise:\n\n"The issuer offers Class A units to accredited investors only. Past performance has consistently exceeded benchmarks. Subscription proceeds will be applied to general working capital. Risk factors are listed in Schedule B."',
     voices: DEFAULT_COMPLIANCE_VOICES,
@@ -454,7 +661,8 @@ export const DEBATE_TEMPLATES: DebateTemplate[] = [
     id: "decision",
     label: "Decision making",
     description: "Optimist · Skeptic · Devil's advocate weigh the same call.",
-    useWhen: "You're stuck between two options and want the case for each, plus the one you haven't considered.",
+    useWhen:
+      "You're stuck between two options and want the case for each, plus the one you haven't considered.",
     prompt:
       "Should our 12-person SaaS startup take a $3M seed round at a $20M post-money valuation from a top-tier VC, or bootstrap with $400K ARR growing at 25% MoM? Argue the case in 3-5 punchy bullets and end with an explicit recommendation.",
     voices: [
@@ -479,7 +687,8 @@ export const DEBATE_TEMPLATES: DebateTemplate[] = [
     id: "doc-critique",
     label: "Document critique",
     description: "Editor · Skeptical reader · Subject expert read the same paragraph.",
-    useWhen: "You wrote something (landing page, memo, pitch) and want three brutal-but-fair edits.",
+    useWhen:
+      "You wrote something (landing page, memo, pitch) and want three brutal-but-fair edits.",
     prompt:
       'Critique this paragraph from a startup\'s landing page. Output: 3 specific edits each, with the rationale.\n\n"Our AI-powered platform leverages cutting-edge machine learning algorithms to deliver unprecedented insights and drive transformative outcomes for forward-thinking enterprises. We empower decision-makers to harness the full potential of their data and unlock new opportunities for growth."',
     voices: [

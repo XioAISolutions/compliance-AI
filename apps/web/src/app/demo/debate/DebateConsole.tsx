@@ -85,6 +85,12 @@ export function DebateConsole() {
   const tpsRef = useRef<{ start: number; chars: number } | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
+  // Mirror voiceStates into a ref so the followup-done handler can reason about
+  // total voice count without depending on stale closures.
+  const voiceStatesRef = useRef<VoiceState[]>([]);
+  useEffect(() => {
+    voiceStatesRef.current = voiceStates;
+  }, [voiceStates]);
 
   // Live ping on mount so the status bar shows the configured provider.
   useEffect(() => {
@@ -313,18 +319,31 @@ export function DebateConsole() {
         return next;
       });
     } else if (event.type === "followup-done") {
+      // Place each follow-up at its ORIGINAL voice index, not at its position in
+      // the response array. When a round-1 voice errors it gets skipped from the
+      // follow-up batch — packing the response array dense would shift voices
+      // into the wrong card. Using f.index keeps the visual mapping honest.
       const arr = Array.isArray(event.followups) ? event.followups : [];
-      setFollowups(
-        arr.map((f) => {
+      setFollowups((prev) => {
+        const totalSlots = Math.max(prev.length, voiceStatesRef.current.length);
+        const next: FollowupState[] = new Array(totalSlots);
+        for (let i = 0; i < prev.length; i++) {
+          const p = prev[i];
+          if (p) next[i] = p;
+        }
+        for (const f of arr) {
           const o = f as Record<string, unknown>;
-          return {
+          const idx = Number(o.index);
+          if (!Number.isFinite(idx)) continue;
+          next[idx] = {
             name: String(o.name ?? ""),
             status: (o.status as FollowupState["status"]) ?? "ok",
             stance: (o.stance as FollowupState["stance"]) ?? "unclear",
             prose: String(o.prose ?? ""),
           };
-        }),
-      );
+        }
+        return next;
+      });
     } else if (event.type === "debate-done") {
       setDone({ wallClockMs: Number(event.wallClockMs ?? 0) });
     } else if (event.type === "error") {

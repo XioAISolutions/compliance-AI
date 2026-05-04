@@ -19,7 +19,6 @@ interface PingResult {
   ok: boolean;
   provider: string;
   model: string;
-  baseUrl?: string;
   latencyMs: number;
   sample: string;
   outputTokens?: number;
@@ -34,7 +33,6 @@ interface PingResult {
 interface DebateMeta {
   provider: string;
   model: string;
-  baseUrl?: string;
   retrievedSnippets: number;
 }
 
@@ -73,7 +71,7 @@ export function DebateConsole() {
   const [done, setDone] = useState<DoneInfo | null>(null);
   const [synthesis, setSynthesis] = useState<SynthesisInfo | null>(null);
   const [enableFollowup, setEnableFollowup] = useState(false);
-  const [followups, setFollowups] = useState<FollowupState[]>([]);
+  const [followups, setFollowups] = useState<Array<FollowupState | null>>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [ping, setPing] = useState<PingResult | null>(null);
   const [expandedVoices, setExpandedVoices] = useState<Set<number>>(new Set());
@@ -110,6 +108,7 @@ export function DebateConsole() {
   }, []);
 
   const firstRender = useRef(true);
+  const preserveHashPromptOnce = useRef(false);
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
@@ -124,14 +123,21 @@ export function DebateConsole() {
         if (t && TEMPLATES.some((tpl) => tpl.id === t)) setTemplateId(t);
         if (q) {
           const decoded = decodeURIComponent(escape(window.atob(q)));
-          if (decoded.length > 0 && decoded.length < 8000) setPrompt(decoded);
+          if (decoded.length > 0 && decoded.length < 8000) {
+            setPrompt(decoded);
+            preserveHashPromptOnce.current = Boolean(t);
+          }
         }
       } catch {
         /* malformed hash → ignore */
       }
       return;
     }
-    setPrompt(template.prompt);
+    if (preserveHashPromptOnce.current) {
+      preserveHashPromptOnce.current = false;
+    } else {
+      setPrompt(template.prompt);
+    }
     setVoices(template.voices);
     setVoiceStates([]);
     setMeta(null);
@@ -223,7 +229,6 @@ export function DebateConsole() {
       setMeta({
         provider: String(event.provider ?? ""),
         model: String(event.model ?? ""),
-        ...(event.baseUrl ? { baseUrl: String(event.baseUrl) } : {}),
         retrievedSnippets: Number(event.retrievedSnippets ?? 0),
       });
     } else if (event.type === "voice-started") {
@@ -286,7 +291,7 @@ export function DebateConsole() {
       const name = String(event.name ?? "");
       setFollowups((prev) => {
         const next = [...prev];
-        const idx = next.findIndex((f) => f.name === name);
+        const idx = next.findIndex((f) => f?.name === name);
         const entry: FollowupState = {
           name,
           status: "running",
@@ -309,12 +314,13 @@ export function DebateConsole() {
       const i = Number(event.index);
       setFollowups((prev) => {
         const next = [...prev];
-        if (next[i]) {
+        const current = next[i];
+        if (current) {
           next[i] = {
-            ...next[i],
+            ...current,
             status: "ok",
             stance: (event.stance as FollowupState["stance"]) ?? "unclear",
-            prose: String(event.prose ?? next[i].prose),
+            prose: String(event.prose ?? current.prose),
           };
         }
         return next;
@@ -327,7 +333,7 @@ export function DebateConsole() {
       const arr = Array.isArray(event.followups) ? event.followups : [];
       setFollowups((prev) => {
         const totalSlots = Math.max(prev.length, voiceStatesRef.current.length);
-        const next: FollowupState[] = new Array(totalSlots);
+        const next: Array<FollowupState | null> = new Array(totalSlots).fill(null);
         for (let i = 0; i < prev.length; i++) {
           const p = prev[i];
           if (p) next[i] = p;
@@ -431,7 +437,7 @@ export function DebateConsole() {
     setDone({ wallClockMs: sample.recordedWallClockMs });
     setExpandedVoices(new Set());
     if (sample.followups) {
-      const fu: FollowupState[] = sample.voices.map((v) => {
+      const fu: Array<FollowupState | null> = sample.voices.map((v) => {
         const found = sample.followups?.find((f) => f.name === v.name);
         if (!found) return { name: v.name, status: "ok", stance: "unclear", prose: "" };
         return {
@@ -740,7 +746,7 @@ function FollowupSection({
   followups,
   voiceStates,
 }: {
-  followups: FollowupState[];
+  followups: Array<FollowupState | null>;
   voiceStates: VoiceState[];
 }) {
   const stanceCounts = followups.reduce(
@@ -815,7 +821,6 @@ function FollowupCard({ followup }: { followup: FollowupState }) {
 function ProviderBar({ ping, meta }: { ping: PingResult | null; meta: DebateMeta | null }) {
   const provider = meta?.provider ?? ping?.provider ?? "?";
   const model = meta?.model ?? ping?.model ?? "?";
-  const baseUrl = meta?.baseUrl ?? ping?.baseUrl;
   const ok = ping?.ok ?? null;
   const ctx = ping?.modelInfo?.maxContextTokens ?? null;
   const ctxLabel =
@@ -836,11 +841,6 @@ function ProviderBar({ ping, meta }: { ping: PingResult | null; meta: DebateMeta
           title={`Maximum context window the model accepts (${ctx?.toLocaleString()} tokens).`}
         >
           {ctxLabel}
-        </span>
-      )}
-      {baseUrl && (
-        <span className="truncate text-neutral-500" title={baseUrl}>
-          {baseUrl}
         </span>
       )}
       <span className="ml-auto text-neutral-500">

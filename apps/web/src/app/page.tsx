@@ -10,7 +10,6 @@ interface PingResult {
   ok: boolean;
   provider: string;
   model: string;
-  baseUrl?: string;
   latencyMs: number;
   modelInfo?: { maxContextTokens: number | null };
 }

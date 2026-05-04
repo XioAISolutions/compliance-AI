@@ -21,9 +21,10 @@
  *     decision making, document critique).
  */
 
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   DEFAULT_COMPLIANCE_VOICES,
+  PERSONA_SYSTEM_PROMPTS,
   resolveModelProvider,
   runDebate,
   runFollowup,
@@ -41,7 +42,7 @@ export const dynamic = "force-dynamic";
 
 interface DebateRequestBody {
   userMessage?: string;
-  voices?: DebateVoice[];
+  voices?: unknown;
   timeoutMs?: number;
   maxTokens?: number;
   retrieveAuthorities?: boolean;
@@ -59,6 +60,18 @@ const DEFAULT_PROMPT = DEFAULT_COMPLIANCE_VOICES[0]?.systemPromptSuffix
     "Subscription proceeds will be applied to general working capital. Risk factors are listed in Schedule B.'"
   : "Reply with a one-paragraph greeting.";
 
+const MAX_VOICES = 6;
+const MAX_USER_MESSAGE_CHARS = 8_000;
+const MAX_VOICE_NAME_CHARS = 80;
+const MAX_SYSTEM_PROMPT_CHARS = 3_000;
+const MAX_TOTAL_SYSTEM_PROMPT_CHARS = 12_000;
+const MIN_TIMEOUT_MS = 5_000;
+const DEFAULT_TIMEOUT_MS = 90_000;
+const MAX_TIMEOUT_MS = 180_000;
+const MIN_MAX_TOKENS = 64;
+const DEFAULT_MAX_TOKENS = 768;
+const MAX_MAX_TOKENS = 2_048;
+
 function sseFrame(payload: unknown): string {
   return `data: ${JSON.stringify(payload)}\n\n`;
 }
@@ -73,6 +86,110 @@ function toRetrievedSnippet(result: RetrievalResult): RetrievedSnippet {
   };
 }
 
+function clampNumber(value: unknown, fallback: number, min: number, max: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, value));
+}
+
+function validateVoices(
+  input: unknown,
+): { voices: DebateVoice[]; customVoices: boolean } | { error: string } {
+  if (input === undefined || (Array.isArray(input) && input.length === 0)) {
+    return { voices: DEFAULT_COMPLIANCE_VOICES, customVoices: false };
+  }
+  if (!Array.isArray(input)) {
+    return { error: "`voices` must be an array when provided." };
+  }
+  if (input.length > MAX_VOICES) {
+    return { error: `Too many voices. Maximum is ${MAX_VOICES}.` };
+  }
+
+  let totalPromptChars = 0;
+  const voices: DebateVoice[] = [];
+  for (let i = 0; i < input.length; i++) {
+    const raw = input[i];
+    if (!raw || typeof raw !== "object") {
+      return { error: `Voice ${i + 1} must be an object.` };
+    }
+    const record = raw as Record<string, unknown>;
+    const name =
+      typeof record.name === "string" && record.name.trim()
+        ? record.name.trim()
+        : `Voice ${i + 1}`;
+    if (name.length > MAX_VOICE_NAME_CHARS) {
+      return { error: `Voice ${i + 1} name is too long.` };
+    }
+
+    const personaId =
+      typeof record.personaId === "string" && record.personaId.trim()
+        ? record.personaId.trim()
+        : undefined;
+    if (personaId && !(personaId in PERSONA_SYSTEM_PROMPTS)) {
+      return { error: `Voice ${i + 1} uses unknown personaId "${personaId}".` };
+    }
+
+    const systemPromptOverride =
+      typeof record.systemPromptOverride === "string" ? record.systemPromptOverride.trim() : "";
+    const systemPromptSuffix =
+      typeof record.systemPromptSuffix === "string" ? record.systemPromptSuffix.trim() : "";
+    if (systemPromptOverride.length > MAX_SYSTEM_PROMPT_CHARS) {
+      return { error: `Voice ${i + 1} system prompt is too long.` };
+    }
+    if (systemPromptSuffix.length > MAX_SYSTEM_PROMPT_CHARS) {
+      return { error: `Voice ${i + 1} system prompt suffix is too long.` };
+    }
+    if (!personaId && !systemPromptOverride) {
+      return { error: `Voice ${i + 1} needs personaId or systemPromptOverride.` };
+    }
+
+    totalPromptChars += systemPromptOverride.length + systemPromptSuffix.length;
+    if (totalPromptChars > MAX_TOTAL_SYSTEM_PROMPT_CHARS) {
+      return { error: "Combined voice prompts are too long." };
+    }
+
+    voices.push({
+      name,
+      ...(personaId ? { personaId: personaId as DebateVoice["personaId"] } : {}),
+      ...(systemPromptOverride ? { systemPromptOverride } : {}),
+      ...(systemPromptSuffix ? { systemPromptSuffix } : {}),
+    });
+  }
+
+  return { voices, customVoices: true };
+}
+
+async function withAbortDeadline<T>(
+  label: string,
+  timeoutMs: number,
+  parentSignal: AbortSignal | undefined,
+  run: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  const abortFromParent = () => controller.abort(parentSignal?.reason);
+  if (parentSignal?.aborted) {
+    abortFromParent();
+  } else {
+    parentSignal?.addEventListener("abort", abortFromParent, { once: true });
+  }
+
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      run(controller.signal),
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          const err = new Error(`${label} exceeded ${timeoutMs}ms.`);
+          controller.abort(err);
+          reject(err);
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+    parentSignal?.removeEventListener("abort", abortFromParent);
+  }
+}
+
 export async function POST(req: NextRequest) {
   let body: DebateRequestBody = {};
   try {
@@ -81,12 +198,28 @@ export async function POST(req: NextRequest) {
     // empty body → use defaults
   }
 
-  const userMessage = body.userMessage?.trim() || DEFAULT_PROMPT;
-  const voices = body.voices?.length ? body.voices : DEFAULT_COMPLIANCE_VOICES;
-  const timeoutMs = Math.min(180_000, Math.max(5_000, body.timeoutMs ?? 90_000));
-  const maxTokens = Math.min(2048, Math.max(64, body.maxTokens ?? 768));
-  const retrieveAuthorities = body.retrieveAuthorities ?? !body.voices?.length;
-  const runFollowupRound = body.followup ?? false;
+  const rawUserMessage = typeof body.userMessage === "string" ? body.userMessage.trim() : "";
+  if (rawUserMessage.length > MAX_USER_MESSAGE_CHARS) {
+    return NextResponse.json(
+      { error: `userMessage is too long. Maximum is ${MAX_USER_MESSAGE_CHARS} characters.` },
+      { status: 400 },
+    );
+  }
+
+  const validatedVoices = validateVoices(body.voices);
+  if ("error" in validatedVoices) {
+    return NextResponse.json({ error: validatedVoices.error }, { status: 400 });
+  }
+
+  const userMessage = rawUserMessage || DEFAULT_PROMPT;
+  const voices = validatedVoices.voices;
+  const timeoutMs = clampNumber(body.timeoutMs, DEFAULT_TIMEOUT_MS, MIN_TIMEOUT_MS, MAX_TIMEOUT_MS);
+  const maxTokens = clampNumber(body.maxTokens, DEFAULT_MAX_TOKENS, MIN_MAX_TOKENS, MAX_MAX_TOKENS);
+  const retrieveAuthorities =
+    typeof body.retrieveAuthorities === "boolean"
+      ? body.retrieveAuthorities
+      : !validatedVoices.customVoices;
+  const runFollowupRound = body.followup === true;
 
   // Authority retrieval is only meaningful for the compliance voices. For
   // universal use cases (code review, decision making, doc critique) the
@@ -149,7 +282,6 @@ export async function POST(req: NextRequest) {
             type: "debate-started",
             provider: provider.provider,
             model: provider.model,
-            ...(provider.baseUrl ? { baseUrl: provider.baseUrl } : {}),
             voiceCount: voices.length,
             voiceNames: voices.map((v) => v.name),
             retrievedSnippets: retrievedSnippets.length,
@@ -190,9 +322,9 @@ export async function POST(req: NextRequest) {
         // UI closes the panel cleanly.
         let synthesis = null;
         try {
-          synthesis = await synthesizeDebate(result, userMessage, context, {
-            ...(req.signal ? { signal: req.signal } : {}),
-          });
+          synthesis = await withAbortDeadline("Debate synthesis", timeoutMs, req.signal, (signal) =>
+            synthesizeDebate(result, userMessage, context, { signal }),
+          );
           if (synthesis) {
             controller.enqueue(
               encoder.encode(
@@ -217,16 +349,22 @@ export async function POST(req: NextRequest) {
         // running through the same vLLM endpoint.
         if (runFollowupRound && synthesis) {
           try {
-            const followups = await runFollowup(result, synthesis, userMessage, context, {
-              ...(req.signal ? { signal: req.signal } : {}),
-              onFollowupEvent: (ev) => {
-                try {
-                  controller.enqueue(encoder.encode(sseFrame(ev)));
-                } catch {
-                  /* stream closed */
-                }
-              },
-            });
+            const followups = await withAbortDeadline(
+              "Debate follow-up",
+              timeoutMs,
+              req.signal,
+              (signal) =>
+                runFollowup(result, synthesis, userMessage, context, {
+                  signal,
+                  onFollowupEvent: (ev) => {
+                    try {
+                      controller.enqueue(encoder.encode(sseFrame(ev)));
+                    } catch {
+                      /* stream closed */
+                    }
+                  },
+                }),
+            );
             controller.enqueue(
               encoder.encode(
                 sseFrame({

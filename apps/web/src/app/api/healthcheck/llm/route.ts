@@ -22,8 +22,14 @@ export async function GET(req: Request) {
   // so this doesn't become an open relay for the LLM.
   const customPrompt = url.searchParams.get("prompt")?.slice(0, 200) ?? undefined;
   const maxTokensParam = url.searchParams.get("max_tokens");
-  const maxTokens = maxTokensParam ? Math.min(256, Math.max(1, Number(maxTokensParam))) : 32;
-  const timeoutMs = Number(url.searchParams.get("timeout_ms")) || 30_000;
+  const parsedMaxTokens = maxTokensParam ? Number(maxTokensParam) : NaN;
+  const maxTokens = Number.isFinite(parsedMaxTokens)
+    ? Math.min(256, Math.max(1, parsedMaxTokens))
+    : 32;
+  const parsedTimeoutMs = Number(url.searchParams.get("timeout_ms"));
+  const timeoutMs = Number.isFinite(parsedTimeoutMs)
+    ? Math.min(60_000, Math.max(1_000, parsedTimeoutMs))
+    : 30_000;
 
   const started = Date.now();
   try {
@@ -32,9 +38,11 @@ export async function GET(req: Request) {
       maxTokens,
       timeoutMs,
     });
+    const safeResult = { ...result };
+    delete safeResult.baseUrl;
     return NextResponse.json(
       {
-        ...result,
+        ...safeResult,
         timestamp: new Date().toISOString(),
       },
       { status: result.ok ? 200 : 503 },

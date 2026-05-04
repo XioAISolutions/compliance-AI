@@ -112,9 +112,37 @@ function buildSystemForVoice(voice: DebateVoice): string {
   if (voice.systemPromptOverride) return voice.systemPromptOverride;
   if (voice.personaId) {
     const base = PERSONA_SYSTEM_PROMPTS[voice.personaId];
+    if (!base) {
+      throw new Error(`DebateVoice "${voice.name}" uses unknown personaId "${voice.personaId}".`);
+    }
     return voice.systemPromptSuffix ? `${base}\n\n${voice.systemPromptSuffix}` : base;
   }
   throw new Error(`DebateVoice "${voice.name}" must set either personaId or systemPromptOverride.`);
+}
+
+function createLinkedAbortController(parent?: AbortSignal): {
+  controller: AbortController;
+  cleanup: () => void;
+} {
+  const controller = new AbortController();
+  if (!parent) {
+    return { controller, cleanup: () => {} };
+  }
+
+  const abortFromParent = () => {
+    controller.abort(parent.reason);
+  };
+
+  if (parent.aborted) {
+    abortFromParent();
+    return { controller, cleanup: () => {} };
+  }
+
+  parent.addEventListener("abort", abortFromParent, { once: true });
+  return {
+    controller,
+    cleanup: () => parent.removeEventListener("abort", abortFromParent),
+  };
 }
 
 async function runOneVoice(
@@ -213,19 +241,38 @@ export async function runDebate(
   const history: AgentMessage[] = [];
 
   const wrapped = voices.map((voice, index) => {
-    const call = runOneVoice(index, voice, context, history, userMessage, options);
     if (options.timeoutMs && options.timeoutMs > 0) {
+      const { controller, cleanup } = createLinkedAbortController(options.signal);
+      let timedOut = false;
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      const timeoutMessage = `Voice "${voice.name}" exceeded ${options.timeoutMs}ms.`;
+      const voiceOptions: RunDebateOptions = {
+        ...options,
+        signal: controller.signal,
+        onEvent: (event) => {
+          if (!timedOut) options.onEvent?.(event);
+        },
+      };
+      const call = runOneVoice(index, voice, context, history, userMessage, voiceOptions).finally(
+        () => {
+          if (timeoutId) clearTimeout(timeoutId);
+          cleanup();
+        },
+      );
+
       return Promise.race<DebateVoiceResult>([
         call,
         new Promise<DebateVoiceResult>((resolve) =>
-          setTimeout(() => {
+          (timeoutId = setTimeout(() => {
+            timedOut = true;
+            controller.abort(new Error(timeoutMessage));
             const timeoutResult: DebateVoiceResult = {
               name: voice.name,
               status: "timeout",
               prose: "",
               citations: [],
               usage: { ...DEFAULT_USAGE },
-              error: `Voice "${voice.name}" exceeded ${options.timeoutMs}ms.`,
+              error: timeoutMessage,
               persona: voice.personaId ?? null,
             };
             options.onEvent?.({
@@ -239,10 +286,11 @@ export async function runDebate(
               error: timeoutResult.error,
             });
             resolve(timeoutResult);
-          }, options.timeoutMs),
+          }, options.timeoutMs)),
         ),
       ]);
     }
+    const call = runOneVoice(index, voice, context, history, userMessage, options);
     return call;
   });
 

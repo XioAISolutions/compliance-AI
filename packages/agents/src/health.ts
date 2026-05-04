@@ -79,6 +79,8 @@ export async function pingProvider(options: ProviderPingOptions = {}): Promise<P
   let sample = "";
   let errored: string | null = null;
   let outputTokens: number | undefined;
+  const controller = new AbortController();
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
   const ping = (async () => {
     for await (const ev of runAgent(PING_CONTEXT, [], options.prompt ?? PING_PROMPT_DEFAULT, {
@@ -86,6 +88,7 @@ export async function pingProvider(options: ProviderPingOptions = {}): Promise<P
       provider: config.provider,
       model: config.model,
       maxTokens,
+      signal: controller.signal,
     })) {
       if (ev.type === "text-delta") sample += ev.delta;
       if (ev.type === "error") {
@@ -102,29 +105,29 @@ export async function pingProvider(options: ProviderPingOptions = {}): Promise<P
   })();
 
   let timedOut = false;
-  await Promise.race([
-    ping,
-    new Promise<void>((resolve) =>
-      setTimeout(() => {
-        timedOut = true;
-        resolve();
-      }, timeoutMs),
-    ),
-  ]);
+  try {
+    await Promise.race([
+      ping,
+      new Promise<void>((resolve) =>
+        (timeoutId = setTimeout(() => {
+          timedOut = true;
+          controller.abort(new Error(`Provider did not respond within ${timeoutMs}ms.`));
+          resolve();
+        }, timeoutMs)),
+      ),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+
+  if (timedOut) {
+    // Attach a rejection handler to the still-draining runAgent loop. The
+    // AbortSignal above should stop OpenAI-compatible fetches promptly; this
+    // keeps the returned timeout from surfacing a later unhandled rejection.
+    void ping.catch(() => {});
+  }
 
   const latencyMs = Date.now() - started;
-
-  if (errored) {
-    return {
-      ok: false,
-      provider: config.provider,
-      model: config.model,
-      ...(config.baseUrl ? { baseUrl: config.baseUrl } : {}),
-      latencyMs,
-      sample,
-      error: errored,
-    };
-  }
 
   if (timedOut && !sample) {
     return {
@@ -135,6 +138,18 @@ export async function pingProvider(options: ProviderPingOptions = {}): Promise<P
       latencyMs,
       sample: "",
       error: `Provider did not respond within ${timeoutMs}ms.`,
+    };
+  }
+
+  if (errored) {
+    return {
+      ok: false,
+      provider: config.provider,
+      model: config.model,
+      ...(config.baseUrl ? { baseUrl: config.baseUrl } : {}),
+      latencyMs,
+      sample,
+      error: errored,
     };
   }
 

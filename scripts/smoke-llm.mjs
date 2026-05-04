@@ -38,10 +38,11 @@ Examples:
 }
 
 const baseUrl = (
+  arg("base-url", null) ??
   process.env.AMD_VLLM_BASE_URL ??
   process.env.OPENAI_BASE_URL ??
   process.env.OLLAMA_BASE_URL ??
-  arg("base-url", null)
+  (process.env.OPENAI_API_KEY ? "https://api.openai.com/v1" : null)
 )?.replace(/\/+$/, "");
 if (!baseUrl) {
   console.error("smoke-llm: no base URL set. Pass --base-url or set AMD_VLLM_BASE_URL.");
@@ -50,10 +51,11 @@ if (!baseUrl) {
 const baseV1 = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
 
 const model =
+  arg("model", null) ??
   process.env.AMD_VLLM_MODEL ??
   process.env.OPENAI_MODEL ??
   process.env.OLLAMA_MODEL ??
-  arg("model", "Qwen/Qwen2.5-72B-Instruct");
+  "Qwen/Qwen2.5-72B-Instruct";
 
 const apiKey =
   process.env.AMD_VLLM_API_KEY ?? process.env.OPENAI_API_KEY ?? process.env.OLLAMA_API_KEY ?? null;

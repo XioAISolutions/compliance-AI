@@ -20,7 +20,10 @@ import {
   runDebate,
   type AgentContext,
   type DebateVoice,
+  type RetrievedSnippet,
 } from "@compliance-ai/agents";
+import { getDefaultCognitionStore, type RetrievalResult } from "@compliance-ai/cognition";
+import { ensureTenant } from "../../../lib/bootstrap";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,6 +44,16 @@ function sseFrame(payload: unknown): string {
   return `data: ${JSON.stringify(payload)}\n\n`;
 }
 
+function toRetrievedSnippet(result: RetrievalResult): RetrievedSnippet {
+  return {
+    id: result.item.id ?? "",
+    title: result.item.title,
+    content: result.item.content,
+    source: result.item.source,
+    score: result.score,
+  };
+}
+
 export async function POST(req: NextRequest) {
   let body: DebateRequestBody = {};
   try {
@@ -54,10 +67,32 @@ export async function POST(req: NextRequest) {
   const timeoutMs = Math.min(180_000, Math.max(5_000, body.timeoutMs ?? 60_000));
   const maxTokens = Math.min(2048, Math.max(64, body.maxTokens ?? 768));
 
+  // Seed the demo tenant + retrieve real NI 45-106 / OSC authorities. Without
+  // this, every voice falls into the RETRIEVAL-GAP path and produces uncited
+  // prose — correct safety behaviour but a poor demo. We accept the latency
+  // cost (one bootstrap + one BM25 retrieval) for citation-grade output that
+  // matches what the production review pipeline produces.
+  const organizationId = "debate-demo";
+  await ensureTenant(organizationId);
+  let retrievedSnippets: RetrievedSnippet[] = [];
+  try {
+    const cognitionStore = getDefaultCognitionStore();
+    const results = await cognitionStore.retrieve({
+      query: userMessage,
+      topK: 6,
+      organizationId,
+      scoreThreshold: 0,
+    });
+    retrievedSnippets = results.map(toRetrievedSnippet);
+  } catch {
+    retrievedSnippets = [];
+  }
+
   const context: AgentContext = {
     control: null,
     frameworkScope: [],
-    organizationId: "debate-demo",
+    organizationId,
+    retrievedSnippets,
   };
 
   const stream = new ReadableStream<Uint8Array>({

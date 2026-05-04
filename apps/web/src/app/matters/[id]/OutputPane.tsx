@@ -143,7 +143,7 @@ export function OutputPane({
   const displayContent = useMemo(() => stripCitationFence(content), [content]);
 
   useEffect(() => {
-    if (activeTab !== "transcript" || loadingTranscript || transcript.length > 0) return;
+    if (activeTab !== "transcript" || transcript.length > 0) return;
     let cancelled = false;
     setLoadingTranscript(true);
     void fetch(`/api/matters/${matterId}/transcript`)
@@ -157,10 +157,10 @@ export function OutputPane({
     return () => {
       cancelled = true;
     };
-  }, [activeTab, loadingTranscript, matterId, transcript.length]);
+  }, [activeTab, matterId, transcript.length]);
 
   useEffect(() => {
-    if (activeTab !== "graph" || loadingGraph || graph.nodes.length > 0) return;
+    if (activeTab !== "graph" || graph.nodes.length > 0) return;
     let cancelled = false;
     setLoadingGraph(true);
     void fetch(`/api/matters/${matterId}/graph`)
@@ -174,7 +174,7 @@ export function OutputPane({
     return () => {
       cancelled = true;
     };
-  }, [activeTab, graph.nodes.length, loadingGraph, matterId]);
+  }, [activeTab, graph.nodes.length, matterId]);
 
   async function exportDocx() {
     if (exporting || !content) return;

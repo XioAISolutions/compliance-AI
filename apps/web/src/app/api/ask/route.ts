@@ -34,6 +34,7 @@ import {
   parseModelOutput,
   runAgent,
   type AgentContext,
+  type Citation,
   type RetrievedSnippet,
 } from "@compliance-ai/agents";
 import type { FrameworkId } from "@compliance-ai/frameworks";
@@ -72,6 +73,9 @@ const DEFAULT_JURISDICTIONS: Jurisdiction[] = ["CA", "US"];
 const DEFAULT_TOP_K = 6;
 const DEFAULT_SCORE_THRESHOLD = 0.05;
 const ALL_FRAMEWORKS: FrameworkId[] = ["soc2", "gdpr", "eu-ai-act", "iso-27001"];
+const CITATION_FENCE_MARKER = "```citations";
+const QA_DISCLAIMER =
+  "*This is general information about publicly available regulation, not legal advice. For decisions that affect a specific transaction, client, or filing, consult qualified counsel in the relevant jurisdiction.*";
 
 function toRetrievedSnippet(result: RetrievalResult): RetrievedSnippet {
   return {
@@ -85,6 +89,39 @@ function toRetrievedSnippet(result: RetrievalResult): RetrievedSnippet {
 
 function sseFrame(payload: unknown): string {
   return `data: ${JSON.stringify(payload)}\n\n`;
+}
+
+function missingDisclaimer(prose: string): boolean {
+  return !/not legal advice/i.test(prose);
+}
+
+function synthesizeMissingCitationFence(
+  prose: string,
+  fusedTop: RetrievalResult[],
+): string | null {
+  const parsed = parseModelOutput(prose);
+  if (parsed.citations.length > 0 || parsed.orphanedMarkers.length === 0) return null;
+
+  const seen = new Set<string>();
+  const citations: Citation[] = [];
+  for (const marker of parsed.orphanedMarkers) {
+    if (seen.has(marker)) continue;
+    seen.add(marker);
+    const index = Number(marker.replace(/^c/, "")) - 1;
+    const result = fusedTop[index];
+    if (!result?.item.id) continue;
+    citations.push({
+      id: marker,
+      authorityId: result.item.id,
+      section: result.item.title,
+      quote: result.item.content.slice(0, 240),
+      docId: result.item.id,
+      chunkId: result.item.id,
+    });
+  }
+
+  if (citations.length === 0) return null;
+  return `\n\n\`\`\`citations\n${JSON.stringify(citations, null, 2)}\n\`\`\``;
 }
 
 /**
@@ -285,6 +322,9 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       const encoder = new TextEncoder();
       let proseBuffer = "";
+      let rawCitationTail = "";
+      let suppressCitationTail = false;
+      let fenceScanBuffer = "";
 
       try {
         const generator = runAgent(context, [], question, {
@@ -293,7 +333,66 @@ export async function POST(req: NextRequest) {
 
         for await (const event of generator) {
           // Capture prose so we can hash the final output for the audit log.
-          if (event.type === "text-delta") proseBuffer += event.delta;
+          if (event.type === "text-delta") {
+            if (suppressCitationTail) {
+              rawCitationTail += event.delta;
+              continue;
+            }
+
+            fenceScanBuffer += event.delta;
+            const fenceStart = fenceScanBuffer.indexOf(CITATION_FENCE_MARKER);
+            if (fenceStart === -1) {
+              const flushUntil = Math.max(
+                0,
+                fenceScanBuffer.length - CITATION_FENCE_MARKER.length + 1,
+              );
+              if (flushUntil > 0) {
+                const visibleDelta = fenceScanBuffer.slice(0, flushUntil);
+                proseBuffer += visibleDelta;
+                controller.enqueue(
+                  encoder.encode(sseFrame({ type: "text-delta", delta: visibleDelta })),
+                );
+                fenceScanBuffer = fenceScanBuffer.slice(flushUntil);
+              }
+              continue;
+            }
+
+            const visibleDelta = fenceScanBuffer.slice(0, fenceStart);
+            rawCitationTail += fenceScanBuffer.slice(fenceStart);
+            suppressCitationTail = true;
+            fenceScanBuffer = "";
+            if (visibleDelta) {
+              proseBuffer += visibleDelta;
+              controller.enqueue(
+                encoder.encode(sseFrame({ type: "text-delta", delta: visibleDelta })),
+              );
+            }
+            continue;
+          }
+
+          if (event.type === "done") {
+            let terminalDelta = "";
+            const proseBeforeTerminal = `${proseBuffer}${fenceScanBuffer}`;
+            if (fenceScanBuffer) {
+              terminalDelta += fenceScanBuffer;
+              fenceScanBuffer = "";
+            }
+            if (missingDisclaimer(proseBeforeTerminal)) {
+              terminalDelta += `\n\n${QA_DISCLAIMER}`;
+            }
+            const rawCitations = parseModelOutput(rawCitationTail).citations;
+            terminalDelta +=
+              rawCitations.length > 0
+                ? `\n\n\`\`\`citations\n${JSON.stringify(rawCitations, null, 2)}\n\`\`\``
+                : synthesizeMissingCitationFence(`${proseBuffer}${terminalDelta}`, fusedTop) ?? "";
+            if (terminalDelta) {
+              proseBuffer += terminalDelta;
+              controller.enqueue(
+                encoder.encode(sseFrame({ type: "text-delta", delta: terminalDelta })),
+              );
+            }
+          }
+
           controller.enqueue(encoder.encode(sseFrame(event)));
 
           // Emit the route's terminal summary right after the model's done

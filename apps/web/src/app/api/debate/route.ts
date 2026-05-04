@@ -36,6 +36,7 @@ import {
 } from "@compliance-ai/agents";
 import { getDefaultCognitionStore, type RetrievalResult } from "@compliance-ai/cognition";
 import { ensureTenant } from "../../../lib/bootstrap";
+import { clientIdFromRequest, consumeToken, readConfigFromEnv } from "../../../lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -113,9 +114,7 @@ function validateVoices(
     }
     const record = raw as Record<string, unknown>;
     const name =
-      typeof record.name === "string" && record.name.trim()
-        ? record.name.trim()
-        : `Voice ${i + 1}`;
+      typeof record.name === "string" && record.name.trim() ? record.name.trim() : `Voice ${i + 1}`;
     if (name.length > MAX_VOICE_NAME_CHARS) {
       return { error: `Voice ${i + 1} name is too long.` };
     }
@@ -190,7 +189,40 @@ async function withAbortDeadline<T>(
   }
 }
 
+// Default: 5 debates per hour per client. Multi-voice debates are expensive
+// (each is N voices + synthesis + optional round-2 = O(N+2) inferences on a
+// shared GPU) so the bucket is generous on the first burst and slow to
+// refill. Override via DEBATE_RATE_LIMIT="capacity:refillPerSec", e.g.
+// "20:0.005" for 20 burst + 1 every ~3 minutes.
+const DEBATE_RATE_LIMIT = readConfigFromEnv("DEBATE_RATE_LIMIT", {
+  capacity: 5,
+  refillPerSec: 5 / 3600, // refills the full bucket once per hour
+});
+
 export async function POST(req: NextRequest) {
+  // Rate limit before doing any work — a malicious client should pay zero
+  // GPU cycles. Skip when DEBATE_RATE_LIMIT_DISABLE=1 (handy for local dev
+  // and the deterministic test suite).
+  if (process.env.DEBATE_RATE_LIMIT_DISABLE !== "1") {
+    const decision = consumeToken(`debate:${clientIdFromRequest(req)}`, DEBATE_RATE_LIMIT);
+    if (!decision.allowed) {
+      return NextResponse.json(
+        {
+          error: `Rate limit reached. Try again in ${decision.retryAfterSec}s.`,
+          retryAfterSec: decision.retryAfterSec,
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(decision.retryAfterSec),
+            "X-RateLimit-Limit": String(DEBATE_RATE_LIMIT.capacity),
+            "X-RateLimit-Remaining": String(decision.remaining),
+          },
+        },
+      );
+    }
+  }
+
   let body: DebateRequestBody = {};
   try {
     body = (await req.json()) as DebateRequestBody;

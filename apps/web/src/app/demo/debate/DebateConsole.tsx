@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DEBATE_TEMPLATES, type DebateTemplate, type DebateVoice } from "@compliance-ai/agents";
+import { DEBATE_SAMPLES } from "./samples";
 
 type VoiceStatus = "pending" | "running" | "ok" | "error" | "timeout";
 
@@ -392,6 +393,60 @@ export function DebateConsole() {
     navigator.clipboard?.writeText(synthesis.verdict).catch(() => {});
   }
 
+  function viewSample() {
+    // Hydrate the cockpit from a pre-recorded sample for the active template.
+    // Useful when the GPU droplet is offline OR when a viewer wants to see
+    // realistic output before paying ~30s of inference latency. We also use
+    // it as a "before" state for screenshots/screencasts.
+    const sample = DEBATE_SAMPLES[templateId];
+    if (!sample) return;
+
+    setRunning(false);
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setErrorMsg(null);
+    setLiveTps(null);
+    tpsRef.current = null;
+
+    setPrompt(sample.prompt);
+    setVoiceStates(
+      sample.voices.map((v) => ({
+        name: v.name,
+        status: "ok",
+        prose: v.prose,
+        outputTokens: Math.round(v.prose.length / 4),
+        citationCount: 0,
+      })),
+    );
+    setMeta({
+      provider: sample.recordedProvider,
+      model: sample.recordedModel,
+      retrievedSnippets: 0,
+    });
+    setSynthesis({
+      agreed: sample.synthesis.agreed,
+      disagreed: sample.synthesis.disagreed,
+      verdict: sample.synthesis.verdict,
+    });
+    setDone({ wallClockMs: sample.recordedWallClockMs });
+    setExpandedVoices(new Set());
+    if (sample.followups) {
+      const fu: FollowupState[] = sample.voices.map((v) => {
+        const found = sample.followups?.find((f) => f.name === v.name);
+        if (!found) return { name: v.name, status: "ok", stance: "unclear", prose: "" };
+        return {
+          name: found.name,
+          status: "ok",
+          stance: found.stance,
+          prose: found.prose,
+        };
+      });
+      setFollowups(fu);
+    } else {
+      setFollowups([]);
+    }
+  }
+
   function copyShareLink() {
     // Encode prompt + template in the URL hash. UTF-8-safe base64 so prompts
     // with Unicode round-trip cleanly; #q=<base64>&t=<id>. Hash means it
@@ -535,6 +590,16 @@ export function DebateConsole() {
           >
             share
           </button>
+          {DEBATE_SAMPLES[templateId] && !running && (
+            <button
+              type="button"
+              onClick={viewSample}
+              title="Load a pre-recorded sample debate for this template — instant, no API calls."
+              className="text-xs text-neutral-500 underline-offset-4 hover:underline"
+            >
+              view sample
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setEditingVoices((v) => !v)}

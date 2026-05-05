@@ -115,14 +115,14 @@ curl -fs --max-time 10 "$URL/demo/judge" \
 
 # /demo/debate — should match three markers
 curl -fs --max-time 10 "$URL/demo/debate" \
-  | grep -oE "(Ensemble shape|192 GB HBM3|Triad Review · live debate)" \
+  | grep -oE "(Ensemble shape|192 GB HBM3|Optional live Triad debate|view recorded sample)" \
   | sort -u
 ```
 
 **Expected:**
 
 - /demo/judge: at least 3 of the 4 markers (the `Both took the same input` tagline is rendered text and should appear; `What XIO Triad found` and `Show audit chain` both definitively confirmed in earlier probes)
-- /demo/debate: all 3 markers
+- /demo/debate: `Ensemble shape`, `192 GB HBM3`, and either `Optional live Triad debate` or `view recorded sample`
 
 **Fail handling:** If the live URL doesn't show the new markers, the deploy reverted or Railway is serving cached HTML. Investigate via Railway dashboard before any code changes.
 

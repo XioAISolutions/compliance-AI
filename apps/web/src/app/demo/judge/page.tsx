@@ -302,8 +302,18 @@ export default function JudgeDemoPage() {
             <Row k="Last modified" v={new Date(m.approval.lastModified).toLocaleString()} />
           </div>
           <div className="space-y-2">
-            <ApprovalAction label="Export DOCX" enabled={false} reason="Approval pending" />
-            <ApprovalAction label="Export redline" enabled={false} reason="Approval pending" />
+            <ApprovalAction
+              label="Export DOCX"
+              enabled={true}
+              href="/api/demo/handoff/docx"
+              reason="Demo render — production export is gated on the output hash above"
+            />
+            <ApprovalAction
+              label="Export redline PDF"
+              enabled={true}
+              href="/api/demo/handoff/pdf"
+              reason="Demo render — production export is gated on the output hash above"
+            />
             <ApprovalAction
               label="Download CRUMB handoff pack"
               enabled={true}
@@ -313,9 +323,10 @@ export default function JudgeDemoPage() {
           </div>
         </div>
         <p className="mt-3 text-[10px] text-neutral-500">
-          Demo mode: DOCX/redline buttons are disabled to demonstrate the export gate. The CRUMB
-          handoff endpoint is real — clicking it returns the seeded YAML/markdown audit pack that
-          production matters export.
+          Demo mode: all three buttons return seeded artifacts so a judge can see the shape of each
+          export. In production the DOCX and redline-PDF endpoints are gated on a human approver
+          signing the output hash above; only the CRUMB handoff pack ships unconditionally because
+          it is a read-only audit trail.
         </p>
 
         {/* Inline audit-row preview — the chain a regulator would see if

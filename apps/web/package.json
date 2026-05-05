@@ -28,6 +28,7 @@
     "graphology-layout-forceatlas2": "^0.10.1",
     "next": "^16.0.10",
     "next-auth": "5.0.0-beta.25",
+    "pdf-lib": "^1.17.1",
     "postgres": "^3.4.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

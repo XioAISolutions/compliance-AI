@@ -63,7 +63,7 @@ if a clip isn't ready in time. The full demo cut is at
 > on the approver matching that exact hash. The result is **audit-ready
 > compliance work product**, not just an AI answer.
 >
-> Source: https://github.com/XioAISolutions/compliance-AI/pull/56
+> Source: https://github.com/XioAISolutions/compliance-AI/tree/feat/amd-mi300x-vllm
 > Submission: HACKATHON_SUBMISSION.md in the repo
 >
 > #AMDDevHackathon #lablabai

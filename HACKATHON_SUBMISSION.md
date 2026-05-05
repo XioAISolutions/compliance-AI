@@ -7,8 +7,8 @@ Tagline — **Three AI reviewers. Verified citations. Audit-ready decisions.**
 🌐 **Live (AMD MI300X-backed):** https://compliance-ai-amd-demo-production.up.railway.app
 🩺 **Liveness:** https://compliance-ai-amd-demo-production.up.railway.app/api/healthcheck/llm
 🎯 **90-second judge demo:** https://compliance-ai-amd-demo-production.up.railway.app/demo/judge
-📦 **Source:** https://github.com/XioAISolutions/compliance-AI/pull/56
-📄 **Pitch deck (PDF, 190 KB):** [`output/hackathon/pitch-deck.marp.pdf`](output/hackathon/pitch-deck.marp.pdf)
+📦 **Source:** https://github.com/XioAISolutions/compliance-AI/tree/feat/amd-mi300x-vllm
+📄 **Pitch deck (PDF, 200 KB):** [`output/hackathon/pitch-deck.marp.pdf`](output/hackathon/pitch-deck.marp.pdf)
 
 ---
 
@@ -70,7 +70,7 @@ so the cost ceiling is bounded.
 
 ## Tech stack tags
 
-AMD Instinct MI300X · vLLM · Qwen 2.5 72B · ROCm 7.0 · Next.js 15 ·
+AMD Instinct MI300X · vLLM · Qwen 2.5 72B · ROCm 7.0 · Next.js 16 ·
 TypeScript · React 19 · Tailwind v4 · PostgreSQL · Drizzle ORM ·
 Server-Sent Events · Vitest · NI 45-106 corpus
 

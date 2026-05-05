@@ -28,7 +28,7 @@ provider.
 
 _Top of `/demo/judge` — the originality story made visible. Both columns took the same input. One is dangerous in compliance._
 
-More screenshots in [`output/hackathon/video/`](./output/hackathon/video/) (12 frames covering the homepage hero, the audit chain, the ensemble shape panel mid-stream, and Round 2 stance pills). 3-min walk-through video at [`output/hackathon/demo-video.mp4`](./output/hackathon/demo-video.mp4).
+More screenshots in [`output/hackathon/video/`](./output/hackathon/video/) (12 frames covering the homepage hero, the audit chain, the ensemble shape panel mid-stream, and Round 2 stance pills). 2:15 walk-through video at [`output/hackathon/demo-video.mp4`](./output/hackathon/demo-video.mp4).
 
 ## 90-second judge demo path
 
@@ -60,7 +60,7 @@ until the output is approval-ready**. Audit trails record which inference
 engine served the matter, so a review run today on AMD/Qwen looks
 identical in audit shape to one run tomorrow on OpenAI.
 
-🌐 **Live demo (debate cockpit):** https://compliance-ai-preview-production.up.railway.app/demo/debate
+🌐 **Live demo (AMD debate cockpit):** https://compliance-ai-amd-demo-production.up.railway.app/demo/debate
 📄 **Hackathon brief:** [AMD_HACKATHON.md](./AMD_HACKATHON.md)
 🧪 **Self-hosted MI300X:** point any client at `http://<droplet-ip>:8000/v1` running `vllm/vllm-openai-rocm`
 
@@ -154,7 +154,7 @@ cockpit (rename, edit prompts, add a 4th).
 
 ```bash
 pnpm install
-pnpm test                                     # 350 unit tests + 1 AMD live smoke (skipped without env)
+pnpm test                                     # 363 unit tests + 1 AMD live smoke (skipped without env)
 pnpm -r typecheck
 pnpm lint
 pnpm --filter @compliance-ai/web build

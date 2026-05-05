@@ -1,5 +1,10 @@
 # XIO Compliance Brain
 
+> **AMD hackathon submission:** the MI300X / Qwen 2.5 72B Triad Review demo lives on
+> branch [`feat/amd-mi300x-vllm`](https://github.com/XioAISolutions/compliance-AI/tree/feat/amd-mi300x-vllm).
+> Start with the [90-second judge demo](https://compliance-ai-amd-demo-production.up.railway.app/demo/judge),
+> then inspect the [release assets](https://github.com/XioAISolutions/compliance-AI/releases/tag/v1.0.0-amd-hackathon-submission).
+
 Canadian legal workbench. A lawyer drops a document, picks what kind of review they want, gets structured AI-assisted output grounded in Canadian law, verifies every citation, and exports a filed-work-product-ready DOCX — with a full audit trail from the first prompt to the final file.
 
 ## What a lawyer does (5 steps)

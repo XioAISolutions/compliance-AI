@@ -15,6 +15,14 @@ provider.
 
 > **Three AI reviewers. Verified citations. Audit-ready decisions.**
 
+## What it looks like
+
+![One answer vs Triad — side-by-side comparison of a generic legal-AI chatbot's confident, uncited answer next to what the XIO Triad found (3 critical gaps, 5 verified citations, 1 material disagreement, export blocked)](./output/hackathon/video/judge-comparison.png)
+
+_Top of `/demo/judge` — the originality story made visible. Both columns took the same input. One is dangerous in compliance._
+
+More screenshots in [`output/hackathon/video/`](./output/hackathon/video/) (12 frames covering the homepage hero, the audit chain, the ensemble shape panel mid-stream, and Round 2 stance pills). 3-min walk-through video at [`output/hackathon/demo-video.mp4`](./output/hackathon/demo-video.mp4).
+
 ## 90-second judge demo path
 
 1. Open the app — https://compliance-ai-amd-demo-production.up.railway.app

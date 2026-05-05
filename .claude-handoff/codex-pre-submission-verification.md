@@ -2,7 +2,7 @@
 
 **Authored by:** Claude (1M-context Opus 4.7)
 **Created:** 2026-05-05
-**Branch:** `feat/amd-mi300x-vllm` · head `1ae50f0` · release tag `v1.0.0-amd-hackathon-submission`
+**Branch:** `feat/amd-mi300x-vllm` · head `379f699` or newer · release tag `v1.0.0-amd-hackathon-submission`
 **PR:** https://github.com/XioAISolutions/compliance-AI/pull/56
 **Submission deadline:** 2026-05-10
 
@@ -61,7 +61,7 @@ c3b5193  docs(hackathon): document the 4 new submission-day surfaces
 
 ### Submission copy paste-ready (gitignored)
 
-`.local-hackathon-notes.md` — title (47 char), summary (250 char), long description (252 words), tracks, tech stack tags, all five submission URLs. Verified gitignored at `.gitignore` line 16.
+`.local-hackathon-notes.md` — title (47 char), summary (250 char), long description (249 words), tracks, tech stack tags, all five submission URLs. Verified gitignored at `.gitignore` line 16.
 
 ---
 
@@ -82,7 +82,7 @@ git log --oneline -5
 
 - `## feat/amd-mi300x-vllm...origin/feat/amd-mi300x-vllm` (no `[ahead N]`/`[behind M]`)
 - No untracked / modified files except possibly `.local-hackathon-notes.md` (gitignored, may have local YouTube URL pasted)
-- Top of log shows `1ae50f0` as the most recent commit
+- Top of log shows `379f699` or a newer polish commit as the most recent commit
 
 **Fail handling:** If working tree is dirty with anything except `.local-hackathon-notes.md`, stop and report. If branch is behind origin, the human pulled work from another machine — pull and re-verify from there.
 
@@ -187,7 +187,7 @@ awk '/^### Long description/,/^### How does it scale/' .local-hackathon-notes.md
 
 - TITLE chars: 47 / 50
 - SUMMARY chars: 250 / 255
-- LONG DESC words: 252 / 100 minimum
+- LONG DESC words: 249 / 100 minimum
 
 **Fail handling:** If any field is over its limit, the human edited `.local-hackathon-notes.md` and broke a count. Report the over-limit count.
 
@@ -256,7 +256,7 @@ Pre-submission verification: 8/8 PASSED
 - Live URL: all 4 new panels serving correctly
 - AMD endpoint: ok, <N>ms ping
 - E2E smoke: 13/13 endpoints
-- Char counts: title 47/50 · summary 250/255 · long desc 252w
+- Char counts: title 47/50 · summary 250/255 · long desc 249w
 - GitHub repo + PR + release: complete
 
 Proceed with the 6 human-only steps below.
@@ -313,7 +313,7 @@ Built for the AMD × lablab.ai Developer Hackathon (May 2026).
 Tracks: AI Agents & Agentic Workflows · Build in Public.
 
 Live demo: https://compliance-ai-amd-demo-production.up.railway.app/demo/judge
-Source:    https://github.com/XioAISolutions/compliance-AI/pull/56
+Source:    https://github.com/XioAISolutions/compliance-AI/tree/feat/amd-mi300x-vllm
 Release:   https://github.com/XioAISolutions/compliance-AI/releases/tag/v1.0.0-amd-hackathon-submission
 
 #AMDDevHackathon #lablabai

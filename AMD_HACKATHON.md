@@ -45,16 +45,27 @@ matter. The audit row's free-text summary stamps `served by <provider>/<model>`.
 
 ## What "uses the AMD MI300X" visibly
 
-1. **Live tokens-per-second pill** — emerald pill in the cockpit toolbar
+![Ensemble shape panel mid-stream — three voice dots active (running), arrow to vLLM endpoint label, MI300X icon glowing emerald with live KV-cache % during a concurrent debate](./output/hackathon/video/debate-running.png)
+
+_The ensemble shape panel on `/demo/debate` while a debate streams — voice dots reflect real-time per-voice status, MI300X icon glows when concurrent requests are in flight._
+
+1. **Ensemble shape panel** — N voice dots → vLLM endpoint → MI300X icon.
+   Voice dots reflect real-time per-voice status (pending / running / ok /
+   error). GPU icon glows emerald with live KV-cache % when concurrent
+   requests are in flight. Architecturally legible to a non-expert viewer
+   without reading code.
+2. **Live tokens-per-second pill** — emerald pill in the cockpit toolbar
    while a debate streams. Computed from chars-per-second over a sliding
    window across all concurrent voices. Judges see throughput live.
-2. **Context window pill** — provider bar shows `32K ctx` (Qwen 2.5 72B
+3. **Context window pill** — provider bar shows `32K ctx` (Qwen 2.5 72B
    on vLLM) directly from `/v1/models`. Concrete proof of memory headroom.
-3. **Round-2 follow-up** — checkbox enables a second parallel batch where
+4. **KV-cache utilisation %** — surfaced inside the GPU icon while hot,
+   sourced live from the vLLM `/metrics` endpoint via the engine ping.
+5. **Round-2 follow-up** — checkbox enables a second parallel batch where
    each voice defends, updates, or concedes its stance based on the
    synthesis and the others. Cards land with `defended` / `updated` /
    `conceded` pills. Real second-order GPU compute, visible to the viewer.
-4. **Same-GPU panel** — the entire 3-voice debate + synthesis (+ optional
+6. **Same-GPU panel** — the entire 3-voice debate + synthesis (+ optional
    round-2) runs against ONE vLLM endpoint on ONE MI300X. The concurrency
    story is "192 GB HBM3 holds Qwen 2.5 72B and serves an ensemble at
    once."

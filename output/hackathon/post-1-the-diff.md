@@ -17,10 +17,12 @@
 >
 > #AMDDevHackathon #lablabai
 
-**Image to attach:** screenshot of `/demo/judge` showing the matter strip
-with 6 stat tiles (compliance score, critical gaps, verified citations,
-needs-verification, reviewer disagreement, export status) and the
-"Approval required before export" panel.
+**Image to attach:** screenshot of `/demo/judge` showing the **One answer
+vs Triad** comparison panel at the top — left column is what a generic
+legal-AI chatbot would say (confident, uncited paragraph), right column
+is what the Triad found (3 critical gaps · 5 verified citations · 1
+material disagreement · export blocked). Tagline below: "Both took the
+same input. One is dangerous in compliance."
 
 # Post #2 — "Why three reviewers, not one"
 
@@ -39,8 +41,10 @@ needs-verification, reviewer disagreement, export status) and the
 > ensemble economically possible. #AMDDevHackathon
 
 **Image to attach:** screen recording (≤30s) of `/demo/debate` running
-the compliance template with Round 2 enabled — voice cards filling token
-by token, synthesis appearing, Round-2 stance pills landing
+the compliance template — the **ensemble shape panel** at the top
+animates as voices stream (3 dots blinking blue → green, MI300X icon
+glows emerald with live KV-cache %), voice cards fill token by token,
+synthesis appears, then Round-2 stance pills land
 (DEFENDED / UPDATED / CONCEDED).
 
 # Post #3 — "The receipt"
@@ -59,9 +63,12 @@ by token, synthesis appearing, Round-2 stance pills landing
 >
 > #AMDDevHackathon #lablabai
 
-**Image to attach:** screenshot of a CRUMB handoff text file with the
-`provider: amd_vllm/Qwen/Qwen2.5-72B-Instruct` line in the YAML
-frontmatter highlighted.
+**Image to attach:** screenshot of `/demo/judge` with the **Show audit
+chain** disclosure expanded — 6 hash-linked rows visible, each one
+showing actor · action · output hash · prev-row hash · authorities
+cited · `servedBy: amd_vllm/Qwen2.5-72B`. The chain is what regulators
+receive in a CRUMB handoff pack, surfaced inline so judges don't need to
+download anything to see the audit shape.
 
 ---
 

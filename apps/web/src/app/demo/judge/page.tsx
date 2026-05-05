@@ -297,7 +297,7 @@ export default function JudgeDemoPage() {
             <ApprovalAction
               label="Download CRUMB handoff pack"
               enabled={true}
-              href={`/api/matters/${m.id}/handoff`}
+              href="/api/demo/handoff"
               reason="Available — handoff pack is read-only and safe to export"
             />
           </div>

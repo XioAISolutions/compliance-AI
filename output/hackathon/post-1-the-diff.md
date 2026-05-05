@@ -1,40 +1,47 @@
-# Post #1 — "The diff" — for X / LinkedIn
+# Post #1 — "Triad Review on AMD" — for X / LinkedIn
 
-> Wired our compliance brain onto a single AMD MI300X tonight. One env flip
-> — `LLM_PROVIDER=amd_vllm` — moved the entire multi-agent pipeline onto
-> Qwen 2.5 72B running in vLLM on one GPU. Three reviewer voices critique
-> in parallel; an editor synthesises the verdict; voices defend or
-> reconsider in Round 2.
+> Shipped XIO Compliance Brain on a single AMD MI300X tonight. One env flip
+> — `LLM_PROVIDER=amd_vllm` — moved the whole pipeline onto Qwen 2.5 72B
+> running in vLLM on one GPU.
 >
-> Live: https://compliance-ai-amd-demo-production.up.railway.app/demo/debate
+> Three AI reviewers — **Counsel · Risk · Evidence** — critique a real OM
+> in parallel. Synthesis surfaces where they agree, where they diverge,
+> and the final action. Citations carry verification badges. Output is
+> bound to a SHA-256 hash; export is blocked until approved.
+>
+> Live (90-second seeded judge demo, no upload):
+> https://compliance-ai-amd-demo-production.up.railway.app/demo/judge
 >
 > 192 GB of HBM3 makes the whole ensemble fit on **one** card. Cloud APIs
 > would need ~4× H100s for the same trick.
 >
 > #AMDDevHackathon #lablabai
 
-**Image to attach:** screenshot of `/demo/debate` showing the live status
-bar (`amd_vllm → Qwen/Qwen2.5-72B-Instruct · 32K CTX · 279ms · 7 tok/s`),
-the 4 use-case chips, and the Decision-making prompt. Or: screenshot of
-the Round 2 cards with the DEFENDED / UPDATED stance pills visible.
+**Image to attach:** screenshot of `/demo/judge` showing the matter strip
+with 6 stat tiles (compliance score, critical gaps, verified citations,
+needs-verification, reviewer disagreement, export status) and the
+"Approval required before export" panel.
 
-# Post #2 — "The headline capability"
+# Post #2 — "Why three reviewers, not one"
 
-> The interesting thing isn't "ran inference on AMD." It's that 192 GB of
-> HBM3 lets Qwen 2.5 72B host a _three-voice debate panel_ concurrently
-> on one GPU. Same endpoint, three system prompts, parallel SSE streams.
+> Most legal-AI demos give one confident answer. That's dangerous in
+> compliance.
 >
-> Then a 4th call synthesises agree/diverge/verdict. Then optional Round 2:
-> voices defend, update, or concede their stance based on what the others
-> said.
+> XIO's Triad Review runs **three** reviewer perspectives concurrently
+> against the same matter, on a single AMD MI300X. Counsel finds rule
+> breaches. Risk scores severity. Evidence verifies citations and
+> refuses to sign off on unsupported claims.
 >
-> The whole panel runs in ~25–35s. Try it: <permalink>
+> Then a 4th call synthesises agree/diverge/verdict. Optional Round 2
+> has the voices defend, update, or concede after seeing the others.
 >
-> #AMDDevHackathon
+> Whole panel runs in ~25–35s. 192 GB of HBM3 is what makes the
+> ensemble economically possible. #AMDDevHackathon
 
-**Image to attach:** screen recording (≤30s) of `/demo/debate` running the
-Decision template with Round 2 enabled — voice cards filling token by token,
-synthesis appearing, Round-2 stance pills landing.
+**Image to attach:** screen recording (≤30s) of `/demo/debate` running
+the compliance template with Round 2 enabled — voice cards filling token
+by token, synthesis appearing, Round-2 stance pills landing
+(DEFENDED / UPDATED / CONCEDED).
 
 # Post #3 — "The receipt"
 
@@ -42,11 +49,13 @@ synthesis appearing, Round-2 stance pills landing.
 > review run today on AMD/Qwen has the same audit shape as one run
 > tomorrow on OpenAI. Provider abstraction beats vendor lock-in.
 >
-> Bonus: the homepage's live provider pill is just `/api/healthcheck/llm`
-> on a 30-second poll — green dot when the GPU is online, "provider
-> offline" when not. One curl proves the model is up.
+> Citation badges are real: verified / needs-check / missing /
+> stale / jurisdiction-mismatch. Output hash is real. Export is gated
+> on the approver matching that exact hash. The result is **audit-ready
+> compliance work product**, not just an AI answer.
 >
 > Source: https://github.com/XioAISolutions/compliance-AI/pull/56
+> Submission: HACKATHON_SUBMISSION.md in the repo
 >
 > #AMDDevHackathon #lablabai
 

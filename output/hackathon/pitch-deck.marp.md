@@ -8,14 +8,15 @@ size: 16:9
 
 <!-- _class: lead invert -->
 
-# Three AI experts.
+# XIO Compliance Brain
 
-# One question. **Side by side.**
+# **Triad Review Engine** for audit-ready compliance work.
 
+Counsel · Risk · Evidence — three AI reviewers on a single AMD GPU.
 Built on **AMD Instinct MI300X** · Qwen 2.5 72B · vLLM
 **AMD × lablab.ai Developer Hackathon · May 2026**
 
-`compliance-ai-amd-demo-production.up.railway.app/demo/debate`
+`compliance-ai-amd-demo-production.up.railway.app/demo/judge`
 
 ---
 
@@ -31,12 +32,13 @@ Most AI tools give you **one answer.**
 
 ## What we built
 
-A multi-agent cockpit where **three AI voices critique any input in parallel** — on a **single GPU** — then summarise where they agree and diverge.
+A compliance workbench where **three AI reviewers critique a matter in parallel** — on a **single GPU** — verify citations, surface disagreement, and gate export on hash-bound approval.
 
-- **4 universal use cases**
-  - Compliance review · Code review · Hard decisions · Document critique
-- **Optional Round 2** — voices defend, update, or concede their stance given the others
-- **Citation-grade receipts** anchored to real NI 45-106 / OSC corpus
+- **Reviewer roles** — Regulatory Counsel · Risk Officer · Evidence Auditor
+- **Citation badges** — verified · needs-check · missing · stale · jurisdiction-mismatch
+- **Optional Round 2** — voices defend, update, or concede after seeing the others
+- **CRUMB receipts** anchored to NI 45-106 / OSC Rule 45-501 / NI 31-103 corpus
+- **Export gate** — DOCX / redline blocked until the output hash is approved
 
 ---
 
@@ -44,13 +46,14 @@ A multi-agent cockpit where **three AI voices critique any input in parallel** �
 
 ## Demo time
 
-`/demo/debate` → pick **Decision making** → enable **Round 2** → click **Run debate**
+**`/demo/judge`** → seeded Ontario OM compliance review · no upload · reads top to bottom
 
-→ Synthesis card lands first: verdict + agreed bullets + diverged bullets
+- Compliance score · critical gaps · verified citations · needs-verification · reviewer disagreement · export status
+- Where reviewers disagreed (Counsel vs. Risk vs. Evidence) → final action
+- Approval required before export · output hash bound · DOCX / redline blocked
 
-→ Round 2 cards land with **DEFENDED** / **UPDATED** / **CONCEDED** stance pills
-
-**~30 seconds wall-clock for the full panel on one MI300X.**
+For a live model run: **`/demo/debate`** → pick a template → enable **Round 2** → run.
+**~30 seconds wall-clock** for a full Triad panel on one MI300X.
 
 ---
 

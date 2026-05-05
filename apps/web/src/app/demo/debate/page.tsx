@@ -11,11 +11,16 @@ export default function DebateDemoPage() {
           ← Demo cockpit
         </Link>
         <h1 className="mt-3 text-2xl font-semibold sm:text-3xl">
-          Three AI experts critique your input — in parallel
+          Triad Review · live debate cockpit
         </h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-          Pick a use case (or paste your own). Get one verdict, plus where the voices
-          agreed and diverged. One Qwen 2.5 72B model on a single AMD MI300X.
+          Counsel, Risk, and Evidence critique your input in parallel. Pick a use case (or paste
+          your own). Get one verdict plus where the reviewers agreed and diverged. One Qwen 2.5 72B
+          model on a single AMD MI300X. For a no-upload seeded review, try the{" "}
+          <Link href="/demo/judge" className="underline-offset-4 hover:underline">
+            90-second judge demo
+          </Link>
+          .
         </p>
       </header>
       <DebateConsole />

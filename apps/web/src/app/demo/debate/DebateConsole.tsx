@@ -28,6 +28,14 @@ interface PingResult {
     maxContextTokens: number | null;
     ownedBy: string | null;
   };
+  engineMetrics?: {
+    requestsRunning: number;
+    requestsWaiting: number;
+    promptTokensTotal: number;
+    generationTokensTotal: number;
+    gpuCacheUsage: number | null;
+    engineSleepState: "awake" | "weights_offloaded" | "discard_all" | null;
+  };
 }
 
 interface DebateMeta {
@@ -109,17 +117,23 @@ export function DebateConsole() {
 
   const firstRender = useRef(true);
   const preserveHashPromptOnce = useRef(false);
+  const autoSampleOnFirstVisit = useRef(false);
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
       // First-render permalink hydration: if the URL has #q=... use it as
       // the prompt, and #t=<id> selects the template. Encoded as base64
       // utf-8 so prompts with special chars survive a round-trip through
-      // the URL bar.
+      // the URL bar. New: #r=<base64-json> hydrates a full RESULT
+      // (verdict + voices + optional round-2 stances) so a shared link
+      // shows a debate that already happened — no inference cost on the
+      // recipient's side.
+      let hadResultParam = false;
       try {
         const hash = new URLSearchParams(window.location.hash.slice(1));
         const t = hash.get("t");
         const q = hash.get("q");
+        const r = hash.get("r");
         if (t && TEMPLATES.some((tpl) => tpl.id === t)) setTemplateId(t);
         if (q) {
           const decoded = decodeURIComponent(escape(window.atob(q)));
@@ -128,8 +142,28 @@ export function DebateConsole() {
             preserveHashPromptOnce.current = Boolean(t);
           }
         }
+        if (r) {
+          hadResultParam = applyResultHash(r);
+        }
       } catch {
         /* malformed hash → ignore */
+      }
+
+      // First-visit auto-sample: a judge / first-time visitor sees the
+      // page populated with rich content INSTANTLY, with no API call and
+      // no GPU cost. Only fires when (a) no prior visit recorded,
+      // (b) no prompt + result were hydrated from the URL hash. Uses
+      // localStorage as a once-flag.
+      if (!hadResultParam) {
+        try {
+          const seen = window.localStorage.getItem("compliance-ai:debate-visited");
+          if (!seen) {
+            window.localStorage.setItem("compliance-ai:debate-visited", new Date().toISOString());
+            autoSampleOnFirstVisit.current = true;
+          }
+        } catch {
+          /* localStorage unavailable (private window, etc.) — silently skip */
+        }
       }
       return;
     }
@@ -399,6 +433,111 @@ export function DebateConsole() {
     navigator.clipboard?.writeText(synthesis.verdict).catch(() => {});
   }
 
+  // Decode a result hash (#r=<base64-json>) into the cockpit's result
+  // panels. Returns true when the hash held something we used. Defensive:
+  // any parse error or shape mismatch returns false so we fall through to
+  // the auto-sample / template default.
+  function applyResultHash(rb64: string): boolean {
+    try {
+      const json = JSON.parse(decodeURIComponent(escape(window.atob(rb64))));
+      if (!json || typeof json !== "object") return false;
+      const j = json as Record<string, unknown>;
+      const voices = Array.isArray(j.voices) ? (j.voices as Array<Record<string, unknown>>) : [];
+      if (voices.length === 0) return false;
+      setVoiceStates(
+        voices.map((v) => ({
+          name: typeof v.name === "string" ? v.name : "Voice",
+          status: "ok",
+          prose: typeof v.prose === "string" ? v.prose : "",
+          outputTokens: typeof v.outputTokens === "number" ? v.outputTokens : 0,
+          citationCount: 0,
+        })),
+      );
+      const synth = j.synthesis as Record<string, unknown> | undefined;
+      if (synth) {
+        setSynthesis({
+          agreed: Array.isArray(synth.agreed) ? synth.agreed.map(String) : [],
+          disagreed: Array.isArray(synth.disagreed) ? synth.disagreed.map(String) : [],
+          verdict: typeof synth.verdict === "string" ? synth.verdict : "",
+        });
+      }
+      const followups = Array.isArray(j.followups)
+        ? (j.followups as Array<Record<string, unknown>>)
+        : [];
+      if (followups.length > 0) {
+        setFollowups(
+          followups.map((f) => ({
+            name: typeof f.name === "string" ? f.name : "",
+            status: "ok",
+            stance: (f.stance as FollowupState["stance"]) ?? "unclear",
+            prose: typeof f.prose === "string" ? f.prose : "",
+          })),
+        );
+      }
+      const wallClockMs = typeof j.wallClockMs === "number" ? j.wallClockMs : 0;
+      setDone({ wallClockMs });
+      setMeta({
+        provider: typeof j.provider === "string" ? j.provider : "amd_vllm",
+        model: typeof j.model === "string" ? j.model : "Qwen/Qwen2.5-72B-Instruct",
+        retrievedSnippets: 0,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // Auto-fire the sample debate AFTER first render once the template and
+  // dependent state are in place. Triggered from the firstRender effect
+  // via the autoSampleOnFirstVisit ref. Pure local state hydration — no
+  // network, no GPU, no AMD-credit cost. The viewer can click "view
+  // sample" again later or run a real debate any time. Inlined (rather
+  // than calling viewSample()) so the effect's dependency array stays
+  // honest under react-hooks/exhaustive-deps.
+  useEffect(() => {
+    if (!autoSampleOnFirstVisit.current) return;
+    autoSampleOnFirstVisit.current = false;
+    const sample = DEBATE_SAMPLES[templateId];
+    if (!sample) return;
+    setRunning(false);
+    setErrorMsg(null);
+    setLiveTps(null);
+    tpsRef.current = null;
+    setPrompt(sample.prompt);
+    setVoiceStates(
+      sample.voices.map((v) => ({
+        name: v.name,
+        status: "ok",
+        prose: v.prose,
+        outputTokens: Math.round(v.prose.length / 4),
+        citationCount: 0,
+      })),
+    );
+    setMeta({
+      provider: sample.recordedProvider,
+      model: sample.recordedModel,
+      retrievedSnippets: 0,
+    });
+    setSynthesis({
+      agreed: sample.synthesis.agreed,
+      disagreed: sample.synthesis.disagreed,
+      verdict: sample.synthesis.verdict,
+    });
+    setDone({ wallClockMs: sample.recordedWallClockMs });
+    setExpandedVoices(new Set());
+    if (sample.followups) {
+      setFollowups(
+        sample.voices.map((v) => {
+          const found = sample.followups?.find((f) => f.name === v.name);
+          if (!found) return { name: v.name, status: "ok", stance: "unclear", prose: "" };
+          return { name: found.name, status: "ok", stance: found.stance, prose: found.prose };
+        }),
+      );
+    } else {
+      setFollowups([]);
+    }
+  }, [templateId]);
+
   function viewSample() {
     // Hydrate the cockpit from a pre-recorded sample for the active template.
     // Useful when the GPU droplet is offline OR when a viewer wants to see
@@ -466,6 +605,49 @@ export function DebateConsole() {
     }
     const url = new URL(window.location.href);
     url.hash = `t=${encodeURIComponent(templateId)}&q=${q}`;
+    navigator.clipboard?.writeText(url.toString()).catch(() => {});
+  }
+
+  function copyShareLinkWithResults() {
+    // Permalink-with-results: encode the full debate result (synthesis,
+    // voices, optional round-2) into the URL hash so the recipient sees
+    // exactly what we saw — no inference cost on their side, no DB. Use
+    // case: paste into Slack as proof, or share with a colleague who
+    // doesn't have the AMD endpoint. Resulting URLs are large (~5–15 KB)
+    // but still well under browser hash limits (most browsers cap ~2 MB).
+    if (!synthesis && voiceStates.length === 0) return;
+    const payload = {
+      template: templateId,
+      provider: meta?.provider ?? "amd_vllm",
+      model: meta?.model ?? "Qwen/Qwen2.5-72B-Instruct",
+      wallClockMs: done?.wallClockMs ?? 0,
+      voices: voiceStates.map((v) => ({
+        name: v.name,
+        prose: v.prose,
+        outputTokens: v.outputTokens,
+      })),
+      synthesis: synthesis ?? null,
+      followups:
+        followups.filter((f): f is FollowupState => Boolean(f)).length > 0
+          ? followups
+              .filter((f): f is FollowupState => Boolean(f))
+              .map((f) => ({ name: f.name, stance: f.stance, prose: f.prose }))
+          : null,
+    };
+    let r = "";
+    try {
+      r = window.btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    } catch {
+      return;
+    }
+    let q = "";
+    try {
+      q = window.btoa(unescape(encodeURIComponent(prompt)));
+    } catch {
+      q = "";
+    }
+    const url = new URL(window.location.href);
+    url.hash = `t=${encodeURIComponent(templateId)}&q=${q}&r=${r}`;
     navigator.clipboard?.writeText(url.toString()).catch(() => {});
   }
 
@@ -709,6 +891,15 @@ export function DebateConsole() {
                 >
                   copy full report
                 </button>
+                <button
+                  type="button"
+                  onClick={copyShareLinkWithResults}
+                  disabled={!synthesis && voiceStates.length === 0}
+                  title="Copy a permalink that includes the prompt AND the full result (verdict + voices + round-2). Paste into Slack — recipients see what you saw, no API call needed."
+                  className="text-neutral-600 underline-offset-4 hover:underline disabled:opacity-30 dark:text-neutral-400"
+                >
+                  share result
+                </button>
               </div>
             )}
           </div>
@@ -841,6 +1032,28 @@ function ProviderBar({ ping, meta }: { ping: PingResult | null; meta: DebateMeta
           title={`Maximum context window the model accepts (${ctx?.toLocaleString()} tokens).`}
         >
           {ctxLabel}
+        </span>
+      )}
+      {ping?.engineMetrics && (
+        <span
+          className={`rounded-full border px-2 py-0.5 font-mono text-[10px] ${
+            ping.engineMetrics.requestsRunning > 0
+              ? "border-emerald-400 bg-emerald-100 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900 dark:text-emerald-200"
+              : "border-neutral-300 text-neutral-500 dark:border-neutral-700"
+          }`}
+          title={`Lifetime: ${ping.engineMetrics.promptTokensTotal.toLocaleString()} prompt tokens · ${ping.engineMetrics.generationTokensTotal.toLocaleString()} generation tokens served by this engine.${
+            ping.engineMetrics.gpuCacheUsage !== null
+              ? ` GPU KV cache: ${(ping.engineMetrics.gpuCacheUsage * 100).toFixed(1)}%.`
+              : ""
+          }`}
+        >
+          {ping.engineMetrics.requestsRunning > 0
+            ? `🔥 ${ping.engineMetrics.requestsRunning} running${
+                ping.engineMetrics.requestsWaiting > 0
+                  ? ` · ${ping.engineMetrics.requestsWaiting} queued`
+                  : ""
+              }`
+            : "GPU idle"}
         </span>
       )}
       <span className="ml-auto text-neutral-500">

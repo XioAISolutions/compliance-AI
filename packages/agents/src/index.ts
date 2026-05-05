@@ -41,6 +41,7 @@ export {
 } from "./debate.js";
 export {
   pingProvider,
+  type ProviderEngineMetrics,
   type ProviderModelInfo,
   type ProviderPingOptions,
   type ProviderPingResult,

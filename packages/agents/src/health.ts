@@ -39,6 +39,31 @@ export interface ProviderModelInfo {
   ownedBy: string | null;
 }
 
+/**
+ * Live GPU/engine metrics scraped from vLLM's Prometheus endpoint.
+ *
+ * vLLM exposes `/metrics` on the same port as `/v1/...`. The numbers here
+ * are an "is the GPU actually doing work?" check — irrefutable proof of
+ * activity, distinct from the model-info pull which only tells you the
+ * model is registered. Best-effort: undefined when the endpoint isn't
+ * reachable, doesn't expose Prometheus metrics (e.g. OpenAI cloud), or
+ * times out.
+ */
+export interface ProviderEngineMetrics {
+  /** How many inference requests are running RIGHT NOW. 0 = idle. */
+  requestsRunning: number;
+  /** How many requests are waiting in the scheduler queue. */
+  requestsWaiting: number;
+  /** Lifetime prompt tokens served by this engine instance. */
+  promptTokensTotal: number;
+  /** Lifetime generation tokens served by this engine instance. */
+  generationTokensTotal: number;
+  /** Fraction of GPU KV cache in use [0..1]. null if not reported. */
+  gpuCacheUsage: number | null;
+  /** Engine sleep state: "awake" / "weights_offloaded" / "discard_all". */
+  engineSleepState: "awake" | "weights_offloaded" | "discard_all" | null;
+}
+
 export interface ProviderPingResult {
   ok: boolean;
   provider: ModelProvider;
@@ -53,6 +78,8 @@ export interface ProviderPingResult {
   tokensPerSec?: number;
   /** Model capabilities surfaced by /v1/models, when supported. */
   modelInfo?: ProviderModelInfo;
+  /** Live engine metrics (vLLM Prometheus). Undefined for providers that don't expose /metrics. */
+  engineMetrics?: ProviderEngineMetrics;
   /** Set when ok=false. */
   error?: string;
 }
@@ -108,12 +135,13 @@ export async function pingProvider(options: ProviderPingOptions = {}): Promise<P
   try {
     await Promise.race([
       ping,
-      new Promise<void>((resolve) =>
-        (timeoutId = setTimeout(() => {
-          timedOut = true;
-          controller.abort(new Error(`Provider did not respond within ${timeoutMs}ms.`));
-          resolve();
-        }, timeoutMs)),
+      new Promise<void>(
+        (resolve) =>
+          (timeoutId = setTimeout(() => {
+            timedOut = true;
+            controller.abort(new Error(`Provider did not respond within ${timeoutMs}ms.`));
+            resolve();
+          }, timeoutMs)),
       ),
     ]);
   } finally {
@@ -166,6 +194,14 @@ export async function pingProvider(options: ProviderPingOptions = {}): Promise<P
   // not a context length. Either way it's nice-to-have for the UI.
   const modelInfo = await fetchModelInfo(config).catch(() => undefined);
 
+  // /metrics is also best-effort and only meaningful for vLLM-style
+  // providers. Surfaces live GPU work for the demo's "the MI300X is
+  // ACTUALLY DOING SOMETHING" panel.
+  const engineMetrics =
+    config.provider === "amd_vllm" || config.provider === "ollama"
+      ? await fetchEngineMetrics(config).catch(() => undefined)
+      : undefined;
+
   return {
     ok: sample.trim().length > 0,
     provider: config.provider,
@@ -176,7 +212,75 @@ export async function pingProvider(options: ProviderPingOptions = {}): Promise<P
     ...(outputTokens !== undefined ? { outputTokens } : {}),
     ...(tokensPerSec !== undefined ? { tokensPerSec } : {}),
     ...(modelInfo ? { modelInfo } : {}),
+    ...(engineMetrics ? { engineMetrics } : {}),
   };
+}
+
+/**
+ * Fetch vLLM's Prometheus metrics endpoint and extract a small set of
+ * "is the GPU busy?" numbers. The raw endpoint is verbose (~80 lines of
+ * vllm:* counters); we parse only the few that mean something to a UI
+ * viewer.
+ *
+ * Best-effort: returns undefined on any failure mode (timeout, non-200,
+ * no vllm:* counters present). The healthcheck JSON simply omits the
+ * `engineMetrics` field when this returns undefined.
+ */
+async function fetchEngineMetrics(config: {
+  provider: ModelProvider;
+  baseUrl?: string;
+}): Promise<ProviderEngineMetrics | undefined> {
+  const baseUrl = config.baseUrl;
+  if (!baseUrl) return undefined;
+  // vLLM serves /metrics on the same port as /v1/... — strip the /v1
+  // suffix to get the right URL.
+  const metricsUrl = baseUrl.replace(/\/v1\/?$/, "") + "/metrics";
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5_000);
+  try {
+    const res = await fetch(metricsUrl, { signal: controller.signal });
+    if (!res.ok) return undefined;
+    const text = await res.text();
+
+    const num = (line: RegExp): number | null => {
+      const m = text.match(line);
+      if (!m) return null;
+      const value = Number(m[1]);
+      return Number.isFinite(value) ? value : null;
+    };
+
+    const requestsRunning = num(/^vllm:num_requests_running\{[^}]*\}\s+([0-9.eE+-]+)/m) ?? 0;
+    const requestsWaiting = num(/^vllm:num_requests_waiting\{[^}]*\}\s+([0-9.eE+-]+)/m) ?? 0;
+    const promptTokensTotal = num(/^vllm:prompt_tokens_total\{[^}]*\}\s+([0-9.eE+-]+)/m) ?? 0;
+    const generationTokensTotal =
+      num(/^vllm:generation_tokens_total\{[^}]*\}\s+([0-9.eE+-]+)/m) ?? 0;
+    const gpuCacheUsage = num(/^vllm:gpu_cache_usage_perc\{[^}]*\}\s+([0-9.eE+-]+)/m);
+
+    let engineSleepState: ProviderEngineMetrics["engineSleepState"] = null;
+    if (text.match(/^vllm:engine_sleep_state\{[^}]*sleep_state="awake"[^}]*\}\s+1/m)) {
+      engineSleepState = "awake";
+    } else if (
+      text.match(/^vllm:engine_sleep_state\{[^}]*sleep_state="weights_offloaded"[^}]*\}\s+1/m)
+    ) {
+      engineSleepState = "weights_offloaded";
+    } else if (text.match(/^vllm:engine_sleep_state\{[^}]*sleep_state="discard_all"[^}]*\}\s+1/m)) {
+      engineSleepState = "discard_all";
+    }
+
+    return {
+      requestsRunning,
+      requestsWaiting,
+      promptTokensTotal,
+      generationTokensTotal,
+      gpuCacheUsage,
+      engineSleepState,
+    };
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function fetchModelInfo(config: {

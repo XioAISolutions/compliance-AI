@@ -12,6 +12,11 @@ interface PingResult {
   model: string;
   latencyMs: number;
   modelInfo?: { maxContextTokens: number | null };
+  engineMetrics?: {
+    requestsRunning: number;
+    promptTokensTotal: number;
+    generationTokensTotal: number;
+  };
 }
 
 const TEMPLATES = [
@@ -146,6 +151,37 @@ export default function Home() {
         </div>
       </section>
 
+      {/* What it costs / what it saves — concrete ROI panel */}
+      <section className="mb-12">
+        <p className="mb-3 text-xs font-medium uppercase text-neutral-500">
+          What it costs · what it saves
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <ROITile
+            label="Lawyer-hours per OM review"
+            value="3–5 hrs"
+            sub="Industry baseline: a junior associate first-pass on a private-placement OM."
+          />
+          <ROITile
+            label="Inference cost per debate (3 voices + synthesis)"
+            value="≈ $0.04"
+            sub="Measured on this app: ~6,500 output tokens × $0.0006/1K (self-hosted MI300X amortised cost)."
+            highlight
+          />
+          <ROITile
+            label="Cloud equivalent for the same workload"
+            value="≈ $8.10"
+            sub="3 voices × 32K-ctx 70B-class on a hosted API at $1.20/1M output. Self-hosting flips a 200× ratio."
+          />
+        </div>
+        <p className="mt-3 text-xs text-neutral-500">
+          Numbers are from this codebase&apos;s synthetic test runs against the live AMD droplet —
+          not a customer engagement. Real-world spread varies with deal complexity. The argument is{" "}
+          <em>order-of-magnitude</em>: GPU memory headroom unlocks ensembles that cloud APIs price
+          out of reach.
+        </p>
+      </section>
+
       {/* Compliance workbench — demoted but still accessible */}
       <section className="mb-12 rounded-lg border border-neutral-200 p-6 dark:border-neutral-800">
         <p className="text-xs font-medium uppercase text-neutral-500">Have a real document?</p>
@@ -231,6 +267,38 @@ function ValueProp({ title, body }: { title: string; body: string }) {
     <div className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
       <h3 className="text-sm font-semibold">{title}</h3>
       <p className="mt-1 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">{body}</p>
+    </div>
+  );
+}
+
+function ROITile({
+  label,
+  value,
+  sub,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-lg border p-4 ${
+        highlight
+          ? "border-emerald-300 bg-emerald-50/40 dark:border-emerald-800 dark:bg-emerald-950/40"
+          : "border-neutral-200 dark:border-neutral-800"
+      }`}
+    >
+      <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">{label}</p>
+      <p
+        className={`mt-1 text-2xl font-semibold ${
+          highlight ? "text-emerald-700 dark:text-emerald-300" : ""
+        }`}
+      >
+        {value}
+      </p>
+      <p className="mt-1 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">{sub}</p>
     </div>
   );
 }

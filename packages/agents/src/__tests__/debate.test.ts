@@ -200,13 +200,13 @@ describe("runDebate", () => {
     );
   });
 
-  it("ships a starter set of compliance voices with stance suffixes", () => {
+  it("ships a starter set of compliance voices with role suffixes (Triad Review)", () => {
     expect(DEFAULT_COMPLIANCE_VOICES).toHaveLength(3);
     const names = DEFAULT_COMPLIANCE_VOICES.map((v) => v.name);
-    expect(names).toEqual(["Skeptical reviewer", "Permissive reviewer", "Regulator voice"]);
+    expect(names).toEqual(["Regulatory Counsel", "Risk Officer", "Evidence Auditor"]);
     for (const v of DEFAULT_COMPLIANCE_VOICES) {
       expect(v.personaId).toBe("om-reviewer");
-      expect(v.systemPromptSuffix).toMatch(/STANCE:/);
+      expect(v.systemPromptSuffix).toMatch(/ROLE:/);
     }
   });
 
@@ -230,8 +230,22 @@ describe("runDebate", () => {
   it("synthesizeDebate parses fenced JSON into agreed/diverged/verdict", async () => {
     const result: DebateResult = {
       voices: [
-        { name: "A", status: "ok", prose: "A says X", citations: [], usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 }, persona: "om-reviewer" },
-        { name: "B", status: "ok", prose: "B says Y", citations: [], usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 }, persona: "om-reviewer" },
+        {
+          name: "A",
+          status: "ok",
+          prose: "A says X",
+          citations: [],
+          usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
+          persona: "om-reviewer",
+        },
+        {
+          name: "B",
+          status: "ok",
+          prose: "B says Y",
+          citations: [],
+          usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
+          persona: "om-reviewer",
+        },
       ],
       provider: "ollama",
       model: "test",
@@ -247,8 +261,23 @@ describe("runDebate", () => {
   it("synthesizeDebate returns null when fewer than 2 voices succeeded", async () => {
     const result: DebateResult = {
       voices: [
-        { name: "A", status: "ok", prose: "x", citations: [], usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 }, persona: "om-reviewer" },
-        { name: "B", status: "error", prose: "", citations: [], usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }, persona: "om-reviewer", error: "boom" },
+        {
+          name: "A",
+          status: "ok",
+          prose: "x",
+          citations: [],
+          usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
+          persona: "om-reviewer",
+        },
+        {
+          name: "B",
+          status: "error",
+          prose: "",
+          citations: [],
+          usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
+          persona: "om-reviewer",
+          error: "boom",
+        },
       ],
       provider: "ollama",
       model: "test",
@@ -260,8 +289,22 @@ describe("runDebate", () => {
   it("synthesizeDebate returns null on malformed JSON output", async () => {
     const result: DebateResult = {
       voices: [
-        { name: "A", status: "ok", prose: "p", citations: [], usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 }, persona: "om-reviewer" },
-        { name: "B", status: "ok", prose: "p", citations: [], usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 }, persona: "om-reviewer" },
+        {
+          name: "A",
+          status: "ok",
+          prose: "p",
+          citations: [],
+          usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
+          persona: "om-reviewer",
+        },
+        {
+          name: "B",
+          status: "ok",
+          prose: "p",
+          citations: [],
+          usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
+          persona: "om-reviewer",
+        },
       ],
       provider: "ollama",
       model: "test",
@@ -274,9 +317,31 @@ describe("runDebate", () => {
   it("runFollowup skips errored round-1 voices and preserves original index", async () => {
     const result: DebateResult = {
       voices: [
-        { name: "Optimist", status: "ok", prose: "stance=DEFENDED arg", citations: [], usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 }, persona: "drafter" },
-        { name: "Broken", status: "error", prose: "", citations: [], usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }, persona: "drafter", error: "round-1 fail" },
-        { name: "Skeptic", status: "ok", prose: "stance=UPDATED arg", citations: [], usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 }, persona: "drafter" },
+        {
+          name: "Optimist",
+          status: "ok",
+          prose: "stance=DEFENDED arg",
+          citations: [],
+          usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
+          persona: "drafter",
+        },
+        {
+          name: "Broken",
+          status: "error",
+          prose: "",
+          citations: [],
+          usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
+          persona: "drafter",
+          error: "round-1 fail",
+        },
+        {
+          name: "Skeptic",
+          status: "ok",
+          prose: "stance=UPDATED arg",
+          citations: [],
+          usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
+          persona: "drafter",
+        },
       ],
       provider: "ollama",
       model: "test",
@@ -304,7 +369,14 @@ describe("runDebate", () => {
   it("runFollowup returns [] when fewer than 2 round-1 voices succeeded", async () => {
     const result: DebateResult = {
       voices: [
-        { name: "Solo", status: "ok", prose: "stance=DEFENDED", citations: [], usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 }, persona: "drafter" },
+        {
+          name: "Solo",
+          status: "ok",
+          prose: "stance=DEFENDED",
+          citations: [],
+          usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
+          persona: "drafter",
+        },
       ],
       provider: "ollama",
       model: "test",
@@ -322,8 +394,22 @@ describe("runDebate", () => {
   it("runFollowup falls back to stance='unclear' on garbage output", async () => {
     const result: DebateResult = {
       voices: [
-        { name: "A", status: "ok", prose: "stance=GARBAGE", citations: [], usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 }, persona: "drafter" },
-        { name: "B", status: "ok", prose: "stance=GARBAGE", citations: [], usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 }, persona: "drafter" },
+        {
+          name: "A",
+          status: "ok",
+          prose: "stance=GARBAGE",
+          citations: [],
+          usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
+          persona: "drafter",
+        },
+        {
+          name: "B",
+          status: "ok",
+          prose: "stance=GARBAGE",
+          citations: [],
+          usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
+          persona: "drafter",
+        },
       ],
       provider: "ollama",
       model: "test",
@@ -341,9 +427,31 @@ describe("runDebate", () => {
   it("runFollowup emits started/delta/completed events with original index", async () => {
     const result: DebateResult = {
       voices: [
-        { name: "A", status: "ok", prose: "stance=DEFENDED", citations: [], usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 }, persona: "drafter" },
-        { name: "B", status: "error", prose: "", citations: [], usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }, persona: "drafter", error: "skip me" },
-        { name: "C", status: "ok", prose: "stance=UPDATED", citations: [], usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 }, persona: "drafter" },
+        {
+          name: "A",
+          status: "ok",
+          prose: "stance=DEFENDED",
+          citations: [],
+          usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
+          persona: "drafter",
+        },
+        {
+          name: "B",
+          status: "error",
+          prose: "",
+          citations: [],
+          usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 },
+          persona: "drafter",
+          error: "skip me",
+        },
+        {
+          name: "C",
+          status: "ok",
+          prose: "stance=UPDATED",
+          citations: [],
+          usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
+          persona: "drafter",
+        },
       ],
       provider: "ollama",
       model: "test",

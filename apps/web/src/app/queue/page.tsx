@@ -11,6 +11,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { TRIAD_DEMO_QUEUE } from "../../lib/triad-seed";
 
 type RiskLevel = "critical" | "high" | "medium" | "low";
 type EvidenceStatus = "missing" | "requested" | "stale" | "present" | "approved";
@@ -83,8 +84,8 @@ export default function QueuePage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Today&apos;s queue</h1>
           <p className="mt-1 text-sm text-neutral-500">
-            Prioritized by risk × evidence gap × deadline pressure. Diversified by task type
-            so the queue isn&apos;t all OM reviews.
+            Prioritized by risk × evidence gap × deadline pressure. Diversified by task type so the
+            queue isn&apos;t all OM reviews.
           </p>
         </div>
         <Link
@@ -95,18 +96,58 @@ export default function QueuePage() {
         </Link>
       </div>
 
-      {loading && <p className="mt-8 text-sm text-neutral-400">Building queue…</p>}
+      {loading && (
+        <div className="mt-6 space-y-2">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-16 animate-pulse rounded-lg border border-neutral-200 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900"
+            />
+          ))}
+        </div>
+      )}
 
       {!loading && queue.length === 0 && (
-        <div className="mt-8 rounded-lg border border-dashed border-neutral-300 py-12 text-center dark:border-neutral-700">
-          <p className="text-neutral-500">No matters in the queue.</p>
-          <Link
-            href="/matters"
-            className="mt-4 inline-block text-sm text-blue-600 hover:underline"
-          >
-            Create your first matter
-          </Link>
-        </div>
+        <>
+          <div className="mt-6 rounded-md border border-dashed border-neutral-300 bg-neutral-50/50 p-3 text-xs text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900/40">
+            <strong>Demo mode:</strong> no live tenant matters yet. The queue below is the seeded
+            Triad Review demo set. Drop a real document on{" "}
+            <Link href="/" className="underline hover:text-neutral-900 dark:hover:text-white">
+              the home page
+            </Link>{" "}
+            to populate a live queue.
+          </div>
+          <ul className="mt-4 space-y-2">
+            {TRIAD_DEMO_QUEUE.map((q) => (
+              <li key={q.id}>
+                <Link
+                  href="/demo/judge"
+                  className="flex items-center gap-4 rounded-lg border border-neutral-200 p-4 transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900/50"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-neutral-100 text-xs font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                    {TASK_ICONS[q.taskType] ?? "?"}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-sm font-medium">{q.title}</h3>
+                    <p className="mt-0.5 text-xs text-neutral-500">
+                      {TASK_LABELS[q.taskType] ?? q.taskType} · evidence {q.evidenceStatus} ·{" "}
+                      {q.reviewerDisagreements} reviewer disagreement
+                      {q.reviewerDisagreements === 1 ? "" : "s"}
+                    </p>
+                    <p className="mt-1 text-[11px] text-neutral-600 dark:text-neutral-400">
+                      <strong>Next:</strong> {q.nextAction}
+                    </p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${RISK_STYLES[q.severity]}`}
+                  >
+                    {q.severity}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       {!loading && queue.length > 0 && (
@@ -120,11 +161,11 @@ export default function QueuePage() {
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-neutral-100 text-xs font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
                   {TASK_ICONS[q.item.taskType] ?? "?"}
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="min-w-0 flex-1">
                   <h3 className="truncate text-sm font-medium">{q.item.title}</h3>
                   <p className="mt-0.5 text-xs text-neutral-500">
-                    {TASK_LABELS[q.item.taskType] ?? q.item.taskType} ·{" "}
-                    {q.item.jurisdiction} / {q.item.registrationCategory.toUpperCase()}
+                    {TASK_LABELS[q.item.taskType] ?? q.item.taskType} · {q.item.jurisdiction} /{" "}
+                    {q.item.registrationCategory.toUpperCase()}
                     {q.item.evidenceCounts.missing > 0 && (
                       <> · {q.item.evidenceCounts.missing} missing evidence</>
                     )}
@@ -151,8 +192,8 @@ export default function QueuePage() {
       )}
 
       <p className="mt-8 text-[10px] text-neutral-400">
-        Scoring is deterministic and reproducible. Ranking combines classical priority +
-        UCB1 island diversity across task types. QUBO/QAOA optimizer sidecar slot reserved.
+        Scoring is deterministic and reproducible. Ranking combines classical priority + UCB1 island
+        diversity across task types. QUBO/QAOA optimizer sidecar slot reserved.
       </p>
     </main>
   );

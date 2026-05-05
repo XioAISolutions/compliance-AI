@@ -1,11 +1,41 @@
 # XIO Compliance Brain
 
-> **Three AI experts critique your input — in parallel.** Built for the [AMD ×
-> lablab.ai Developer Hackathon](https://lablab.ai/ai-hackathons/amd-developer)
-> (May 4–10, 2026). The headline surface runs Qwen 2.5 72B on a single AMD
-> Instinct MI300X via vLLM and renders three reviewer voices side-by-side, an
-> editor synthesis, and an optional Round 2 where the voices defend / update /
-> concede their stance against each other.
+**Triad Review Engine for audit-ready compliance work.**
+
+XIO Compliance Brain is a Canadian legal and compliance workbench that runs
+three reviewer perspectives over a matter — **Regulatory Counsel**, **Risk
+Officer**, and **Evidence Auditor**. It verifies citations, surfaces
+disagreement, creates hash-bound approvals, and exports audit-ready handoff
+work product.
+
+Built for the [AMD × lablab.ai Developer Hackathon](https://lablab.ai/ai-hackathons/amd-developer)
+(May 4–10, 2026) using a Qwen / vLLM architecture targeting AMD Instinct
+MI300X-class GPUs, with hosted-preview support through any OpenAI-compatible
+provider.
+
+> **Three AI reviewers. Verified citations. Audit-ready decisions.**
+
+## 90-second judge demo path
+
+1. Open the app — https://compliance-ai-amd-demo-production.up.railway.app
+2. Click **Run 90-second judge demo** (or visit `/demo/judge` directly)
+3. Read the seeded Ontario offering memorandum review
+4. Inspect the citation verification badges (verified / needs-check / missing / stale / jurisdiction-mismatch)
+5. Read the **Where reviewers disagreed** panel and the final action
+6. Inspect the approval gate — output hash, reviewer status, export blocked
+7. Click **Download CRUMB handoff pack** to see the audit-pack format
+
+For a live debate run with real model inference: visit `/demo/debate`,
+click **Run debate**, optionally enable **Round 2**.
+
+## Why it matters
+
+Most legal-AI tools give one confident answer. That's dangerous in
+compliance. XIO Compliance Brain shows **three reviewer perspectives**,
+**verifies the evidence**, **exposes disagreement**, and **blocks export
+until the output is approval-ready**. Audit trails record which inference
+engine served the matter, so a review run today on AMD/Qwen looks
+identical in audit shape to one run tomorrow on OpenAI.
 
 🌐 **Live demo (debate cockpit):** https://compliance-ai-preview-production.up.railway.app/demo/debate
 📄 **Hackathon brief:** [AMD_HACKATHON.md](./AMD_HACKATHON.md)

@@ -262,31 +262,32 @@ export async function runDebate(
 
       return Promise.race<DebateVoiceResult>([
         call,
-        new Promise<DebateVoiceResult>((resolve) =>
-          (timeoutId = setTimeout(() => {
-            timedOut = true;
-            controller.abort(new Error(timeoutMessage));
-            const timeoutResult: DebateVoiceResult = {
-              name: voice.name,
-              status: "timeout",
-              prose: "",
-              citations: [],
-              usage: { ...DEFAULT_USAGE },
-              error: timeoutMessage,
-              persona: voice.personaId ?? null,
-            };
-            options.onEvent?.({
-              type: "voice-completed",
-              index,
-              name: voice.name,
-              status: "timeout",
-              prose: "",
-              citations: [],
-              usage: { ...DEFAULT_USAGE },
-              error: timeoutResult.error,
-            });
-            resolve(timeoutResult);
-          }, options.timeoutMs)),
+        new Promise<DebateVoiceResult>(
+          (resolve) =>
+            (timeoutId = setTimeout(() => {
+              timedOut = true;
+              controller.abort(new Error(timeoutMessage));
+              const timeoutResult: DebateVoiceResult = {
+                name: voice.name,
+                status: "timeout",
+                prose: "",
+                citations: [],
+                usage: { ...DEFAULT_USAGE },
+                error: timeoutMessage,
+                persona: voice.personaId ?? null,
+              };
+              options.onEvent?.({
+                type: "voice-completed",
+                index,
+                name: voice.name,
+                status: "timeout",
+                prose: "",
+                citations: [],
+                usage: { ...DEFAULT_USAGE },
+                error: timeoutResult.error,
+              });
+              resolve(timeoutResult);
+            }, options.timeoutMs)),
         ),
       ]);
     }
@@ -650,22 +651,22 @@ export interface DebateTemplate {
 
 export const DEFAULT_COMPLIANCE_VOICES: DebateVoice[] = [
   {
-    name: "Skeptical reviewer",
+    name: "Regulatory Counsel",
     personaId: "om-reviewer",
     systemPromptSuffix:
-      "STANCE: Be the most cautious voice. When in doubt, downgrade FOUND → PARTIAL and PARTIAL → MISSING. Flag anything that could draw a regulator's eye, even if technically defensible.",
+      "ROLE: Regulatory Counsel. Find rule breaches, missing disclosures, and jurisdiction issues. Cite the specific instrument (NI 45-106, OSC Rule 45-501, NI 31-103) for each finding. When in doubt, downgrade FOUND → PARTIAL and PARTIAL → MISSING.",
   },
   {
-    name: "Permissive reviewer",
+    name: "Risk Officer",
     personaId: "om-reviewer",
     systemPromptSuffix:
-      "STANCE: Take the issuer's side within the rules. Where language is conventional for Canadian private placements, mark FOUND. Reserve PARTIAL/MISSING for genuine, citable gaps — not stylistic preferences.",
+      "ROLE: Risk Officer. Score business impact, severity, and operational exposure. Flag investor-reliance and suitability issues even when technically defensible. Rate each finding HIGH / MEDIUM / LOW for likelihood-of-regulator-attention.",
   },
   {
-    name: "Regulator voice",
+    name: "Evidence Auditor",
     personaId: "om-reviewer",
     systemPromptSuffix:
-      "STANCE: Read this OM as an OSC reviewer on a 45-106 deficiency review. Focus on investor protections: rights of action, withdrawal rights, marketing-claim substantiation. If you'd write a deficiency letter on a point, mark it MISSING.",
+      "ROLE: Evidence Auditor. Refuse to sign off on findings without a verifiable authority. Flag stale citations, jurisdiction mismatches, and unsupported claims. Mark every citation VERIFIED / NEEDS-CHECK / MISSING / STALE.",
   },
 ];
 

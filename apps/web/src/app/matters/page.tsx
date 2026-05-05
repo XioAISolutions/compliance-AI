@@ -9,6 +9,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { TRIAD_DEMO_MATTERS } from "../../lib/triad-seed";
 
 interface Matter {
   id: string;
@@ -265,12 +266,50 @@ export default function MattersPage() {
 
       <div className="mt-4 space-y-3">
         {matters.length === 0 && !creating && (
-          <div className="rounded-lg border border-dashed border-neutral-300 py-12 text-center dark:border-neutral-700">
-            <p className="text-neutral-500">No matters yet.</p>
-            <p className="mt-1 text-sm text-neutral-400">
-              Create your first matter to start reviewing.
-            </p>
-          </div>
+          <>
+            <div className="rounded-md border border-dashed border-neutral-300 bg-neutral-50/50 p-3 text-xs text-neutral-500 dark:border-neutral-700 dark:bg-neutral-900/40">
+              <strong>Demo mode:</strong> no live tenant matters yet. The cards below are the seeded
+              Triad Review demo set so you can see the matter workspace shape. Click any matter to
+              open the seeded review.
+            </div>
+            <ul className="space-y-3">
+              {TRIAD_DEMO_MATTERS.map((m) => {
+                const status =
+                  m.status === "in-review"
+                    ? STATUS_BADGE["in-review"]
+                    : (STATUS_BADGE[m.status] ?? STATUS_BADGE.open);
+                return (
+                  <li key={m.id}>
+                    <Link
+                      href="/demo/judge"
+                      className="group flex items-center gap-4 rounded-lg border border-neutral-200 p-4 transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900/50"
+                    >
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-neutral-100 text-xs font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                        {TASK_ICONS[m.matterType] ?? "?"}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="truncate text-sm font-medium">{m.title}</h3>
+                        <p className="mt-0.5 text-xs text-neutral-500">
+                          {TASK_TYPES.find((t) => t.value === m.matterType)?.label ?? m.matterType}{" "}
+                          · score {m.complianceScore}% · {m.criticalGaps} critical gap
+                          {m.criticalGaps === 1 ? "" : "s"} · {m.verifiedCitations} verified
+                          citations · {m.lastReviewAgo}
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-neutral-600 dark:text-neutral-400">
+                          <strong>Next:</strong> {m.nextAction}
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${status}`}
+                      >
+                        {m.status}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         )}
         {matters
           .filter((m) => statusFilter === "all" || m.status === statusFilter)

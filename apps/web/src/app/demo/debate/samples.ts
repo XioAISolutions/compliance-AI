@@ -188,17 +188,17 @@ export const DEBATE_SAMPLES: Record<string, DebateSample> = {
       'Review this offering memorandum excerpt against Ontario NI 45-106 and surface the top 3 disclosure gaps a compliance reviewer should raise:\n\n"The issuer offers Class A units to accredited investors only. Past performance has consistently exceeded benchmarks. Subscription proceeds will be applied to general working capital. Risk factors are listed in Schedule B."',
     voices: [
       {
-        name: "Skeptical reviewer",
+        name: "Regulatory Counsel",
         prose:
           "Three first-pass issues:\n1. 'Past performance has consistently exceeded benchmarks' — needs a specific benchmark, time period, methodology. As written, this is a marketing claim that the OSC has flagged in deficiency letters. NI 81-102 §15 prohibitions arguably apply by analogy even on an exempt-market offering.\n2. 'General working capital' — NI 45-106 Form 45-106F2 Item 2.4 requires a specific use-of-proceeds breakdown. 'General working capital' is not specific enough; expect a deficiency.\n3. The accredited-investor reference doesn't include a Form 45-106F4 Risk Acknowledgement requirement, which is mandatory for the offering memorandum exemption. Confirm the form is included as Schedule A or equivalent.",
       },
       {
-        name: "Permissive reviewer",
+        name: "Risk Officer",
         prose:
           "Most of these are conventional. Specifically:\n- The performance claim is too thin and should be cited or removed, but the language is fixable in one paragraph.\n- 'General working capital' is the standard placeholder for non-allocated proceeds in early-stage exempt offerings; the gap is providing a top-3 use breakdown, not the phrase itself.\n- Risk Acknowledgement form (45-106F4) — no reason to assume it's missing just because the excerpt doesn't quote it. Schedule B exists; ask the issuer for the full schedules before raising.\n\nMy view: PARTIAL on (1), MISSING on (2), HOLD on (3) pending the schedules.",
       },
       {
-        name: "Regulator voice",
+        name: "Evidence Auditor",
         prose:
           "Reading this as an OSC reviewer would on a 45-106 deficiency review:\n- Performance claim: PARTIAL/MISSING. A non-substantiated performance representation in an OM is the single most common deficiency raised on review. The disclosure must include benchmark identification, period, calculation method, and net-of-fees presentation.\n- Use of proceeds: MISSING. NI 45-106 Form 45-106F2 §2.4 requires itemised allocation. 'General working capital' alone, with no top-3 breakdown, would draw a comment letter on the first review pass.\n- Rights of action: not mentioned in the excerpt. NI 45-106 §2.9 grants statutory rights of action for misrepresentation; OM exemptions require specific disclosure of those rights. If absent from Schedule B, this is a deficiency in itself.",
       },

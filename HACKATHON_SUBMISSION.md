@@ -78,18 +78,29 @@ Server-Sent Events · Vitest · NI 45-106 corpus
 
 1. Open the live URL.
 2. Click **Run 90-second judge demo** (or visit `/demo/judge` directly).
-3. Read the seeded Ontario OM matter — score, gaps, citations, disagreement.
-4. Inspect the citation verification badges (verified / needs-check /
+3. Read the **One answer vs Triad** comparison panel at the top — left
+   column shows what a generic legal-AI chatbot would return for the same
+   input (confident, uncited, no disagreement); right column shows what
+   the Triad found (3 critical gaps, 5 verified citations, 1 material
+   disagreement, export blocked). Both columns are seeded — no LLM call.
+4. Read the seeded Ontario OM matter — score, gaps, citations, disagreement.
+5. Inspect the citation verification badges (verified / needs-check /
    missing / stale / jurisdiction-mismatch).
-5. Read the **Where reviewers disagreed** panel — Counsel vs. Risk vs.
+6. Read the **Where reviewers disagreed** panel — Counsel vs. Risk vs.
    Evidence on the past-performance language, with a final action.
-6. Read the **Approval required before export** panel — output hash,
+7. Read the **Approval required before export** panel — output hash,
    reviewer status, export blocked.
-7. Click **Download CRUMB handoff pack** to see the audit-pack format the
+8. Expand the **Show audit chain** disclosure inside the approval panel —
+   six hash-linked rows (ingest → 3 reviews → synthesis → approval),
+   each stamped `servedBy: amd_vllm/Qwen/Qwen2.5-72B-Instruct`. This is
+   what regulators receive in a CRUMB handoff pack.
+9. Click **Download CRUMB handoff pack** to see the audit-pack format the
    production matters export.
 
-For a live debate run with real model inference: visit `/demo/debate` and
-click **Run debate** on any of the four templates.
+For a live debate run with real model inference: visit `/demo/debate`,
+watch the **ensemble shape panel** light up (N voice-dots → vLLM endpoint
+→ MI300X icon glowing emerald with live KV-cache %), and click **Run
+debate** on any of the four templates.
 
 ## Demo script (≈ 3 minutes)
 
@@ -132,26 +143,39 @@ all serve concurrently against ONE Qwen 2.5 72B endpoint on ONE MI300X.
 192 GB HBM3 makes the ensemble fit; cloud APIs would need ≈4× H100s for
 the same workload. Live `/api/healthcheck/llm` reports model context
 window, tokens-per-second, and live engine activity (running requests,
-queue depth, lifetime tokens served).
+queue depth, lifetime tokens served). The **ensemble shape panel** on
+`/demo/debate` makes the architecture legible to a non-expert viewer:
+N voice-dots reflect real-time per-voice status, an arrow points to the
+vLLM endpoint label, and an MI300X icon glows emerald with live KV-cache
+% utilisation when concurrent requests are in flight.
 
 **Originality** — multi-voice debate against a single endpoint is uncommon.
 Synthesis turning three blobs of dense markdown into one decision-grade
 verdict is uncommon. Round-2 follow-up where voices defend / update /
 concede their stance based on the others is, as far as we can find,
-unique. Permalinks encode full debate output (verdict + voices + Round 2)
-into a URL hash for share-without-DB.
+unique. The **One answer vs Triad** comparison on `/demo/judge` makes the
+"single-answer-is-the-wrong-shape" thesis visible side-by-side using
+seeded data (zero LLM call). Permalinks encode full debate output (verdict
+
+- voices + Round 2) into a URL hash for share-without-DB.
 
 **Business Value** — Canadian securities/regulatory compliance is a real
 money-on-the-line vertical. Real NI 45-106 / OSC Rule 45-501 / NI 31-103
 corpus. Citation-grade receipts. CRUMB handoff records which provider
 served the matter — audit trails reproducible across provider changes.
-ROI panel on the homepage shows order-of-magnitude unit economics
-(≈ $0.04 self-hosted vs ≈ $8.10 cloud per Triad Review).
+The **inline audit chain** on `/demo/judge` surfaces the regulator-grade
+audit-row format directly in the UI (six hash-linked rows, provider-
+stamped) so judges don't have to download a CRUMB pack to see the
+audit shape. ROI panel on the homepage shows order-of-magnitude unit
+economics (≈ $0.04 self-hosted vs ≈ $8.10 cloud per Triad Review).
 
 **Presentation** — `/demo/judge` is a one-click 90-second seeded review;
 no upload required. The homepage's result preview card mirrors the demo
-state above the fold. Live provider pill on every page. Sample mode for
-offline demo robustness. Pitch deck rendered to PDF. README and
+state above the fold. Live provider pill on every page. **Cold-click
+warming banners** on both `/` and `/demo/debate` keep judges arriving on
+a stopped droplet from seeing a degraded first impression — they get an
+amber banner pointing to the seeded path that always works. Sample mode
+for offline demo robustness. Pitch deck rendered to PDF. README and
 submission copy aligned with the live app.
 
 ## Verified live (this branch)

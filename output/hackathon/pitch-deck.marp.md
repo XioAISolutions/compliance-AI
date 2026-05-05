@@ -35,9 +35,11 @@ Most AI tools give you **one answer.**
 A compliance workbench where **three AI reviewers critique a matter in parallel** — on a **single GPU** — verify citations, surface disagreement, and gate export on hash-bound approval.
 
 - **Reviewer roles** — Regulatory Counsel · Risk Officer · Evidence Auditor
+- **One answer vs Triad** — side-by-side proof that one chatbot answer is the wrong shape
 - **Citation badges** — verified · needs-check · missing · stale · jurisdiction-mismatch
 - **Optional Round 2** — voices defend, update, or concede after seeing the others
 - **CRUMB receipts** anchored to NI 45-106 / OSC Rule 45-501 / NI 31-103 corpus
+- **Inline audit chain** — 6 hash-linked rows, every one stamped with provider/model
 - **Export gate** — DOCX / redline blocked until the output hash is approved
 
 ---
@@ -48,9 +50,11 @@ A compliance workbench where **three AI reviewers critique a matter in parallel*
 
 **`/demo/judge`** → seeded Ontario OM compliance review · no upload · reads top to bottom
 
+- **One answer vs Triad** — side-by-side comparison: what a single-answer tool would say vs what the Triad found
 - Compliance score · critical gaps · verified citations · needs-verification · reviewer disagreement · export status
 - Where reviewers disagreed (Counsel vs. Risk vs. Evidence) → final action
 - Approval required before export · output hash bound · DOCX / redline blocked
+- **Inline audit chain** — 6 hash-linked rows, each stamped `amd_vllm/Qwen/Qwen2.5-72B-Instruct`
 
 For a live model run: **`/demo/debate`** → pick a template → enable **Round 2** → run.
 **~30 seconds wall-clock** for a full Triad panel on one MI300X.
@@ -93,11 +97,13 @@ A review run today on AMD/Qwen has the **same audit shape** as one tomorrow on O
 
 ## Visible AMD power
 
-Three diagnostics make the GPU's work **legible to a non-expert viewer:**
+Four diagnostics make the GPU's work **legible to a non-expert viewer:**
 
-1. **Context-window pill** — `32K ctx` sourced live from `/v1/models`
-2. **Live tokens/sec pill** — emerald counter while streaming
-3. **Round 2** — a second parallel batch of inferences on the same GPU
+1. **Ensemble shape panel** — N voice-dots → vLLM endpoint → MI300X icon, all live; GPU glows when concurrent requests are running
+2. **Context-window pill** — `32K ctx` sourced live from `/v1/models`
+3. **Live tokens/sec pill** — emerald counter while streaming
+4. **Round 2** — a second parallel batch of inferences on the same GPU
+5. **KV-cache utilisation %** — GPU-cache pressure surfaced inline during streaming
 
 Live healthcheck:
 

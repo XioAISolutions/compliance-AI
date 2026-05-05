@@ -17,12 +17,13 @@
 >
 > #AMDDevHackathon #lablabai
 
-**Image to attach:** screenshot of `/demo/judge` showing the **One answer
-vs Triad** comparison panel at the top — left column is what a generic
-legal-AI chatbot would say (confident, uncited paragraph), right column
-is what the Triad found (3 critical gaps · 5 verified citations · 1
-material disagreement · export blocked). Tagline below: "Both took the
-same input. One is dangerous in compliance."
+**Image to attach:** [`output/hackathon/video/judge-comparison.png`](./video/judge-comparison.png)
+— `/demo/judge` showing the **One answer vs Triad** comparison panel at
+the top: left column is what a generic legal-AI chatbot would say
+(confident, uncited paragraph), right column is what the Triad found
+(3 critical gaps · 5 verified citations · 1 material disagreement ·
+export blocked). Tagline below: "Both took the same input. One is
+dangerous in compliance."
 
 # Post #2 — "Why three reviewers, not one"
 
@@ -45,7 +46,11 @@ the compliance template — the **ensemble shape panel** at the top
 animates as voices stream (3 dots blinking blue → green, MI300X icon
 glows emerald with live KV-cache %), voice cards fill token by token,
 synthesis appears, then Round-2 stance pills land
-(DEFENDED / UPDATED / CONCEDED).
+(DEFENDED / UPDATED / CONCEDED). Static stills available at
+[`output/hackathon/video/debate-running.png`](./video/debate-running.png)
+and [`output/hackathon/video/debate-final-round2.png`](./video/debate-final-round2.png)
+if a clip isn't ready in time. The full demo cut is at
+[`output/hackathon/demo-video.mp4`](./demo-video.mp4) (2:15, 1920×1080).
 
 # Post #3 — "The receipt"
 
@@ -63,12 +68,12 @@ synthesis appears, then Round-2 stance pills land
 >
 > #AMDDevHackathon #lablabai
 
-**Image to attach:** screenshot of `/demo/judge` with the **Show audit
-chain** disclosure expanded — 6 hash-linked rows visible, each one
-showing actor · action · output hash · prev-row hash · authorities
-cited · `servedBy: amd_vllm/Qwen2.5-72B`. The chain is what regulators
-receive in a CRUMB handoff pack, surfaced inline so judges don't need to
-download anything to see the audit shape.
+**Image to attach:** [`output/hackathon/video/judge-audit-chain.png`](./video/judge-audit-chain.png)
+— `/demo/judge` with the **Show audit chain** disclosure expanded:
+6 hash-linked rows visible, each one showing actor · action · output
+hash · prev-row hash · authorities cited · `servedBy: amd_vllm/Qwen2.5-72B`.
+The chain is what regulators receive in a CRUMB handoff pack, surfaced
+inline so judges don't need to download anything to see the audit shape.
 
 ---
 

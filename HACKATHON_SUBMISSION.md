@@ -169,6 +169,8 @@ stamped) so judges don't have to download a CRUMB pack to see the
 audit shape. ROI panel on the homepage shows order-of-magnitude unit
 economics (≈ $0.04 self-hosted vs ≈ $8.10 cloud per Triad Review).
 
+![Inline audit chain on /demo/judge — six hash-linked rows showing actor, action, output hash, prev-row hash, authorities cited, and the servedBy provider stamp; what regulators receive in a CRUMB handoff pack, surfaced inline in the UI](./output/hackathon/video/judge-audit-chain.png)
+
 **Presentation** — `/demo/judge` is a one-click 90-second seeded review;
 no upload required. The homepage's result preview card mirrors the demo
 state above the fold. Live provider pill on every page. **Cold-click

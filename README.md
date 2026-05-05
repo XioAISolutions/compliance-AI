@@ -19,14 +19,22 @@ provider.
 
 1. Open the app — https://compliance-ai-amd-demo-production.up.railway.app
 2. Click **Run 90-second judge demo** (or visit `/demo/judge` directly)
-3. Read the seeded Ontario offering memorandum review
-4. Inspect the citation verification badges (verified / needs-check / missing / stale / jurisdiction-mismatch)
-5. Read the **Where reviewers disagreed** panel and the final action
-6. Inspect the approval gate — output hash, reviewer status, export blocked
-7. Click **Download CRUMB handoff pack** to see the audit-pack format
+3. Read the **One answer vs Triad** comparison panel (top of page) — left
+   column shows what a generic legal-AI chatbot would return for the same
+   input, right column shows what the Triad found
+4. Read the seeded Ontario offering memorandum review
+5. Inspect the citation verification badges (verified / needs-check / missing / stale / jurisdiction-mismatch)
+6. Read the **Where reviewers disagreed** panel and the final action
+7. Inspect the approval gate — output hash, reviewer status, export blocked
+8. Expand the **Show audit chain** disclosure — six hash-linked rows, each
+   stamped with the provider/model that served it
+9. Click **Download CRUMB handoff pack** to see the audit-pack format
 
 For a live debate run with real model inference: visit `/demo/debate`,
-click **Run debate**, optionally enable **Round 2**.
+watch the **ensemble shape panel** (N voice-dots → vLLM → MI300X with
+live KV-cache %), click **Run debate**, optionally enable **Round 2**.
+Cold-click warming banners on `/` and `/demo/debate` route a judge to
+the seeded path automatically when the AMD droplet is offline.
 
 ## Why it matters
 

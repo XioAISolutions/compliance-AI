@@ -1,5 +1,12 @@
 # XIO Compliance Brain
 
+[![Tests](https://img.shields.io/badge/tests-363%20passing-brightgreen?style=flat-square)](#verified-live-this-branch)
+[![Lint](https://img.shields.io/badge/lint-clean-brightgreen?style=flat-square)](#verified-live-this-branch)
+[![Typecheck](https://img.shields.io/badge/typecheck-clean-brightgreen?style=flat-square)](#verified-live-this-branch)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)](./LICENSE)
+[![AMD Hackathon](https://img.shields.io/badge/AMD%20Developer%20Hackathon-2026-orange?style=flat-square)](https://lablab.ai/ai-hackathons/amd-developer)
+[![Live demo](https://img.shields.io/badge/live%20demo-/demo/judge-ff6b6b?style=flat-square)](https://compliance-ai-amd-demo-production.up.railway.app/demo/judge)
+
 **Triad Review Engine for audit-ready compliance work.**
 
 XIO Compliance Brain is a Canadian legal and compliance workbench that runs

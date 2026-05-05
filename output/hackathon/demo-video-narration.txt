@@ -1,0 +1,17 @@
+XIO Compliance Brain is a Triad Review Engine for audit-ready compliance work, running on AMD MI300X.
+
+The homepage shows the complete story: three reviewer perspectives, Counsel, Risk, and Evidence, plus a live provider pill for the AMD vLLM endpoint serving Qwen 2.5 72B.
+
+The judge demo is seeded so reviewers can evaluate it without waiting for inference. This first panel shows the difference between one confident legal AI answer and the Triad. The single-answer tool says the offering memorandum looks fine. XIO finds three critical gaps, five verified citations, a material disagreement, and blocks export.
+
+The findings list makes the risk concrete. It flags unsupported past-performance claims, non-itemised use of proceeds, missing rights-of-action checks, a jurisdiction mismatch, and incomplete risk-factor evidence. Each resolved issue carries a citation badge; unsupported claims are explicitly refused by the Evidence Auditor.
+
+The disagreement panel is the key originality point. Counsel, Risk, and Evidence do not collapse into one answer. They expose the disputed issue, then synthesis turns that disagreement into a clear final action for the human owner.
+
+The approval gate shows the business value. DOCX and redline export are blocked until a human approves the output hash. Expanding the audit chain shows six hash-linked rows, each recording actor, action, prior hash, cited authorities, and the provider stamp, amd vLLM over Qwen 2.5 72B.
+
+The live debate cockpit shows why AMD matters. Three voices stream through one vLLM endpoint into one MI300X. The ensemble panel lights up while requests run, and the tokens-per-second pill reports live throughput.
+
+With Round 2 enabled, each voice responds to the synthesis by defending, updating, or conceding. The final result is not just text; it is an auditable decision workflow with citations, disagreement, provider stamping, and approval control.
+
+The implementation is in PR 56 with 363 tests, lint, typecheck, rate limiting, seeded fallback, live health checks, and the AMD demo URL ready for hackathon judges.

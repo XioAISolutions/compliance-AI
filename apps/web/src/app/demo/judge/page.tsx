@@ -17,6 +17,7 @@ import {
   TRIAD_DEMO_MATTER,
   TRIAD_REVIEWERS,
   type CitationBadge,
+  type TriadAuditRow,
   type TriadCitation,
   type TriadFinding,
   type TriadReviewerId,
@@ -102,6 +103,13 @@ export default function JudgeDemoPage() {
           bottom.
         </p>
       </header>
+
+      {/* 0. One answer vs Triad — the originality story, made visible.
+            A generic legal-AI chatbot would return one confident paragraph for
+            this same input. The Triad found 3 critical gaps, 5 verified
+            citations, and 1 material disagreement. Both columns are seeded;
+            no LLM call. */}
+      <OneAnswerVsTriadPanel />
 
       {/* 1. Matter strip */}
       <section className="mb-5 rounded-lg border-2 border-neutral-900 bg-neutral-50 p-4 dark:border-white dark:bg-neutral-900">
@@ -307,6 +315,45 @@ export default function JudgeDemoPage() {
           handoff endpoint is real — clicking it returns the seeded YAML/markdown audit pack that
           production matters export.
         </p>
+
+        {/* Inline audit-row preview — the chain a regulator would see if
+            they asked "show me your work." Hash-chained, tamper-evident,
+            provider-stamped. Default-collapsed so it doesn't dominate the
+            primary scan; a curious judge can expand it. */}
+        <details className="mt-4 rounded border border-neutral-200 bg-white p-3 text-xs dark:border-neutral-800 dark:bg-black">
+          <summary className="cursor-pointer text-[10px] font-medium uppercase tracking-wide text-neutral-500 hover:text-neutral-900 dark:hover:text-white">
+            Show audit chain ({m.auditRows.length} rows · hash-linked · provider-stamped)
+          </summary>
+          <p className="mt-2 text-[10px] text-neutral-500">
+            Each row records actor, action, input/output hash, prev-row hash, authorities cited, and
+            which provider/model served it. The chain is what a regulator receives in a CRUMB
+            handoff pack.
+          </p>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left font-mono text-[10px]">
+              <thead>
+                <tr className="border-b border-neutral-200 text-neutral-500 dark:border-neutral-800">
+                  <th className="py-1 pr-3 font-medium">#</th>
+                  <th className="py-1 pr-3 font-medium">Actor · Action</th>
+                  <th className="py-1 pr-3 font-medium">Output hash</th>
+                  <th className="py-1 pr-3 font-medium">↳ chains to prev</th>
+                  <th className="py-1 pr-3 font-medium">Authorities</th>
+                  <th className="py-1 font-medium">Served by</th>
+                </tr>
+              </thead>
+              <tbody className="text-neutral-700 dark:text-neutral-300">
+                {m.auditRows.map((r) => (
+                  <AuditRowLine key={r.sequence} row={r} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-3 text-[10px] text-neutral-500">
+            Notice every row's <code>servedBy</code> stamp. A review run tomorrow on OpenAI would
+            produce the <em>same audit shape</em> with a different stamp — that&apos;s what
+            &ldquo;provider abstraction beats vendor lock-in&rdquo; means in practice.
+          </p>
+        </details>
       </section>
 
       {/* 6. AMD technical panel */}
@@ -461,4 +508,168 @@ function ApprovalAction({
       <span className="text-[10px]">{reason}</span>
     </div>
   );
+}
+
+/**
+ * The "One answer vs Triad" comparison — the originality story made visible.
+ * Left column: what a generic legal-AI chatbot would say (confident, uncited,
+ * no disagreement). Right column: what XIO's Triad found on the same input
+ * (gaps, citations, disagreement, export-blocked). Both columns are seeded
+ * from triad-seed.ts; no LLM call.
+ *
+ * Placed above the matter strip on /demo/judge so the contrast is the first
+ * thing a judge sees after the page header.
+ */
+function OneAnswerVsTriadPanel() {
+  const m = TRIAD_DEMO_MATTER;
+  const generic = m.genericSingleAnswer;
+  return (
+    <section className="mb-5 grid gap-3 lg:grid-cols-2">
+      <article className="rounded-lg border-2 border-rose-300 bg-rose-50/40 p-4 dark:border-rose-800 dark:bg-rose-950/30">
+        <header className="flex items-baseline justify-between gap-2">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-rose-700 dark:text-rose-300">
+            What a single-answer tool would return
+          </p>
+          <span className="rounded-full bg-rose-200 px-2 py-0.5 text-[10px] font-medium text-rose-900 dark:bg-rose-900 dark:text-rose-200">
+            🤖 {generic.toolKind}
+          </span>
+        </header>
+        <p className="mt-3 text-xs italic leading-relaxed text-neutral-700 dark:text-neutral-300">
+          &ldquo;{generic.answer}&rdquo;
+        </p>
+        <p className="mt-3 text-[10px] font-medium uppercase tracking-wide text-rose-700 dark:text-rose-300">
+          What it&apos;s missing
+        </p>
+        <ul className="mt-1 space-y-1 text-[11px] leading-relaxed text-neutral-700 dark:text-neutral-300">
+          {generic.missing.map((line, i) => (
+            <li key={i} className="flex gap-2">
+              <span className="mt-1 inline-block h-1 w-1 flex-none rounded-full bg-rose-500" />
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
+      </article>
+
+      <article className="rounded-lg border-2 border-emerald-400 bg-emerald-50/40 p-4 dark:border-emerald-700 dark:bg-emerald-950/30">
+        <header className="flex items-baseline justify-between gap-2">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+            What XIO Triad found
+          </p>
+          <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-[10px] font-medium text-emerald-900 dark:bg-emerald-900 dark:text-emerald-200">
+            🧠 3 reviewers · 1 GPU
+          </span>
+        </header>
+        <dl className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+          <CompareStat label="Critical gaps" value={String(m.criticalGapCount)} tone="danger" />
+          <CompareStat
+            label="Verified citations"
+            value={String(m.verifiedCitationCount)}
+            tone="ok"
+          />
+          <CompareStat
+            label="Material disagreement"
+            value={`${m.reviewerDisagreementCount} issue${m.reviewerDisagreementCount === 1 ? "" : "s"}`}
+            tone="warn"
+          />
+          <CompareStat
+            label="Compliance score"
+            value={`${m.complianceScore}%`}
+            tone={m.complianceScore >= 80 ? "ok" : "warn"}
+          />
+        </dl>
+        <p className="mt-3 text-[10px] font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+          What you also get
+        </p>
+        <ul className="mt-1 space-y-1 text-[11px] leading-relaxed text-neutral-700 dark:text-neutral-300">
+          <li className="flex gap-2">
+            <span className="mt-1 inline-block h-1 w-1 flex-none rounded-full bg-emerald-500" />
+            <span>Every finding cites a verifiable authority — or is flagged as unsupported.</span>
+          </li>
+          <li className="flex gap-2">
+            <span className="mt-1 inline-block h-1 w-1 flex-none rounded-full bg-emerald-500" />
+            <span>Export is blocked until a human approves the SHA-256 output hash.</span>
+          </li>
+          <li className="flex gap-2">
+            <span className="mt-1 inline-block h-1 w-1 flex-none rounded-full bg-emerald-500" />
+            <span>Audit chain (6 hash-linked rows) records every decision and provider stamp.</span>
+          </li>
+        </ul>
+      </article>
+      <p className="text-center text-[11px] italic text-neutral-500 lg:col-span-2">
+        Both columns took the same input. One is dangerous in compliance.
+      </p>
+    </section>
+  );
+}
+
+function CompareStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "ok" | "warn" | "danger";
+}) {
+  const toneClass =
+    tone === "ok"
+      ? "text-emerald-700 dark:text-emerald-300"
+      : tone === "warn"
+        ? "text-amber-700 dark:text-amber-300"
+        : "text-rose-700 dark:text-rose-300";
+  return (
+    <div className="rounded border border-neutral-200 bg-white p-2 dark:border-neutral-800 dark:bg-black">
+      <dt className="text-[9px] font-medium uppercase tracking-wide text-neutral-500">{label}</dt>
+      <dd className={`mt-0.5 text-sm font-semibold ${toneClass}`}>{value}</dd>
+    </div>
+  );
+}
+
+/**
+ * Single audit_log row, rendered as a table row inside the inline audit
+ * chain preview. Hashes are abbreviated to first 12 chars to fit the
+ * visual rhythm; the full value is in the `title` tooltip.
+ */
+function AuditRowLine({ row }: { row: TriadAuditRow }) {
+  return (
+    <tr className="border-b border-neutral-100 align-top last:border-b-0 dark:border-neutral-900">
+      <td className="py-2 pr-3">{row.sequence}</td>
+      <td className="py-2 pr-3">
+        <div>{row.actor}</div>
+        <div className="text-neutral-500">{row.action}</div>
+      </td>
+      <td className="py-2 pr-3" title={row.outputHash}>
+        {abbreviateHash(row.outputHash)}
+      </td>
+      <td className="py-2 pr-3" title={row.prevRowHash ?? "(no previous row — chain origin)"}>
+        {row.prevRowHash ? abbreviateHash(row.prevRowHash) : "—"}
+      </td>
+      <td className="py-2 pr-3">
+        {row.authoritiesUsed.length === 0 ? "—" : `${row.authoritiesUsed.length} cited`}
+        {row.judgeVerdict && (
+          <div className="text-[9px] uppercase text-amber-700 dark:text-amber-300">
+            verdict: {row.judgeVerdict}
+          </div>
+        )}
+      </td>
+      <td className="py-2" title={row.servedBy}>
+        {abbreviateProvider(row.servedBy)}
+      </td>
+    </tr>
+  );
+}
+
+function abbreviateHash(h: string): string {
+  // sha256:abc123... → sha256:abc123…
+  const colon = h.indexOf(":");
+  if (colon < 0) return h.slice(0, 12) + "…";
+  return `${h.slice(0, colon + 1)}${h.slice(colon + 1, colon + 9)}…`;
+}
+
+function abbreviateProvider(p: string): string {
+  // amd_vllm/Qwen/Qwen2.5-72B-Instruct → amd_vllm/Qwen2.5-72B
+  const parts = p.split("/");
+  if (parts.length < 2) return p;
+  const tail = parts[parts.length - 1]?.replace(/-Instruct$/i, "") ?? "";
+  return `${parts[0]}/${tail}`;
 }

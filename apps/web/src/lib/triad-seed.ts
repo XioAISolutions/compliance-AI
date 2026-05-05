@@ -96,6 +96,45 @@ export interface TriadAmdPanel {
   hostedPreviewDisclosure: string;
 }
 
+/**
+ * The shape of one audit_log row as a regulator would receive it. Mirrors
+ * `packages/db/src/schema/audit_log.ts` — hash-chained, tamper-evident.
+ * Surfaced inline on /demo/judge so the judge can see the audit shape
+ * without downloading a CRUMB pack.
+ */
+export interface TriadAuditRow {
+  /** Sequence number within the matter; 1 = first action. */
+  sequence: number;
+  timestamp: string;
+  actor: string;
+  action: "ingest" | "review" | "synthesis" | "approval-request" | "export";
+  inputHash: string;
+  outputHash: string;
+  /** Previous row's outputHash — the chain-link for tamper evidence. */
+  prevRowHash: string | null;
+  /** Authority IDs cited in this row's reviewer output. */
+  authoritiesUsed: string[];
+  /** The judge persona's verdict for this row, if applicable. */
+  judgeVerdict?: "ready-to-submit" | "iterate" | "rewrite";
+  /** Provider/model that served this row — proves audit-shape stability across vendors. */
+  servedBy: string;
+}
+
+/**
+ * Single-answer baseline used by the "One answer vs Triad" comparison
+ * panel. Represents what a generic legal-AI tool would have produced if
+ * asked the same question — confident, uncited, no disagreement surfaced.
+ * Static seed data; never call an LLM to generate this.
+ */
+export interface TriadGenericAnswer {
+  /** The kind of tool this represents — informs the icon/labels. */
+  toolKind: string;
+  /** The single confident-sounding answer the tool would return. */
+  answer: string;
+  /** What the answer is missing relative to the Triad output. */
+  missing: string[];
+}
+
 export interface TriadDemoMatter {
   id: string;
   title: string;
@@ -116,6 +155,12 @@ export interface TriadDemoMatter {
   disagreements: TriadDisagreement[];
   approval: TriadApprovalState;
   amd: TriadAmdPanel;
+  /** Audit log rows that backed this matter, in chronological order.
+      Surfaced inline on /demo/judge as the audit-row preview. */
+  auditRows: TriadAuditRow[];
+  /** What a single-answer legal-AI tool would have returned for the same
+      input — drives the "One answer vs Triad" comparison panel. */
+  genericSingleAnswer: TriadGenericAnswer;
   /** Wall-clock summary of the seeded run, for the status strip. */
   recordedWallClockMs: number;
   recordedAt: string;
@@ -303,6 +348,95 @@ export const TRIAD_DEMO_MATTER: TriadDemoMatter = {
       "Large-memory GPU serving fits a 72B model and a three-voice ensemble on a single card. The same workload on cloud APIs requires roughly 4× H100s.",
     hostedPreviewDisclosure:
       "The hosted preview at compliance-ai-amd-demo-production.up.railway.app is configured to use this AMD vLLM endpoint when the droplet is online. /api/healthcheck/llm reports the live provider, model, latency, tokens-per-second, and engine activity.",
+  },
+  auditRows: [
+    {
+      sequence: 1,
+      timestamp: "2026-05-04T23:50:11Z",
+      actor: "ingest-pipeline",
+      action: "ingest",
+      inputHash: "sha256:b1c2d3e4f5a6978800112233445566778899aabbccddeeff0011223344556677",
+      outputHash: "sha256:0a1b2c3d4e5f607182930a4b5c6d7e8f9012345678901234567890abcdef0123",
+      prevRowHash: null,
+      authoritiesUsed: [],
+      servedBy: "amd_vllm/Qwen/Qwen2.5-72B-Instruct",
+    },
+    {
+      sequence: 2,
+      timestamp: "2026-05-04T23:51:03Z",
+      actor: "counsel-bot",
+      action: "review",
+      inputHash: "sha256:0a1b2c3d4e5f607182930a4b5c6d7e8f9012345678901234567890abcdef0123",
+      outputHash: "sha256:4f5e6d7c8b9a0123456789abcdef0123fedcba9876543210fedcba0987654321",
+      prevRowHash: "sha256:0a1b2c3d4e5f607182930a4b5c6d7e8f9012345678901234567890abcdef0123",
+      authoritiesUsed: ["auth-ni-45-106-cp-2.9", "auth-ni-45-106-form-2.4"],
+      servedBy: "amd_vllm/Qwen/Qwen2.5-72B-Instruct",
+    },
+    {
+      sequence: 3,
+      timestamp: "2026-05-04T23:51:48Z",
+      actor: "risk-bot",
+      action: "review",
+      inputHash: "sha256:0a1b2c3d4e5f607182930a4b5c6d7e8f9012345678901234567890abcdef0123",
+      outputHash: "sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      prevRowHash: "sha256:4f5e6d7c8b9a0123456789abcdef0123fedcba9876543210fedcba0987654321",
+      authoritiesUsed: ["auth-osc-sn-33-316"],
+      servedBy: "amd_vllm/Qwen/Qwen2.5-72B-Instruct",
+    },
+    {
+      sequence: 4,
+      timestamp: "2026-05-04T23:52:34Z",
+      actor: "evidence-bot",
+      action: "review",
+      inputHash: "sha256:0a1b2c3d4e5f607182930a4b5c6d7e8f9012345678901234567890abcdef0123",
+      outputHash: "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+      prevRowHash: "sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      authoritiesUsed: ["auth-ni-45-106-2.9", "auth-bc-45-533"],
+      servedBy: "amd_vllm/Qwen/Qwen2.5-72B-Instruct",
+    },
+    {
+      sequence: 5,
+      timestamp: "2026-05-04T23:53:55Z",
+      actor: "synthesis-editor",
+      action: "synthesis",
+      inputHash: "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+      outputHash: "sha256:9f1e3a8c5b2d7f4e0c8a6b3d2e1f7a4c5b9d8e2f1a3c4b5d6e7f8a9b0c1d2e3f",
+      prevRowHash: "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+      authoritiesUsed: [
+        "auth-ni-45-106-cp-2.9",
+        "auth-ni-45-106-form-2.4",
+        "auth-osc-sn-33-316",
+        "auth-ni-45-106-2.9",
+        "auth-bc-45-533",
+      ],
+      judgeVerdict: "iterate",
+      servedBy: "amd_vllm/Qwen/Qwen2.5-72B-Instruct",
+    },
+    {
+      sequence: 6,
+      timestamp: "2026-05-04T23:55:00Z",
+      actor: "approval-bot",
+      action: "approval-request",
+      inputHash: "sha256:9f1e3a8c5b2d7f4e0c8a6b3d2e1f7a4c5b9d8e2f1a3c4b5d6e7f8a9b0c1d2e3f",
+      outputHash: "sha256:9f1e3a8c5b2d7f4e0c8a6b3d2e1f7a4c5b9d8e2f1a3c4b5d6e7f8a9b0c1d2e3f",
+      prevRowHash: "sha256:9f1e3a8c5b2d7f4e0c8a6b3d2e1f7a4c5b9d8e2f1a3c4b5d6e7f8a9b0c1d2e3f",
+      authoritiesUsed: [],
+      judgeVerdict: "iterate",
+      servedBy: "amd_vllm/Qwen/Qwen2.5-72B-Instruct",
+    },
+  ],
+  genericSingleAnswer: {
+    toolKind: "Generic legal-AI chatbot",
+    answer:
+      "This Ontario offering memorandum appears to comply with NI 45-106 in its general structure. The disclosure of accredited-investor offering, past performance, use of proceeds, and risk factors are all present. No material deficiencies are evident from the excerpt provided. Standard private-placement language is used throughout.",
+    missing: [
+      "No citations attached — claims float free of authority.",
+      "No reviewer disagreement surfaced — single voice, single perspective.",
+      "Past-performance representation flagged as fine despite missing benchmark, period, and methodology.",
+      "Use-of-proceeds disclosure flagged as fine despite Form 45-106F2 Item 2.4 requiring an itemised breakdown.",
+      "No jurisdiction check — unsupported BC authority would have slipped through.",
+      "No export gate — confident answer can be copy-pasted into a memo immediately.",
+    ],
   },
   recordedWallClockMs: 24400,
   recordedAt: "2026-05-04T23:55:00Z",

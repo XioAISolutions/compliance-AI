@@ -680,6 +680,54 @@ export function DebateConsole() {
     <div className="space-y-5">
       <ProviderBar ping={ping} meta={meta} />
 
+      {/* Ensemble shape panel — visualises the "N voices, 1 GPU" architecture
+          claim. Always visible; pulses while voices stream; glows when the
+          live engine reports concurrent requests. Pulls from voiceStates +
+          engineMetrics.requestsRunning, both already on hand. */}
+      <EnsembleShapePanel
+        voiceStates={voiceStates}
+        voiceCount={voices.length}
+        running={running}
+        engineRunning={ping?.engineMetrics?.requestsRunning ?? 0}
+        gpuCacheUsage={ping?.engineMetrics?.gpuCacheUsage ?? null}
+      />
+
+      {/* Cold-click banner — when the droplet is offline, surface the
+          offline-sample path explicitly. Without this, a judge sees the red
+          dot in the ProviderBar but no clear "what to do next" affordance.
+          Only renders after the initial ping resolves with ok=false, never
+          during the "checking…" state. */}
+      {ping !== null && !ping.ok && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border-2 border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-700 dark:bg-amber-950/40">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
+              Live AMD GPU is warming
+            </p>
+            <p className="mt-1 text-sm text-amber-900 dark:text-amber-100">
+              The MI300X endpoint is offline right now. Use{" "}
+              <span className="font-medium">view sample</span> below for a pre-recorded debate, or
+              run the{" "}
+              <a
+                href="/demo/judge"
+                className="font-medium underline underline-offset-2 hover:no-underline"
+              >
+                90-second judge demo
+              </a>{" "}
+              for the seeded path — both render entirely from static data.
+            </p>
+          </div>
+          {DEBATE_SAMPLES[templateId] && (
+            <button
+              type="button"
+              onClick={viewSample}
+              className="rounded-md bg-amber-900 px-4 py-2 text-sm font-medium text-amber-50 hover:bg-amber-800 dark:bg-amber-200 dark:text-amber-900 dark:hover:bg-amber-100"
+            >
+              View sample →
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Use-case template chips */}
       <div className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -1231,5 +1279,137 @@ function StatusPill({ status }: { status: VoiceStatus }) {
     >
       {status}
     </span>
+  );
+}
+
+/**
+ * The "ensemble shape" panel — visualises the architectural claim:
+ *
+ *   N voice cards  →  1 vLLM endpoint  →  1 MI300X GPU (192 GB HBM3)
+ *
+ * Always visible. Each voice dot reflects its real-time status (pending,
+ * running, ok, error). The GPU icon glows emerald when the live engine
+ * reports concurrent requests (`engineMetrics.requestsRunning > 0`).
+ *
+ * The data is stuff we already have on hand: voiceStates from the local
+ * SSE handler, engineMetrics from the periodic ping. No new fetch.
+ */
+function EnsembleShapePanel({
+  voiceStates,
+  voiceCount,
+  running,
+  engineRunning,
+  gpuCacheUsage,
+}: {
+  voiceStates: VoiceState[];
+  voiceCount: number;
+  running: boolean;
+  engineRunning: number;
+  gpuCacheUsage: number | null;
+}) {
+  // When voiceStates is empty (no debate run yet), render placeholder dots
+  // for the configured voices so the shape of the ensemble is visible at
+  // rest. When a debate is in flight, dots reflect real status.
+  const slots: Array<VoiceStatus> =
+    voiceStates.length > 0
+      ? voiceStates.map((v) => v.status)
+      : new Array(Math.max(voiceCount, 3)).fill("pending");
+
+  const runningCount = slots.filter((s) => s === "running").length;
+  const okCount = slots.filter((s) => s === "ok").length;
+  const totalCount = slots.length;
+
+  // GPU "hot" — either we're streaming, or the live engine reports
+  // concurrent requests. Either way, light up the GPU icon.
+  const gpuHot = running || engineRunning > 0;
+
+  return (
+    <div className="rounded-lg border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-950">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">
+          Ensemble shape · {totalCount} voice{totalCount === 1 ? "" : "s"} · 1 GPU
+        </p>
+        <p className="text-[10px] text-neutral-500">
+          {running
+            ? `${runningCount} streaming · ${okCount}/${totalCount} done`
+            : okCount === totalCount && totalCount > 0
+              ? `${okCount}/${totalCount} complete`
+              : engineRunning > 0
+                ? `live engine: ${engineRunning} concurrent request${engineRunning === 1 ? "" : "s"}`
+                : "GPU idle"}
+        </p>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-3">
+        {/* N voice dots, status-colored */}
+        <div
+          className="flex flex-col gap-1.5"
+          aria-label={`${totalCount} voice${totalCount === 1 ? "" : "s"} feeding the GPU`}
+        >
+          {slots.map((status, i) => (
+            <VoiceDot key={i} status={status} />
+          ))}
+        </div>
+
+        {/* Arrow + endpoint label */}
+        <div className="flex flex-1 items-center gap-2 px-2">
+          <div className="h-px flex-1 border-t border-dashed border-neutral-300 dark:border-neutral-700" />
+          <span className="font-mono text-[10px] text-neutral-500">vLLM /v1/*</span>
+          <div className="h-px flex-1 border-t border-dashed border-neutral-300 dark:border-neutral-700" />
+        </div>
+
+        {/* GPU icon */}
+        <GpuIcon hot={gpuHot} cacheUsage={gpuCacheUsage} />
+      </div>
+
+      <p className="mt-3 text-[10px] leading-relaxed text-neutral-500">
+        One Qwen 2.5 72B endpoint on a single AMD Instinct MI300X (192 GB HBM3) serves the entire
+        ensemble. The same workload on cloud APIs needs ~4× H100s — large-memory GPU serving is what
+        makes parallel ensembles economical.
+      </p>
+    </div>
+  );
+}
+
+function VoiceDot({ status }: { status: VoiceStatus }) {
+  const colorClass =
+    status === "ok"
+      ? "bg-emerald-500"
+      : status === "running"
+        ? "bg-blue-500 animate-pulse"
+        : status === "error"
+          ? "bg-red-500"
+          : status === "timeout"
+            ? "bg-amber-500"
+            : "bg-neutral-300 dark:bg-neutral-700";
+  return <span className={`inline-block h-2.5 w-2.5 rounded-full ${colorClass}`} />;
+}
+
+function GpuIcon({ hot, cacheUsage }: { hot: boolean; cacheUsage: number | null }) {
+  return (
+    <div
+      className={`flex flex-col items-center rounded-md border-2 px-2.5 py-1.5 transition ${
+        hot
+          ? "border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-950/50"
+          : "border-neutral-300 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-900"
+      }`}
+      title={
+        cacheUsage !== null
+          ? `GPU KV cache: ${(cacheUsage * 100).toFixed(1)}% utilised`
+          : "AMD Instinct MI300X · 192 GB HBM3"
+      }
+    >
+      <span
+        className={`text-[10px] font-semibold uppercase ${hot ? "text-emerald-700 dark:text-emerald-300" : "text-neutral-500"}`}
+      >
+        MI300X
+      </span>
+      <span className="font-mono text-[9px] text-neutral-500">192 GB HBM3</span>
+      {hot && cacheUsage !== null && (
+        <span className="mt-0.5 font-mono text-[9px] text-emerald-700 dark:text-emerald-300">
+          KV {Math.round(cacheUsage * 100)}%
+        </span>
+      )}
+    </div>
   );
 }

@@ -65,6 +65,31 @@ export default function Home() {
         <ProviderPill ping={ping} />
       </div>
 
+      {/* Cold-click banner — only renders when ping has resolved AND failed.
+          Keeps a judge clicking on a stopped droplet from seeing a degraded
+          provider pill as their first signal. The seeded /demo/judge path is
+          always available; this just makes the suggestion impossible to miss. */}
+      {ping !== null && !ping.ok && (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border-2 border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-700 dark:bg-amber-950/40">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
+              AMD GPU droplet warming
+            </p>
+            <p className="mt-1 text-sm text-amber-900 dark:text-amber-100">
+              The MI300X endpoint is offline right now (we cycle it between demos to stretch the
+              hackathon credit). The seeded 90-second judge demo runs entirely from static data — no
+              GPU required.
+            </p>
+          </div>
+          <Link
+            href="/demo/judge"
+            className="rounded-md bg-amber-900 px-4 py-2 text-sm font-medium text-amber-50 hover:bg-amber-800 dark:bg-amber-200 dark:text-amber-900 dark:hover:bg-amber-100"
+          >
+            Run seeded demo →
+          </Link>
+        </div>
+      )}
+
       {/* Hero — XIO Compliance Brain · Triad Review Engine */}
       <section className="mb-6 grid gap-6 lg:grid-cols-[1.1fr_1fr] lg:items-center">
         <div>

@@ -102,7 +102,7 @@ watch the **ensemble shape panel** light up (N voice-dots → vLLM endpoint
 → MI300X icon glowing emerald with live KV-cache %), and click **Run
 debate** on any of the four templates.
 
-## Demo script (≈ 3 minutes)
+## Demo script (2:15 video)
 
 > Most legal AI tools give one confident answer. That's dangerous in
 > compliance.

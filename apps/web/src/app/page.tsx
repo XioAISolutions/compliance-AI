@@ -117,20 +117,23 @@ export default function Home() {
               Run 90-second judge demo →
             </Link>
             <Link
-              href="/matters"
+              href="/demo/debate"
               className="rounded-md border border-neutral-300 px-5 py-2.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-900"
             >
-              Open compliance workbench
+              Optional live debate
             </Link>
           </div>
           <p className="mt-3 text-[11px] text-neutral-500">
-            Three AI reviewers · verified citations · audit-ready decisions.
+            Judges should start with the seeded demo. The live debate is optional and depends on the
+            AMD droplet being warm.
           </p>
         </div>
 
         {/* Result preview card — sourced from the same triad seed as /demo/judge */}
         <ResultPreviewCard />
       </section>
+
+      <JudgePath />
 
       {/* The three reviewers */}
       <section className="mb-10">
@@ -240,11 +243,11 @@ export default function Home() {
 
       {/* Compliance workbench — demoted but still accessible */}
       <section className="mb-10 rounded-lg border border-neutral-200 p-6 dark:border-neutral-800">
-        <p className="text-xs font-medium uppercase text-neutral-500">Have a real document?</p>
-        <h2 className="mt-1 text-xl font-semibold">Drop it for the full Triad Review workflow</h2>
+        <p className="text-xs font-medium uppercase text-neutral-500">Optional product workflow</p>
+        <h2 className="mt-1 text-xl font-semibold">Have a real document? Try the full workflow</h2>
         <p className="mt-2 max-w-2xl text-sm text-neutral-600 dark:text-neutral-400">
-          OM, KYC file, marketing deck, regulator letter — we classify, route to the right reviewer,
-          cite the rules, and emit a CRUMB-style audit pack.
+          The hackathon path above uses seeded data so it always works. This upload surface shows
+          where customer documents enter the same Triad Review pipeline.
         </p>
         <div className="mt-4">
           <QuickReviewDropZone onAuthorityIntake={() => undefined} />
@@ -255,8 +258,8 @@ export default function Home() {
         </p>
       </section>
 
-      {/* Deep navigation */}
-      <nav className="mb-10 grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
+      {/* Judge-focused navigation */}
+      <nav className="mb-10 grid gap-2 text-sm sm:grid-cols-3">
         <Link
           href="/demo/judge"
           className="rounded-md bg-neutral-900 px-3 py-2 text-center text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900"
@@ -267,25 +270,15 @@ export default function Home() {
           href="/demo/debate"
           className="rounded-md border border-neutral-200 px-3 py-2 text-center hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"
         >
-          Debate cockpit
+          Optional live debate
         </Link>
         <Link
-          href="/queue"
+          href="https://github.com/XioAISolutions/compliance-AI/tree/feat/amd-mi300x-vllm"
           className="rounded-md border border-neutral-200 px-3 py-2 text-center hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"
+          target="_blank"
+          rel="noopener"
         >
-          Risk queue
-        </Link>
-        <Link
-          href="/matters"
-          className="rounded-md border border-neutral-200 px-3 py-2 text-center hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"
-        >
-          Matters
-        </Link>
-        <Link
-          href="/approvals"
-          className="rounded-md border border-neutral-200 px-3 py-2 text-center hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900"
-        >
-          Approvals
+          Source branch
         </Link>
       </nav>
 
@@ -312,6 +305,64 @@ export default function Home() {
         </p>
       </footer>
     </main>
+  );
+}
+
+function JudgePath() {
+  const steps = [
+    {
+      label: "1. Start",
+      title: "Open the seeded review",
+      note: "No upload, no GPU wait, always available.",
+    },
+    {
+      label: "2. Inspect",
+      title: "Compare one answer vs Triad",
+      note: "See gaps, citations, disagreement, and blocked export.",
+    },
+    {
+      label: "3. Verify",
+      title: "Expand the audit chain",
+      note: "Hash-linked rows show who did what and which provider served it.",
+    },
+    {
+      label: "4. Optional",
+      title: "Run the live debate",
+      note: "Use this only if the AMD endpoint is warm.",
+    },
+  ];
+
+  return (
+    <section className="mb-10 rounded-lg border-2 border-neutral-900 bg-white p-4 dark:border-white dark:bg-black">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium uppercase text-neutral-500">Start here for judging</p>
+          <h2 className="mt-1 text-xl font-semibold">A clean 90-second path through the demo</h2>
+        </div>
+        <Link
+          href="/demo/judge"
+          className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900"
+        >
+          Open judge demo →
+        </Link>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {steps.map((step) => (
+          <div
+            key={step.label}
+            className="rounded border border-neutral-200 p-3 dark:border-neutral-800"
+          >
+            <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">
+              {step.label}
+            </p>
+            <p className="mt-1 text-sm font-semibold">{step.title}</p>
+            <p className="mt-1 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
+              {step.note}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

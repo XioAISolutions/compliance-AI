@@ -168,7 +168,7 @@ amd_vllm → Qwen/Qwen2.5-72B-Instruct · 32K ctx · 120ms · 17 tok/s · "ready
 
 🌐 **Live:** `compliance-ai-amd-demo-production.up.railway.app/demo/debate`
 
-📦 **Source:** `github.com/XioAISolutions/compliance-AI/pull/56`
+📦 **Source:** `github.com/XioAISolutions/compliance-AI/tree/feat/amd-mi300x-vllm`
 
 🧪 **CLI smoke:** `pnpm smoke:llm`
 

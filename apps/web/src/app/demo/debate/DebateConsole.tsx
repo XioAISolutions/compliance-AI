@@ -680,6 +680,15 @@ export function DebateConsole() {
     <div className="space-y-5">
       <ProviderBar ping={ping} meta={meta} />
 
+      <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300">
+        <span className="font-medium text-neutral-900 dark:text-white">Judge path:</span> this page
+        is optional live inference. For the guaranteed no-wait review, use the{" "}
+        <a href="/demo/judge" className="underline-offset-4 hover:underline">
+          90-second seeded demo
+        </a>
+        .
+      </div>
+
       {/* Ensemble shape panel — visualises the "N voices, 1 GPU" architecture
           claim. Always visible; pulses while voices stream; glows when the
           live engine reports concurrent requests. Pulls from voiceStates +
@@ -705,8 +714,8 @@ export function DebateConsole() {
             </p>
             <p className="mt-1 text-sm text-amber-900 dark:text-amber-100">
               The MI300X endpoint is offline right now. Use{" "}
-              <span className="font-medium">view sample</span> below for a pre-recorded debate, or
-              run the{" "}
+              <span className="font-medium">view recorded sample</span> below for a pre-recorded
+              debate, or run the{" "}
               <a
                 href="/demo/judge"
                 className="font-medium underline underline-offset-2 hover:no-underline"
@@ -722,7 +731,7 @@ export function DebateConsole() {
               onClick={viewSample}
               className="rounded-md bg-amber-900 px-4 py-2 text-sm font-medium text-amber-50 hover:bg-amber-800 dark:bg-amber-200 dark:text-amber-900 dark:hover:bg-amber-100"
             >
-              View sample →
+              View recorded sample →
             </button>
           )}
         </div>
@@ -824,7 +833,7 @@ export function DebateConsole() {
             title="Copy a permalink to this exact prompt + template"
             className="text-xs text-neutral-500 underline-offset-4 hover:underline disabled:opacity-50"
           >
-            share
+            copy prompt link
           </button>
           {DEBATE_SAMPLES[templateId] && !running && (
             <button
@@ -833,7 +842,7 @@ export function DebateConsole() {
               title="Load a pre-recorded sample debate for this template — instant, no API calls."
               className="text-xs text-neutral-500 underline-offset-4 hover:underline"
             >
-              view sample
+              view recorded sample
             </button>
           )}
           <button
@@ -842,7 +851,7 @@ export function DebateConsole() {
             disabled={running}
             className="text-xs text-neutral-500 underline-offset-4 hover:underline disabled:opacity-50"
           >
-            {editingVoices ? "hide voices" : `edit voices (${voices.length})`}
+            {editingVoices ? "hide advanced voices" : `advanced voices (${voices.length})`}
           </button>
           <label
             className="flex items-center gap-1.5 text-xs text-neutral-500"
@@ -855,7 +864,7 @@ export function DebateConsole() {
               disabled={running}
               className="h-3 w-3"
             />
-            round 2
+            optional round 2
           </label>
           {done && !running && (
             <span className="text-xs text-neutral-500">
@@ -1096,7 +1105,7 @@ function ProviderBar({ ping, meta }: { ping: PingResult | null; meta: DebateMeta
           }`}
         >
           {ping.engineMetrics.requestsRunning > 0
-            ? `🔥 ${ping.engineMetrics.requestsRunning} running${
+            ? `${ping.engineMetrics.requestsRunning} running${
                 ping.engineMetrics.requestsWaiting > 0
                   ? ` · ${ping.engineMetrics.requestsWaiting} queued`
                   : ""

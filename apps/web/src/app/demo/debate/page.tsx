@@ -10,17 +10,15 @@ export default function DebateDemoPage() {
         <Link href="/demo" className="text-sm text-neutral-500 hover:underline">
           ← Demo cockpit
         </Link>
-        <h1 className="mt-3 text-2xl font-semibold sm:text-3xl">
-          Triad Review · live debate cockpit
-        </h1>
+        <h1 className="mt-3 text-2xl font-semibold sm:text-3xl">Optional live Triad debate</h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-          Counsel, Risk, and Evidence critique your input in parallel. Pick a use case (or paste
-          your own). Get one verdict plus where the reviewers agreed and diverged. One Qwen 2.5 72B
-          model on a single AMD MI300X. For a no-upload seeded review, try the{" "}
+          This is the live inference surface. Counsel, Risk, and Evidence critique an input in
+          parallel on one Qwen 2.5 72B model running behind the AMD MI300X endpoint. Judges should
+          start with the{" "}
           <Link href="/demo/judge" className="underline-offset-4 hover:underline">
             90-second judge demo
-          </Link>
-          .
+          </Link>{" "}
+          first; use this page only when you want to see the GPU-backed run.
         </p>
       </header>
       <DebateConsole />

@@ -28,7 +28,7 @@ provider.
 
 _Top of `/demo/judge` — the originality story made visible. Both columns took the same input. One is dangerous in compliance._
 
-More screenshots in [`output/hackathon/video/`](./output/hackathon/video/) (12 frames covering the homepage hero, the audit chain, the ensemble shape panel mid-stream, and Round 2 stance pills). 2:15 walk-through video at [`output/hackathon/demo-video.mp4`](./output/hackathon/demo-video.mp4).
+More screenshots in [`output/hackathon/video/`](./output/hackathon/video/) (12 frames covering the homepage hero, the audit chain, the ensemble shape panel mid-stream, and Round 2 stance pills). 2:16 walk-through video at [`output/hackathon/demo-video.mp4`](./output/hackathon/demo-video.mp4).
 
 ## 90-second judge demo path
 

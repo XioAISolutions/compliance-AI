@@ -144,7 +144,7 @@ amd_vllm → Qwen/Qwen2.5-72B-Instruct · 32K ctx · 120ms · 17 tok/s · "ready
 
 ---
 
-## What ships in PR #56
+## What ships in the hackathon branch
 
 - **17 commits** · **364 unit tests** + 1 AMD live smoke
 - **Live preview on AMD:** [`compliance-ai-amd-demo-production.up.railway.app`](https://compliance-ai-amd-demo-production.up.railway.app)

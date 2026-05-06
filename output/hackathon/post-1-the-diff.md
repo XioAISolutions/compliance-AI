@@ -122,7 +122,7 @@ cc lablab.ai · AMD Developer
 #AMDDevHackathon #lablabai
 ```
 
-**Image / video to attach:** screen recording (≤30s) of `/demo/debate` running the compliance template — the **ensemble shape panel** at the top animates as voices stream (3 dots blinking blue → green, MI300X icon glows emerald with live KV-cache %), voice cards fill token by token, synthesis appears, then Round-2 stance pills land (DEFENDED / UPDATED / CONCEDED). Static stills available at [`output/hackathon/video/debate-running.png`](./video/debate-running.png) and [`output/hackathon/video/debate-final-round2.png`](./video/debate-final-round2.png) if a clip isn't ready in time. The full demo cut is at [`output/hackathon/demo-video.mp4`](./demo-video.mp4) (2:15, 1920×1080).
+**Image / video to attach:** screen recording (≤30s) of `/demo/debate` running the compliance template — the **ensemble shape panel** at the top animates as voices stream (3 dots blinking blue → green, MI300X icon glows emerald with live KV-cache %), voice cards fill token by token, synthesis appears, then Round-2 stance pills land (DEFENDED / UPDATED / CONCEDED). Static stills available at [`output/hackathon/video/debate-running.png`](./video/debate-running.png) and [`output/hackathon/video/debate-final-round2.png`](./video/debate-final-round2.png) if a clip isn't ready in time. The full demo cut is at [`output/hackathon/demo-video.mp4`](./demo-video.mp4) (2:16, 1920×1080).
 
 ---
 
@@ -165,7 +165,7 @@ The citation badges are real: verified / needs-check / missing / stale / jurisdi
 
 The result is audit-ready compliance work product. Not just an AI answer.
 
-Source: https://github.com/XioAISolutions/compliance-AI/pull/56
+Source: https://github.com/XioAISolutions/compliance-AI/tree/feat/amd-mi300x-vllm
 Live (seeded judge demo): https://compliance-ai-amd-demo-production.up.railway.app/demo/judge
 
 cc lablab.ai · AMD Developer

@@ -140,7 +140,7 @@ Detailed steps + troubleshooting in `apps/dataset/DEPLOY.md`.
 
 **Why:** lablab submission form requires a video URL.
 
-The local file `output/hackathon/demo-video.mp4` is 4.2 MB · 2:15 · 1920×1080 · H.264. Codex verified it as a valid MP4 in commit `aa46c5b`. Same file is also attached to the v1.0.0 release on GitHub.
+The local file `output/hackathon/demo-video.mp4` is 5.8 MB · 2:16 · 1920×1080 · H.264/AAC. Same file is also attached to the v1.0.0 release on GitHub.
 
 ```
 1. Open https://www.youtube.com/upload (logged into your channel)

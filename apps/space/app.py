@@ -481,8 +481,7 @@ Tracks: **AI Agents & Agentic Workflows · Build in Public**
 
 ## Source
 
-- **Repo**: [github.com/XioAISolutions/compliance-AI](https://github.com/XioAISolutions/compliance-AI)
-- **PR**: [#56 — feat/amd-mi300x-vllm](https://github.com/XioAISolutions/compliance-AI/pull/56)
+- **Source branch**: [github.com/XioAISolutions/compliance-AI/tree/feat/amd-mi300x-vllm](https://github.com/XioAISolutions/compliance-AI/tree/feat/amd-mi300x-vllm)
 - **Live (full app)**: [compliance-ai-amd-demo-production.up.railway.app](https://compliance-ai-amd-demo-production.up.railway.app)
 - **Release**: [v1.0.0-amd-hackathon-submission](https://github.com/XioAISolutions/compliance-AI/releases/tag/v1.0.0-amd-hackathon-submission)
 - **License**: Apache-2.0

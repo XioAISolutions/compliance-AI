@@ -14,4 +14,4 @@ The live debate cockpit shows why AMD matters. Three voices stream through one v
 
 With Round 2 enabled, each voice responds to the synthesis by defending, updating, or conceding. The final result is not just text; it is an auditable decision workflow with citations, disagreement, provider stamping, and approval control.
 
-The implementation is in PR 56 with 363 tests, lint, typecheck, rate limiting, seeded fallback, live health checks, and the AMD demo URL ready for hackathon judges.
+The implementation is on the public hackathon branch with 363 tests, lint, typecheck, rate limiting, seeded fallback, live health checks, and the AMD demo URL ready for hackathon judges.

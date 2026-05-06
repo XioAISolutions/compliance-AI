@@ -102,7 +102,7 @@ watch the **ensemble shape panel** light up (N voice-dots → vLLM endpoint
 → MI300X icon glowing emerald with live KV-cache %), and click **Run
 debate** on any of the four templates.
 
-## Demo script (2:15 video)
+## Demo script (2:16 video)
 
 > Most legal AI tools give one confident answer. That's dangerous in
 > compliance.
@@ -190,7 +190,7 @@ submission copy aligned with the live app.
 | Build                                          | registers `/demo/judge`, `/demo/debate`, `/api/debate`, `/api/healthcheck/llm` |
 | Live AMD healthcheck                           | 128ms ping · 32K ctx · 16 tok/s · `engineMetrics` populated                    |
 | Original Railway preview (main, OpenAI-backed) | unchanged — no regression                                                      |
-| AMD-backed Railway preview (this PR)           | live at https://compliance-ai-amd-demo-production.up.railway.app               |
+| AMD-backed Railway preview (hackathon branch)  | live at https://compliance-ai-amd-demo-production.up.railway.app               |
 | Rate limit                                     | 5 debates / hour / IP on the public URL                                        |
 
 Built for the [AMD × lablab.ai Developer Hackathon](https://lablab.ai/ai-hackathons/amd-developer),

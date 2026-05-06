@@ -49,11 +49,11 @@ c3b5193  docs(hackathon): document the 4 new submission-day surfaces
 - ✅ PR #56 description rewritten end-to-end (`gh pr edit`)
 - ✅ Repo description, homepage URL, 12 topics applied (`gh repo edit`)
 - ✅ Apache-2.0 LICENSE file committed → repo home now shows correct license
-- ✅ Release tag `v1.0.0-amd-hackathon-submission` published with `demo-video.mp4` (4.2 MB) and `pitch-deck.marp.pdf` (204 KB) as assets
+- ✅ Release tag `v1.0.0-amd-hackathon-submission` published with `demo-video.mp4` (5.8 MB) and `pitch-deck.marp.pdf` (201 KB) as assets
 
 ### Submission artifacts in repo
 
-- `output/hackathon/demo-video.mp4` — 2:15, 1920×1080, H.264, 4.0 MB
+- `output/hackathon/demo-video.mp4` — 2:16, 1920×1080, H.264/AAC, 5.8 MB
 - `output/hackathon/demo-video-narration.txt` — full narration script
 - `output/hackathon/video/*.png` — 12 screenshots (covering every shot in the shot list)
 - `output/hackathon/pitch-deck.marp.{md,pdf}` — current Triad framing, PDF re-rendered
@@ -230,7 +230,7 @@ ffprobe -v error -show_entries format=duration,size,bit_rate \
 
 **Expected:**
 
-- `duration=135.000000` (2:15)
+- `duration=135.700000` (2:16)
 - `width=1920`, `height=1080`
 - `codec_name=h264`
 

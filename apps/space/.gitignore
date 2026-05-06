@@ -1,0 +1,7 @@
+# Local venvs created during development. HF Spaces installs requirements
+# fresh from requirements.txt; we never want these in git or the Space.
+.venv/
+.venv-*/
+__pycache__/
+*.pyc
+.DS_Store

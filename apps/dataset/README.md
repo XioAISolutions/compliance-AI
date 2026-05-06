@@ -30,7 +30,7 @@ configs:
 
 > Reusable system prompts for running a **multi-voice compliance debate** against the same matter — the heart of XIO Compliance Brain's "Triad Review Engine" pattern.
 
-This dataset extracts the production prompts from the open-source [`compliance-AI` repo](https://github.com/XioAISolutions/compliance-AI) so others can replicate the Triad pattern (three reviewer voices + synthesis + optional Round 2) on any LLM that follows OpenAI-compatible chat APIs.
+This dataset extracts the production prompts from the open-source [`compliance-AI` hackathon branch](https://github.com/XioAISolutions/compliance-AI/tree/feat/amd-mi300x-vllm) so others can replicate the Triad pattern (three reviewer voices + synthesis + optional Round 2) on any LLM that follows OpenAI-compatible chat APIs.
 
 ## What's in this dataset
 
@@ -75,8 +75,7 @@ for voice in voices:
 
 ## Provenance
 
-- **Source repo**: [`github.com/XioAISolutions/compliance-AI`](https://github.com/XioAISolutions/compliance-AI)
-- **PR**: [#56 — feat/amd-mi300x-vllm](https://github.com/XioAISolutions/compliance-AI/pull/56)
+- **Source branch**: [`github.com/XioAISolutions/compliance-AI/tree/feat/amd-mi300x-vllm`](https://github.com/XioAISolutions/compliance-AI/tree/feat/amd-mi300x-vllm)
 - **Live (full app)**: [`compliance-ai-amd-demo-production.up.railway.app`](https://compliance-ai-amd-demo-production.up.railway.app)
 - **Production model**: `Qwen/Qwen2.5-72B-Instruct` running on `vllm/vllm-openai-rocm` on a single AMD Instinct MI300X
 - **License**: Apache-2.0 (matches source repo)

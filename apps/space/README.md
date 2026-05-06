@@ -8,7 +8,7 @@ sdk_version: 5.11.0
 app_file: app.py
 pinned: false
 license: apache-2.0
-short_description: Three AI reviewers — Counsel · Risk · Evidence — on one MI300X.
+short_description: Three AI reviewers on one AMD MI300X.
 tags:
   - amd-mi300x
   - vllm
@@ -49,8 +49,7 @@ Tracks: **AI Agents & Agentic Workflows · Build in Public**
 
 ## Source
 
-- **Repo**: [github.com/XioAISolutions/compliance-AI](https://github.com/XioAISolutions/compliance-AI)
-- **PR**: [#56 — feat/amd-mi300x-vllm](https://github.com/XioAISolutions/compliance-AI/pull/56)
+- **Source branch**: [github.com/XioAISolutions/compliance-AI/tree/feat/amd-mi300x-vllm](https://github.com/XioAISolutions/compliance-AI/tree/feat/amd-mi300x-vllm)
 - **Live (full app, AMD-backed)**: [compliance-ai-amd-demo-production.up.railway.app](https://compliance-ai-amd-demo-production.up.railway.app)
 - **License**: Apache-2.0
 

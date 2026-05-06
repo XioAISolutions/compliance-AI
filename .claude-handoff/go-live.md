@@ -170,7 +170,7 @@ Tracks: AI Agents & Agentic Workflows · Build in Public.
 Live demo:    https://compliance-ai-amd-demo-production.up.railway.app/demo/judge
 HF Space:     https://huggingface.co/spaces/<USER>/xio-compliance-brain-triad-review
 HF Dataset:   https://huggingface.co/datasets/<USER>/xio-compliance-brain-triad-prompts
-Source:       https://github.com/XioAISolutions/compliance-AI/pull/56
+Source:       https://github.com/XioAISolutions/compliance-AI/tree/feat/amd-mi300x-vllm
 Release:      https://github.com/XioAISolutions/compliance-AI/releases/tag/v1.0.0-amd-hackathon-submission
 
 #AMDDevHackathon #lablabai
@@ -252,8 +252,7 @@ C. Copy/paste each field from the "lablab.ai submission form — paste-ready" se
    - Demo video URL          — YouTube link from Phase 4
    - HF Space URL            — from Phase 2
    - HF Dataset URL          — from Phase 3
-   - Source URL              — https://github.com/XioAISolutions/compliance-AI/pull/56
-                                (or after Step F, the public repo URL)
+   - Source URL              — https://github.com/XioAISolutions/compliance-AI/tree/feat/amd-mi300x-vllm
    - Pitch deck URL          — https://github.com/XioAISolutions/compliance-AI/releases/download/v1.0.0-amd-hackathon-submission/pitch-deck.marp.pdf
 
 D. Save as draft. Sanity-watch the demo video once start-to-finish from

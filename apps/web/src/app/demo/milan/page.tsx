@@ -308,6 +308,45 @@ export default function MilanDemoPage() {
             </div>
           </div>
         </section>
+
+        <section className="mt-8 rounded-3xl border border-white/10 bg-white/[0.03] p-5 lg:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-semibold text-white">Live endpoints judges can poke</h2>
+              <p className="mt-1 text-sm text-neutral-400">
+                Every workflow step has a public route. Curl, devtools, or paste-into-Postman — same shape every time.
+              </p>
+            </div>
+            <Badge tone="cyan">no auth</Badge>
+          </div>
+          <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
+            <table className="w-full border-collapse text-left text-sm">
+              <thead className="bg-neutral-900/80 text-xs uppercase tracking-wider text-neutral-400">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Method</th>
+                  <th className="px-4 py-3 font-semibold">Endpoint</th>
+                  <th className="px-4 py-3 font-semibold">What it returns</th>
+                </tr>
+              </thead>
+              <tbody className="text-neutral-300">
+                {[
+                  ["GET", "/api/demo/milan", "Deterministic workflow JSON + partner statuses."],
+                  ["POST", "/api/demo/milan/cognitive-risk", "BrainSNN score over arbitrary { text }."],
+                  ["GET", "/api/demo/milan/plan", "Gemini-planned review lanes (deterministic fallback)."],
+                  ["GET", "/api/demo/milan/redline", "Featherless safer-language edits (fallback safe)."],
+                  ["GET", "/api/demo/milan/transcribe", "Canonical voice transcript + Speechmatics auth ping."],
+                  ["GET", "/api/demo/milan/proof-pack", "DOCX proof pack with live partner output rolled in."],
+                ].map(([method, endpoint, desc]) => (
+                  <tr key={endpoint} className="border-t border-white/10 odd:bg-neutral-950/50">
+                    <td className="px-4 py-3 font-mono text-xs text-cyan-200">{method}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-cyan-100">{endpoint}</td>
+                    <td className="px-4 py-3 text-neutral-400">{desc}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </section>
     </main>
   );

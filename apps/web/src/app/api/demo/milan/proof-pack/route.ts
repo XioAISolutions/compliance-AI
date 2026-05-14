@@ -26,6 +26,9 @@ import {
   MILAN_SCENARIO_TEXT,
   computeCognitiveRisk,
 } from "../../../../../lib/demo/cognitive-risk";
+import { plan } from "../../../../../lib/demo/gemini-planner";
+import { redline } from "../../../../../lib/demo/featherless-redliner";
+import { transcribe } from "../../../../../lib/demo/speechmatics-transcribe";
 
 export const runtime = "nodejs";
 
@@ -93,6 +96,16 @@ export async function GET() {
   const outputHash = sha256(MILAN_SCENARIO_TEXT);
   const approvalHash = sha256(`approval:${outputHash}`);
 
+  // Roll the live partner contributions into the proof pack so the
+  // artifact reflects which model/service produced which evidence.
+  // Each helper is independently failure-tolerant: a 5xx or missing
+  // key drops back to deterministic, so the DOCX is always produced.
+  const [planResult, redlineResult, transcribeResult] = await Promise.all([
+    plan(MILAN_SCENARIO_TEXT),
+    redline(MILAN_SCENARIO_TEXT),
+    transcribe(),
+  ]);
+
   const finding = FINDINGS.flatMap((f) => [
     new Paragraph({
       spacing: { before: 120, after: 40 },
@@ -141,15 +154,49 @@ export async function GET() {
             { italics: true },
           ),
 
+          heading("Plan (Gemini)"),
+          plain(`source: ${planResult.source} · model: ${planResult.model} · ${planResult.latencyMs}ms`, { italics: true }),
+          plain(planResult.summary),
+          ...planResult.lanes.flatMap((lane) => [
+            new Paragraph({
+              spacing: { before: 80, after: 20 },
+              children: [new TextRun({ text: `· ${lane.name}`, bold: true })],
+            }),
+            plain(lane.rationale),
+          ]),
+          ...(planResult.error ? [plain(`(fallback reason: ${planResult.error})`, { italics: true })] : []),
+
           heading("Findings"),
           ...finding,
 
-          heading("Redline summary"),
-          bullet("Replace \"protected returns\" with \"performance-dependent returns subject to risk factors\"."),
-          bullet("Replace \"instant approval\" with \"approval following human review per LSO Rule 3.4\"."),
-          bullet("Insert privacy-consent paragraph before any call-recording reference."),
-          bullet("Attach AI-use disclosure block referencing the human review attestation."),
-          bullet("Add cooling-off language before subscription steps."),
+          heading("Redline (Featherless)"),
+          plain(`source: ${redlineResult.source} · model: ${redlineResult.model} · ${redlineResult.latencyMs}ms`, { italics: true }),
+          ...redlineResult.edits.flatMap((edit, i) => [
+            new Paragraph({
+              spacing: { before: 100, after: 20 },
+              children: [new TextRun({ text: `Edit ${i + 1} — ${edit.reason}`, bold: true })],
+            }),
+            plain(`Before: ${edit.before}`),
+            plain(`After: ${edit.after}`),
+          ]),
+          ...(redlineResult.error ? [plain(`(fallback reason: ${redlineResult.error})`, { italics: true })] : []),
+
+          heading("Transcript (Speechmatics)"),
+          plain(
+            `source: ${transcribeResult.source}${
+              transcribeResult.auth
+                ? ` · auth.ok=${transcribeResult.auth.ok} · ${transcribeResult.auth.latencyMs}ms`
+                : " · auth: not configured"
+            }`,
+            { italics: true },
+          ),
+          ...transcribeResult.transcript
+            .split("\n")
+            .filter((line) => line.trim().length > 0)
+            .map((line) => plain(line)),
+          ...(transcribeResult.auth?.error
+            ? [plain(`(auth error: ${transcribeResult.auth.error})`, { italics: true })]
+            : []),
 
           heading("Citation ledger"),
           plain("Verified 6 of 7 authority references against the offline corpus."),
@@ -163,14 +210,15 @@ export async function GET() {
           ),
 
           heading("Audit trail"),
-          bullet("intake: 3 artifacts loaded"),
-          bullet("plan: 4 review lanes selected"),
-          bullet("review: 8 findings produced (1 critical, 2 high, 1 medium)"),
-          bullet(`cognitive-risk: score ${risk.score} computed`),
-          bullet("citations: 6 of 7 verified"),
-          bullet("redline: 5 safer-language edits prepared"),
-          bullet("approval: waiting on hash-bound signoff"),
-          bullet("export: queued, awaiting approval"),
+          bullet(`intake: 3 artifacts loaded`),
+          bullet(`plan: ${planResult.lanes.length} review lanes selected (${planResult.source})`),
+          bullet(`review: 8 findings produced (1 critical, 2 high, 1 medium)`),
+          bullet(`cognitive-risk: score ${risk.score} computed (lexical, derived)`),
+          bullet(`citations: 6 of 7 verified`),
+          bullet(`redline: ${redlineResult.edits.length} safer-language edits prepared (${redlineResult.source})`),
+          bullet(`transcript: ingested (${transcribeResult.source})`),
+          bullet(`approval: waiting on hash-bound signoff`),
+          bullet(`export: queued, awaiting approval`),
 
           plain(""),
           plain("XIO ProofOps Agent — Milan AI Week submission.", { italics: true }),
@@ -189,6 +237,9 @@ export async function GET() {
         'attachment; filename="xio-proofops-milan.docx"',
       "X-ProofPack-OutputHash": outputHash,
       "X-ProofPack-CognitiveRisk": String(risk.score),
+      "X-ProofPack-Plan-Source": planResult.source,
+      "X-ProofPack-Redline-Source": redlineResult.source,
+      "X-ProofPack-Transcript-Source": transcribeResult.source,
       "Cache-Control": "public, max-age=60",
     },
   });

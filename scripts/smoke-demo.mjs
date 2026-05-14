@@ -28,6 +28,7 @@ const routes = [
   "/api/healthcheck",
   "/api/agents",
   "/api/demo/milan",
+  "/api/demo/milan/proof-pack",
 ];
 
 async function expectOk(path) {
@@ -63,10 +64,43 @@ async function milanProofOpsSmoke() {
   if (!body.partnerFit?.vultr || !body.partnerFit?.gemini || !body.partnerFit?.speechmatics || !body.partnerFit?.featherless) {
     throw new Error(`/api/demo/milan missing partner fit: ${JSON.stringify(body.partnerFit)}`);
   }
-  if (body.brainSnnRisk?.score !== 82) {
+  // BrainSNN score is now derived from the scenario text. Pin the
+  // canonical value so a regression in the cognitive-risk patterns is
+  // caught by smoke, not by judges.
+  if (body.brainSnnRisk?.score !== 78) {
     throw new Error(`/api/demo/milan wrong BrainSNN score: ${JSON.stringify(body.brainSnnRisk)}`);
   }
+  const dims = body.brainSnnRisk?.dimensions ?? {};
+  for (const key of ["emotionalActivation", "certaintyPressure", "trustErosion", "urgencyCompression"]) {
+    if (typeof dims[key] !== "number") {
+      throw new Error(`/api/demo/milan missing dimension ${key}: ${JSON.stringify(dims)}`);
+    }
+  }
+  if (body.proofPack?.downloadUrl !== "/api/demo/milan/proof-pack") {
+    throw new Error(`/api/demo/milan proofPack.downloadUrl wrong: ${JSON.stringify(body.proofPack)}`);
+  }
   console.log(`ok /api/demo/milan (${body.workflow.length} agent steps, BrainSNN ${body.brainSnnRisk.score})`);
+
+  // Proof-pack DOCX download — the artifact judges should walk away
+  // with. Confirms binary path, headers, and that the docx renderer
+  // produces a non-trivially-sized file.
+  const pack = await fetch(`${baseUrl}/api/demo/milan/proof-pack`);
+  if (pack.status !== 200) {
+    throw new Error(`/api/demo/milan/proof-pack returned ${pack.status}: ${await pack.text()}`);
+  }
+  const ct = pack.headers.get("content-type") ?? "";
+  if (!ct.includes("officedocument.wordprocessingml.document")) {
+    throw new Error(`/api/demo/milan/proof-pack wrong content-type: ${ct}`);
+  }
+  const disposition = pack.headers.get("content-disposition") ?? "";
+  if (!disposition.includes('xio-proofops-milan.docx')) {
+    throw new Error(`/api/demo/milan/proof-pack missing filename: ${disposition}`);
+  }
+  const buf = await pack.arrayBuffer();
+  if (buf.byteLength < 2000) {
+    throw new Error(`/api/demo/milan/proof-pack suspiciously small: ${buf.byteLength} bytes`);
+  }
+  console.log(`ok /api/demo/milan/proof-pack (${buf.byteLength} bytes)`);
 }
 
 async function quickReviewSmoke() {

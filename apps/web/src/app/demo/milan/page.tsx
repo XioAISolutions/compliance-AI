@@ -1,0 +1,301 @@
+export const metadata = {
+  title: "XIO ProofOps Agent | Milan AI Week",
+  description:
+    "Autonomous proof, approval, and audit trails for regulated business decisions.",
+};
+
+const workflow = [
+  {
+    agent: "Intake Agent",
+    state: "Complete",
+    detail: "Loaded investor deck, sales-call transcript, and risky marketing claim.",
+    signal: "3 artifacts",
+  },
+  {
+    agent: "Gemini Planner",
+    state: "Complete",
+    detail: "Split the matter into marketing-signoff, privacy, securities, and AI-use lanes.",
+    signal: "4 lanes",
+  },
+  {
+    agent: "Compliance Reviewer",
+    state: "Complete",
+    detail: "Checked unsupported guarantees, missing disclosures, privacy consent, and authority fit.",
+    signal: "8 findings",
+  },
+  {
+    agent: "BrainSNN Cognitive Risk Agent",
+    state: "Complete",
+    detail: "Scored pressure tactics, certainty language, trust erosion, and emotional activation.",
+    signal: "82 risk",
+  },
+  {
+    agent: "Citation Verifier",
+    state: "Verified",
+    detail: "Matched source-pack citations and marked weak claims for manual verification.",
+    signal: "6/7 verified",
+  },
+  {
+    agent: "Redline Agent",
+    state: "Ready",
+    detail: "Rewrote risky claims into safer language while preserving the business intent.",
+    signal: "5 edits",
+  },
+  {
+    agent: "Approval Gate",
+    state: "Waiting",
+    detail: "Export remains blocked until approval binds to the exact output hash.",
+    signal: "SHA-256",
+  },
+  {
+    agent: "Export Agent",
+    state: "Blocked",
+    detail: "DOCX proof pack, exhibit appendix, transcript, and audit trail are queued.",
+    signal: "proof pack",
+  },
+] as const;
+
+const findings = [
+  {
+    label: "Guaranteed-outcome language",
+    severity: "Critical",
+    evidence: "The deck says returns are protected and predictable.",
+    fix: "Replace guarantee with risk-qualified, evidence-backed performance language.",
+  },
+  {
+    label: "Investor pressure pattern",
+    severity: "High",
+    evidence: "Transcript uses scarcity and urgency to compress buyer judgment.",
+    fix: "Add balanced disclosure and cooling-off language before subscription steps.",
+  },
+  {
+    label: "Privacy-consent gap",
+    severity: "High",
+    evidence: "Call recording is reviewed for lead scoring without clear consent wording.",
+    fix: "Add explicit collection purpose, retention period, and consent capture.",
+  },
+  {
+    label: "AI-use disclosure risk",
+    severity: "Medium",
+    evidence: "The workflow drafts filed material without a visible human review attestation.",
+    fix: "Attach human approval, model-use note, and artifact hash to the export pack.",
+  },
+] as const;
+
+const partnerFit = [
+  ["Vultr", "Production-shaped web agent hosted as an enterprise workflow."],
+  ["Gemini", "Planning, multimodal document review, and reasoning over the proof run."],
+  ["Speechmatics", "Voice-call transcript ingestion for sales, investor, and compliance calls."],
+  ["Featherless", "Open-source model fallback for specialized domain review."],
+] as const;
+
+const proofArtifacts = [
+  "Risk-ranked claim table",
+  "BrainSNN cognitive-risk receipt",
+  "Verified citation ledger",
+  "Redlined safer language",
+  "Human approval hash",
+  "DOCX proof pack queued for export",
+] as const;
+
+export default function MilanDemoPage() {
+  return (
+    <main className="min-h-screen bg-neutral-950 text-neutral-100">
+      <section className="mx-auto max-w-7xl px-6 py-10 lg:py-14">
+        <div className="rounded-[2rem] border border-cyan-400/20 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.22),_transparent_34%),linear-gradient(135deg,_rgba(15,23,42,0.98),_rgba(10,10,10,0.98))] p-6 shadow-2xl shadow-cyan-950/30 lg:p-10">
+          <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <p className="text-sm font-semibold uppercase tracking-[0.35em] text-cyan-300">
+                Milan AI Week Hackathon
+              </p>
+              <h1 className="mt-5 text-4xl font-semibold tracking-tight text-white sm:text-6xl">
+                XIO ProofOps Agent
+              </h1>
+              <p className="mt-5 text-xl text-neutral-300">
+                Autonomous proof, approval, and audit trails for regulated business decisions.
+              </p>
+              <p className="mt-4 max-w-2xl text-sm leading-6 text-neutral-400">
+                Upload a deck, contract, policy, or voice transcript. The agent classifies the risk,
+                plans the review, verifies the claims, scores cognitive manipulation, proposes safer
+                language, binds human approval to the output hash, and queues an audit-ready proof pack.
+              </p>
+            </div>
+            <div className="grid min-w-72 gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm backdrop-blur">
+              <Metric label="Decision lanes" value="4" detail="securities, privacy, marketing, AI-use" />
+              <Metric label="Proof status" value="6/7" detail="citations verified" />
+              <Metric label="Export gate" value="locked" detail="awaiting hash-bound approval" />
+            </div>
+          </div>
+
+          <div className="mt-8 flex flex-wrap gap-3 text-sm">
+            <a
+              href="/api/demo/milan"
+              className="rounded-full bg-cyan-300 px-5 py-3 font-semibold text-neutral-950 hover:bg-cyan-200"
+            >
+              Run deterministic proof workflow
+            </a>
+            <a
+              href="/matters/new"
+              className="rounded-full border border-white/15 px-5 py-3 font-semibold text-white hover:bg-white/10"
+            >
+              Open full matter wizard
+            </a>
+          </div>
+        </div>
+
+        <section className="mt-8 grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 lg:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-semibold text-white">90-second agent timeline</h2>
+                <p className="mt-1 text-sm text-neutral-400">
+                  The demo is shaped as a workflow, not a chatbot.
+                </p>
+              </div>
+              <Badge tone="cyan">autonomous proof run</Badge>
+            </div>
+            <div className="mt-6 space-y-3">
+              {workflow.map((step, index) => (
+                <div
+                  key={step.agent}
+                  className="grid gap-3 rounded-2xl border border-white/10 bg-neutral-900/80 p-4 sm:grid-cols-[2rem_1fr_auto] sm:items-center"
+                >
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-cyan-300 text-sm font-bold text-neutral-950">
+                    {index + 1}
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold text-white">{step.agent}</h3>
+                      <span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-neutral-300">
+                        {step.state}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-neutral-400">{step.detail}</p>
+                  </div>
+                  <div className="rounded-full bg-white/5 px-3 py-1 text-xs font-semibold text-cyan-200">
+                    {step.signal}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 lg:p-6">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-semibold text-white">BrainSNN risk layer</h2>
+                  <p className="mt-1 text-sm text-neutral-400">
+                    Compliance checks legality. BrainSNN checks what the message does to judgment.
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-4xl font-semibold text-rose-300">82</div>
+                  <div className="text-xs uppercase tracking-[0.25em] text-neutral-500">risk</div>
+                </div>
+              </div>
+              <div className="mt-5 grid gap-3 text-sm">
+                <RiskBar label="Emotional activation" value="88%" width="w-[88%]" />
+                <RiskBar label="Certainty pressure" value="84%" width="w-[84%]" />
+                <RiskBar label="Trust erosion" value="71%" width="w-[71%]" />
+                <RiskBar label="Urgency compression" value="91%" width="w-[91%]" />
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 lg:p-6">
+              <h2 className="text-2xl font-semibold text-white">Partner-category fit</h2>
+              <div className="mt-5 grid gap-3">
+                {partnerFit.map(([name, detail]) => (
+                  <div key={name} className="rounded-2xl border border-white/10 bg-neutral-900/70 p-4">
+                    <div className="font-semibold text-cyan-200">{name}</div>
+                    <p className="mt-1 text-sm text-neutral-400">{detail}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-8 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 lg:p-6">
+            <h2 className="text-2xl font-semibold text-white">Risk findings</h2>
+            <div className="mt-5 space-y-3">
+              {findings.map((finding) => (
+                <article key={finding.label} className="rounded-2xl border border-white/10 bg-neutral-900/70 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="font-semibold text-white">{finding.label}</h3>
+                    <Badge tone={finding.severity === "Critical" ? "rose" : finding.severity === "High" ? "amber" : "neutral"}>
+                      {finding.severity}
+                    </Badge>
+                  </div>
+                  <p className="mt-3 text-sm text-neutral-400">Evidence: {finding.evidence}</p>
+                  <p className="mt-2 text-sm text-cyan-100">Fix: {finding.fix}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 lg:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-semibold text-white">Proof pack queued</h2>
+                <p className="mt-1 text-sm text-neutral-400">
+                  This is the artifact judges should remember: evidence, not vibes.
+                </p>
+              </div>
+              <Badge tone="cyan">export gated</Badge>
+            </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {proofArtifacts.map((artifact) => (
+                <div key={artifact} className="rounded-2xl border border-white/10 bg-neutral-900/70 p-4 text-sm text-neutral-300">
+                  <span className="mr-2 text-cyan-300">✓</span>
+                  {artifact}
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4">
+              <div className="text-xs uppercase tracking-[0.25em] text-cyan-200">submission line</div>
+              <p className="mt-2 text-lg font-semibold text-white">
+                Most agents generate answers. XIO ProofOps generates defensible business evidence.
+              </p>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+  );
+}
+
+function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-neutral-950/60 p-3">
+      <div className="text-xs uppercase tracking-[0.22em] text-neutral-500">{label}</div>
+      <div className="mt-1 text-2xl font-semibold text-white">{value}</div>
+      <div className="text-xs text-neutral-400">{detail}</div>
+    </div>
+  );
+}
+
+function Badge({ children, tone }: { children: React.ReactNode; tone: "cyan" | "rose" | "amber" | "neutral" }) {
+  const tones = {
+    cyan: "border-cyan-300/30 bg-cyan-300/10 text-cyan-100",
+    rose: "border-rose-300/30 bg-rose-300/10 text-rose-100",
+    amber: "border-amber-300/30 bg-amber-300/10 text-amber-100",
+    neutral: "border-white/15 bg-white/10 text-neutral-200",
+  };
+  return <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${tones[tone]}`}>{children}</span>;
+}
+
+function RiskBar({ label, value, width }: { label: string; value: string; width: string }) {
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs text-neutral-400">
+        <span>{label}</span>
+        <span>{value}</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-white/10">
+        <div className={`h-full rounded-full bg-cyan-300 ${width}`} />
+      </div>
+    </div>
+  );
+}

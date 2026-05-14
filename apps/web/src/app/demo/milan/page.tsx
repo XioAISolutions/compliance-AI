@@ -12,6 +12,19 @@ export const metadata = {
   title: "XIO ProofOps Agent | Milan AI Week",
   description:
     "Autonomous proof, approval, and audit trails for regulated business decisions.",
+  openGraph: {
+    title: "XIO ProofOps Agent — Milan AI Week",
+    description:
+      "Most AI agents generate answers. XIO ProofOps generates defensible business evidence.",
+    type: "website",
+    siteName: "XIO ProofOps Agent",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "XIO ProofOps Agent — Milan AI Week",
+    description:
+      "Most AI agents generate answers. XIO ProofOps generates defensible business evidence.",
+  },
 };
 
 const THESIS =
@@ -108,6 +121,7 @@ const proofArtifacts = [
 
 const endpoints = [
   ["GET", "/api/demo/milan", "Deterministic workflow JSON + partner statuses."],
+  ["GET", "/api/demo/milan/scenario", "Raw deck / transcript / claim text the workflow runs over."],
   ["POST", "/api/demo/milan/cognitive-risk", "BrainSNN score over arbitrary { text }."],
   ["GET", "/api/demo/milan/plan", "Gemini-planned review lanes (deterministic fallback)."],
   ["GET", "/api/demo/milan/redline", "Featherless safer-language edits (fallback safe)."],
@@ -256,10 +270,18 @@ export default function MilanDemoPage() {
                 <RiskBar label="Trust erosion" value={cognitiveRisk.dimensions.trustErosion} />
                 <RiskBar label="Urgency compression" value={cognitiveRisk.dimensions.urgencyCompression} />
               </div>
-              <p className="mt-6 text-xs text-neutral-500">
-                Saturation thresholds tuned so canonical Milan input lands at 78/100. Patterns + weights live in{" "}
-                <code className="font-mono text-neutral-300">lib/demo/cognitive-risk.ts</code>.
-              </p>
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-xs text-neutral-500">
+                <span>
+                  Patterns + weights live in{" "}
+                  <code className="font-mono text-neutral-300">lib/demo/cognitive-risk.ts</code>.
+                </span>
+                <a
+                  href="/api/demo/milan/scenario"
+                  className="rounded-full border border-white/15 px-3 py-1 font-semibold text-neutral-300 transition hover:bg-white/10"
+                >
+                  View raw inputs →
+                </a>
+              </div>
             </div>
 
             <CognitiveRiskTester initialText={MILAN_SCENARIO_TEXT} />

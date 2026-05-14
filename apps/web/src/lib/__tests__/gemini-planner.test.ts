@@ -1,7 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { plan, isGeminiConfigured } from "../demo/gemini-planner";
 
 describe("gemini-planner", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   describe("isGeminiConfigured", () => {
     it("is false without an API key", () => {
       expect(isGeminiConfigured({})).toBe(false);
@@ -38,6 +42,43 @@ describe("gemini-planner", () => {
         expect(typeof lane.rationale).toBe("string");
         expect(lane.rationale.length).toBeGreaterThan(10);
       }
+    });
+  });
+
+  describe("plan() — live endpoint selection", () => {
+    it("uses the Vertex endpoint when GEMINI_VERTEX_PROJECT is set", async () => {
+      const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        summary: "Route to the expected lanes.",
+                        lanes: [{ name: "securities", rationale: "The claim needs review." }],
+                      }),
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      );
+
+      const result = await plan("claim text", {
+        GEMINI_API_KEY: "test-key",
+        GEMINI_VERTEX_PROJECT: "my-project",
+        GEMINI_VERTEX_LOCATION: "us-central1",
+      });
+
+      expect(result.source).toBe("gemini");
+      const [url] = fetchMock.mock.calls[0] ?? [];
+      expect(String(url)).toContain("https://aiplatform.googleapis.com/v1/projects/my-project");
+      expect(String(url)).toContain("/locations/us-central1/");
     });
   });
 });

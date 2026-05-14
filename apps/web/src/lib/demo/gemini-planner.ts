@@ -1,10 +1,12 @@
 /**
- * Gemini planner — calls the Google AI Studio generateContent endpoint
- * to plan compliance review lanes over the Milan scenario text.
+ * Gemini planner — calls Gemini generateContent to plan compliance
+ * review lanes over the Milan scenario text.
  *
  * Activation is purely env-driven:
  *   GEMINI_API_KEY=… (Google AI Studio key)
  *   GEMINI_MODEL=gemini-2.5-flash   (optional override)
+ *   GEMINI_VERTEX_PROJECT=…          (optional Vertex / Agent Platform mode)
+ *   GEMINI_VERTEX_LOCATION=us-central1
  *
  * Without GEMINI_API_KEY the helper returns a deterministic plan so
  * smoke tests, CI, and the Milan demo route still produce stable
@@ -33,6 +35,7 @@ export interface PlannerResult {
 }
 
 const DEFAULT_MODEL = "gemini-2.5-flash";
+const DEFAULT_VERTEX_LOCATION = "us-central1";
 
 const DETERMINISTIC_PLAN: Omit<PlannerResult, "latencyMs" | "source" | "model"> = {
   summary:
@@ -59,6 +62,26 @@ const DETERMINISTIC_PLAN: Omit<PlannerResult, "latencyMs" | "source" | "model"> 
 
 export function isGeminiConfigured(env: Record<string, string | undefined> = process.env): boolean {
   return Boolean(env.GEMINI_API_KEY);
+}
+
+function buildGeminiUrl(
+  apiKey: string,
+  model: string,
+  env: Record<string, string | undefined>,
+): string {
+  const vertexProject = env.GEMINI_VERTEX_PROJECT;
+  if (vertexProject) {
+    const location = env.GEMINI_VERTEX_LOCATION ?? DEFAULT_VERTEX_LOCATION;
+    return `https://aiplatform.googleapis.com/v1/projects/${encodeURIComponent(
+      vertexProject,
+    )}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(
+      model,
+    )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  }
+
+  return `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+    model,
+  )}:generateContent?key=${encodeURIComponent(apiKey)}`;
 }
 
 export async function plan(
@@ -90,9 +113,7 @@ export async function plan(
   ].join("\n");
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-      model,
-    )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const url = buildGeminiUrl(apiKey, model, env);
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -103,8 +124,9 @@ export async function plan(
           temperature: 0.1,
         },
       }),
-      // Don't let a slow Gemini stall a judge's tab.
-      signal: AbortSignal.timeout(8000),
+      // Don't let a slow Gemini stall a judge's tab; Vertex-bound
+      // keys can have a slower first response than AI Studio keys.
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!res.ok) {

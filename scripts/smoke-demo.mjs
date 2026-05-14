@@ -4,6 +4,7 @@
  *
  * Covers:
  *   - Public page routes + legacy API endpoints.
+ *   - /demo/milan + /api/demo/milan hackathon proof workflow.
  *   - /api/quick-review uploads (classifies, creates a matter, returns redirect).
  *   - /api/source-packs (taskType + lane filters).
  *   - /api/citations/verify (offline-corpus hit + CanLII URL heuristic + batch summary).
@@ -18,6 +19,7 @@ const baseUrl = process.env.DEMO_BASE_URL || process.env.BASE_URL || "http://127
 const routes = [
   "/",
   "/demo",
+  "/demo/milan",
   "/matters",
   "/matters/new",
   "/queue",
@@ -25,6 +27,7 @@ const routes = [
   "/controls",
   "/api/healthcheck",
   "/api/agents",
+  "/api/demo/milan",
 ];
 
 async function expectOk(path) {
@@ -43,6 +46,27 @@ async function expectStatus(path, init, expected) {
   }
   console.log(`ok ${path} ${res.status}`);
   return res;
+}
+
+async function milanProofOpsSmoke() {
+  const res = await fetch(`${baseUrl}/api/demo/milan`);
+  if (res.status !== 200) {
+    throw new Error(`/api/demo/milan returned ${res.status}: ${await res.text()}`);
+  }
+  const body = await res.json();
+  if (body.product !== "XIO ProofOps Agent") {
+    throw new Error(`/api/demo/milan wrong product: ${JSON.stringify(body.product)}`);
+  }
+  if (!Array.isArray(body.workflow) || body.workflow.length !== 8) {
+    throw new Error(`/api/demo/milan workflow should have 8 steps: ${JSON.stringify(body.workflow)}`);
+  }
+  if (!body.partnerFit?.vultr || !body.partnerFit?.gemini || !body.partnerFit?.speechmatics || !body.partnerFit?.featherless) {
+    throw new Error(`/api/demo/milan missing partner fit: ${JSON.stringify(body.partnerFit)}`);
+  }
+  if (body.brainSnnRisk?.score !== 82) {
+    throw new Error(`/api/demo/milan wrong BrainSNN score: ${JSON.stringify(body.brainSnnRisk)}`);
+  }
+  console.log(`ok /api/demo/milan (${body.workflow.length} agent steps, BrainSNN ${body.brainSnnRisk.score})`);
 }
 
 async function quickReviewSmoke() {
@@ -141,7 +165,7 @@ async function verifierSmoke() {
     throw new Error(`/api/citations/verify returned ${res.status}: ${await res.text()}`);
   }
   const body = await res.json();
-  const { summary, results } = body;
+  const { summary } = body;
   if (!summary || summary.total !== 3) {
     throw new Error(`verify summary.total !== 3: ${JSON.stringify(summary)}`);
   }
@@ -208,6 +232,7 @@ async function redlineExportSmoke(matterId) {
 for (const route of routes) {
   await expectOk(route);
 }
+await milanProofOpsSmoke();
 const matterId = await quickReviewSmoke();
 await sourcePacksSmoke();
 await verifierSmoke();

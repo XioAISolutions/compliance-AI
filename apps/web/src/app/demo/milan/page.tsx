@@ -1,10 +1,16 @@
 import type { ReactNode } from "react";
+import {
+  MILAN_SCENARIO_TEXT,
+  computeCognitiveRisk,
+} from "../../../lib/demo/cognitive-risk";
 
 export const metadata = {
   title: "XIO ProofOps Agent | Milan AI Week",
   description:
     "Autonomous proof, approval, and audit trails for regulated business decisions.",
 };
+
+const cognitiveRisk = computeCognitiveRisk(MILAN_SCENARIO_TEXT);
 
 const workflow = [
   {
@@ -29,7 +35,7 @@ const workflow = [
     agent: "BrainSNN Cognitive Risk Agent",
     state: "Complete",
     detail: "Scored pressure tactics, certainty language, trust erosion, and emotional activation.",
-    signal: "82 risk",
+    signal: `${cognitiveRisk.score} risk`,
   },
   {
     agent: "Citation Verifier",
@@ -85,10 +91,22 @@ const findings = [
 ] as const;
 
 const partnerFit = [
-  ["Vultr", "Production-shaped web agent hosted as an enterprise workflow."],
-  ["Gemini", "Planning, multimodal document review, and reasoning over the proof run."],
-  ["Speechmatics", "Voice-call transcript ingestion for sales, investor, and compliance calls."],
-  ["Featherless", "Open-source model fallback for specialized domain review."],
+  [
+    "Vultr",
+    "Enterprise-grade Next.js workload — regionally placed, healthchecked, deployable as a private compliance plane.",
+  ],
+  [
+    "Gemini",
+    "Planner and multimodal reasoning layer — structured-output JSON for review lanes, grounded analysis over deck + transcript.",
+  ],
+  [
+    "Speechmatics",
+    "Voice intelligence — diarized transcripts with confidence metadata for sales, investor, and compliance calls.",
+  ],
+  [
+    "Featherless",
+    "Open-weights inference for sovereign, auditable review lanes where firms cannot send claim text to a closed API.",
+  ],
 ] as const;
 
 const proofArtifacts = [
@@ -97,7 +115,7 @@ const proofArtifacts = [
   "Verified citation ledger",
   "Redlined safer language",
   "Human approval hash",
-  "DOCX proof pack queued for export",
+  "Full audit trail",
 ] as const;
 
 export default function MilanDemoPage() {
@@ -124,17 +142,27 @@ export default function MilanDemoPage() {
             </div>
             <div className="grid min-w-72 gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm backdrop-blur">
               <Metric label="Decision lanes" value="4" detail="securities, privacy, marketing, AI-use" />
-              <Metric label="Proof status" value="6/7" detail="citations verified" />
+              <Metric
+                label="Cognitive risk"
+                value={`${cognitiveRisk.score}/100`}
+                detail="derived from deck + transcript text"
+              />
               <Metric label="Export gate" value="locked" detail="awaiting hash-bound approval" />
             </div>
           </div>
 
           <div className="mt-8 flex flex-wrap gap-3 text-sm">
             <a
-              href="/api/demo/milan"
+              href="/api/demo/milan/proof-pack"
               className="rounded-full bg-cyan-300 px-5 py-3 font-semibold text-neutral-950 hover:bg-cyan-200"
             >
-              Run deterministic proof workflow
+              Download proof pack (.docx)
+            </a>
+            <a
+              href="/api/demo/milan"
+              className="rounded-full border border-white/15 px-5 py-3 font-semibold text-white hover:bg-white/10"
+            >
+              View deterministic JSON
             </a>
             <a
               href="/matters/new"
@@ -192,15 +220,15 @@ export default function MilanDemoPage() {
                   </p>
                 </div>
                 <div className="text-right">
-                  <div className="text-4xl font-semibold text-rose-300">82</div>
+                  <div className="text-4xl font-semibold text-rose-300">{cognitiveRisk.score}</div>
                   <div className="text-xs uppercase tracking-[0.25em] text-neutral-500">risk</div>
                 </div>
               </div>
               <div className="mt-5 grid gap-3 text-sm">
-                <RiskBar label="Emotional activation" value="88%" width="w-[88%]" />
-                <RiskBar label="Certainty pressure" value="84%" width="w-[84%]" />
-                <RiskBar label="Trust erosion" value="71%" width="w-[71%]" />
-                <RiskBar label="Urgency compression" value="91%" width="w-[91%]" />
+                <RiskBar label="Emotional activation" value={cognitiveRisk.dimensions.emotionalActivation} />
+                <RiskBar label="Certainty pressure" value={cognitiveRisk.dimensions.certaintyPressure} />
+                <RiskBar label="Trust erosion" value={cognitiveRisk.dimensions.trustErosion} />
+                <RiskBar label="Urgency compression" value={cognitiveRisk.dimensions.urgencyCompression} />
               </div>
             </div>
 
@@ -288,15 +316,16 @@ function Badge({ children, tone }: { children: ReactNode; tone: "cyan" | "rose" 
   return <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${tones[tone]}`}>{children}</span>;
 }
 
-function RiskBar({ label, value, width }: { label: string; value: string; width: string }) {
+function RiskBar({ label, value }: { label: string; value: number }) {
+  const clamped = Math.max(0, Math.min(100, value));
   return (
     <div>
       <div className="mb-1 flex justify-between text-xs text-neutral-400">
         <span>{label}</span>
-        <span>{value}</span>
+        <span>{clamped}%</span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-white/10">
-        <div className={`h-full rounded-full bg-cyan-300 ${width}`} />
+        <div className="h-full rounded-full bg-cyan-300" style={{ width: `${clamped}%` }} />
       </div>
     </div>
   );

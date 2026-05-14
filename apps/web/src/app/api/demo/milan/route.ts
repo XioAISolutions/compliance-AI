@@ -1,4 +1,10 @@
 import { NextResponse } from "next/server";
+import {
+  MILAN_SCENARIO_TEXT,
+  computeCognitiveRisk,
+} from "../../../../lib/demo/cognitive-risk";
+
+const cognitiveRisk = computeCognitiveRisk(MILAN_SCENARIO_TEXT);
 
 const demoRun = {
   id: "milan-proofops-001",
@@ -12,12 +18,13 @@ const demoRun = {
       "marketing-claim.txt",
     ],
     claim: "Protected returns, limited spots, AI-reviewed onboarding, and instant approval.",
+    text: MILAN_SCENARIO_TEXT,
   },
   partnerFit: {
-    vultr: "Production-shaped web agent for enterprise compliance workflows.",
-    gemini: "Planner and multimodal reasoning layer for documents, decks, and transcript context.",
-    speechmatics: "Transcript ingestion boundary for sales, investor, and compliance calls.",
-    featherless: "Open-source domain-review fallback for auditable private deployments.",
+    vultr: "Enterprise-grade Next.js workload — regionally placed, healthchecked, and deployable as a private compliance plane.",
+    gemini: "Gemini powers the planner and multimodal reasoning step: structured-output JSON for review lanes, grounded analysis over deck + transcript context.",
+    speechmatics: "Speechmatics ingests sales, investor, and compliance calls — diarized transcripts with confidence metadata feed the same proof workflow.",
+    featherless: "Featherless serves open-weights review models for sovereign, auditable lanes where firms cannot send claim text to a closed API.",
   },
   workflow: [
     {
@@ -42,7 +49,7 @@ const demoRun = {
       step: 4,
       agent: "BrainSNN Cognitive Risk Agent",
       status: "complete",
-      output: "Cognitive-risk score 82/100 driven by urgency compression and certainty pressure.",
+      output: `Cognitive-risk score ${cognitiveRisk.score}/100 driven by urgency compression and certainty pressure.`,
     },
     {
       step: 5,
@@ -95,23 +102,18 @@ const demoRun = {
       recommendation: "Attach human approval, model-use note, and artifact hash to the export pack.",
     },
   ],
-  brainSnnRisk: {
-    score: 82,
-    dimensions: {
-      emotionalActivation: 88,
-      certaintyPressure: 84,
-      trustErosion: 71,
-      urgencyCompression: 91,
-    },
+  brainSnnRisk: cognitiveRisk,
+  proofPack: {
+    artifacts: [
+      "Risk-ranked claim table",
+      "BrainSNN cognitive-risk receipt",
+      "Verified citation ledger",
+      "Redlined safer language",
+      "Human approval hash",
+      "Audit trail",
+    ],
+    downloadUrl: "/api/demo/milan/proof-pack",
   },
-  proofPack: [
-    "Risk-ranked claim table",
-    "BrainSNN cognitive-risk receipt",
-    "Verified citation ledger",
-    "Redlined safer language",
-    "Human approval hash",
-    "DOCX proof pack queued for export",
-  ],
 };
 
 export async function GET() {

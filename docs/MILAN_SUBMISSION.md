@@ -34,7 +34,7 @@ Voice intelligence enters through **Speechmatics**: diarized sales / investor / 
 
 ## Demo URL
 
-`https://<vultr-deploy>/demo/milan`
+`https://xio-proofops.45.76.80.253.sslip.io/demo/milan`
 
 ## Live endpoints judges can poke
 

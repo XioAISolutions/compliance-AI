@@ -1,5 +1,9 @@
 # XIO ProofOps Agent — Milan AI Week Hackathon
 
+## Live deploy
+
+**`https://xio-proofops.45.76.80.253.sslip.io/demo/milan`** — set `GEMINI_API_KEY`, `FEATHERLESS_API_KEY`, `SPEECHMATICS_API_KEY`, and `VULTR_DEPLOY=1` on the host to activate the partner-backed route paths where the sponsor accounts allow API access.
+
 ## Submission line
 
 **Most AI agents generate answers. XIO ProofOps generates defensible business evidence.**

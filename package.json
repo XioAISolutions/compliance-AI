@@ -23,6 +23,7 @@
     "typecheck": "turbo run typecheck",
     "test": "vitest run",
     "smoke:demo": "node scripts/smoke-demo.mjs",
+    "smoke:live": "node scripts/smoke-live.mjs",
     "clean": "turbo run clean && rm -rf node_modules .turbo",
     "db:push": "turbo run db:push --filter=@compliance-ai/db",
     "db:generate": "turbo run db:generate --filter=@compliance-ai/db",

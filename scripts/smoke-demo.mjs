@@ -29,6 +29,9 @@ const routes = [
   "/api/agents",
   "/api/demo/milan",
   "/api/demo/milan/proof-pack",
+  "/api/demo/milan/plan",
+  "/api/demo/milan/redline",
+  "/api/demo/milan/transcribe",
 ];
 
 async function expectOk(path) {
@@ -79,7 +82,16 @@ async function milanProofOpsSmoke() {
   if (body.proofPack?.downloadUrl !== "/api/demo/milan/proof-pack") {
     throw new Error(`/api/demo/milan proofPack.downloadUrl wrong: ${JSON.stringify(body.proofPack)}`);
   }
-  console.log(`ok /api/demo/milan (${body.workflow.length} agent steps, BrainSNN ${body.brainSnnRisk.score})`);
+  if (!Array.isArray(body.partners) || body.partners.length !== 4) {
+    throw new Error(`/api/demo/milan partners list wrong: ${JSON.stringify(body.partners)}`);
+  }
+  const partnerIds = new Set(body.partners.map((p) => p.id));
+  for (const id of ["vultr", "gemini", "speechmatics", "featherless"]) {
+    if (!partnerIds.has(id)) {
+      throw new Error(`/api/demo/milan partners missing ${id}: ${JSON.stringify(body.partners)}`);
+    }
+  }
+  console.log(`ok /api/demo/milan (${body.workflow.length} agent steps, BrainSNN ${body.brainSnnRisk.score}, partners ${body.partners.filter((p) => p.live).length}/${body.partners.length} live)`);
 
   // Proof-pack DOCX download — the artifact judges should walk away
   // with. Confirms binary path, headers, and that the docx renderer
@@ -101,6 +113,101 @@ async function milanProofOpsSmoke() {
     throw new Error(`/api/demo/milan/proof-pack suspiciously small: ${buf.byteLength} bytes`);
   }
   console.log(`ok /api/demo/milan/proof-pack (${buf.byteLength} bytes)`);
+
+  // Interactive cognitive-risk endpoint — proves the BrainSNN score
+  // varies with input and rejects malformed payloads.
+  const live = await fetch(`${baseUrl}/api/demo/milan/cognitive-risk`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text: "Closing today. Act now. Limited spots. Last chance. Hurry.",
+    }),
+  });
+  if (live.status !== 200) {
+    throw new Error(`/api/demo/milan/cognitive-risk returned ${live.status}: ${await live.text()}`);
+  }
+  const liveBody = await live.json();
+  if (typeof liveBody.score !== "number" || liveBody.score <= 0) {
+    throw new Error(`/api/demo/milan/cognitive-risk unexpected score: ${JSON.stringify(liveBody)}`);
+  }
+  if (liveBody.dimensions?.urgencyCompression <= 0) {
+    throw new Error(
+      `/api/demo/milan/cognitive-risk urgency dimension should be positive on urgency text: ${JSON.stringify(liveBody)}`,
+    );
+  }
+  if (liveBody.dimensions?.certaintyPressure !== 0) {
+    throw new Error(
+      `/api/demo/milan/cognitive-risk certainty should be 0 on pure-urgency text: ${JSON.stringify(liveBody)}`,
+    );
+  }
+  await expectStatus(
+    `/api/demo/milan/cognitive-risk`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    },
+    400,
+  );
+  console.log(`ok /api/demo/milan/cognitive-risk (score=${liveBody.score}, urgency=${liveBody.dimensions.urgencyCompression})`);
+
+  // Planner — works in both Gemini and deterministic modes. Smoke
+  // just verifies the contract; the source field reflects which
+  // backend served the response on the deploy under test.
+  const planRes = await fetch(`${baseUrl}/api/demo/milan/plan`);
+  if (planRes.status !== 200) {
+    throw new Error(`/api/demo/milan/plan returned ${planRes.status}: ${await planRes.text()}`);
+  }
+  const planBody = await planRes.json();
+  if (!["gemini", "deterministic"].includes(planBody.source)) {
+    throw new Error(`/api/demo/milan/plan bad source: ${JSON.stringify(planBody)}`);
+  }
+  if (!Array.isArray(planBody.lanes) || planBody.lanes.length === 0) {
+    throw new Error(`/api/demo/milan/plan no lanes: ${JSON.stringify(planBody)}`);
+  }
+  for (const lane of planBody.lanes) {
+    if (typeof lane.name !== "string" || typeof lane.rationale !== "string") {
+      throw new Error(`/api/demo/milan/plan malformed lane: ${JSON.stringify(lane)}`);
+    }
+  }
+  console.log(`ok /api/demo/milan/plan (source=${planBody.source}, ${planBody.lanes.length} lanes, ${planBody.latencyMs}ms)`);
+
+  // Featherless redliner — same shape contract regardless of live/stub.
+  const redlineRes = await fetch(`${baseUrl}/api/demo/milan/redline`);
+  if (redlineRes.status !== 200) {
+    throw new Error(`/api/demo/milan/redline returned ${redlineRes.status}: ${await redlineRes.text()}`);
+  }
+  const redlineBody = await redlineRes.json();
+  if (!["featherless", "deterministic"].includes(redlineBody.source)) {
+    throw new Error(`/api/demo/milan/redline bad source: ${JSON.stringify(redlineBody)}`);
+  }
+  if (!Array.isArray(redlineBody.edits) || redlineBody.edits.length === 0) {
+    throw new Error(`/api/demo/milan/redline no edits: ${JSON.stringify(redlineBody)}`);
+  }
+  for (const edit of redlineBody.edits) {
+    for (const key of ["before", "after", "reason"]) {
+      if (typeof edit[key] !== "string" || edit[key].length === 0) {
+        throw new Error(`/api/demo/milan/redline malformed edit: ${JSON.stringify(edit)}`);
+      }
+    }
+  }
+  console.log(`ok /api/demo/milan/redline (source=${redlineBody.source}, ${redlineBody.edits.length} edits, ${redlineBody.latencyMs}ms)`);
+
+  // Speechmatics transcribe — always returns the canonical transcript.
+  // `auth` is null in the no-key path and an object in the configured
+  // path (regardless of whether auth succeeded).
+  const txRes = await fetch(`${baseUrl}/api/demo/milan/transcribe`);
+  if (txRes.status !== 200) {
+    throw new Error(`/api/demo/milan/transcribe returned ${txRes.status}: ${await txRes.text()}`);
+  }
+  const txBody = await txRes.json();
+  if (!["speechmatics", "deterministic"].includes(txBody.source)) {
+    throw new Error(`/api/demo/milan/transcribe bad source: ${JSON.stringify(txBody)}`);
+  }
+  if (typeof txBody.transcript !== "string" || txBody.transcript.length === 0) {
+    throw new Error(`/api/demo/milan/transcribe missing transcript: ${JSON.stringify(txBody)}`);
+  }
+  console.log(`ok /api/demo/milan/transcribe (source=${txBody.source}, transcript=${txBody.transcript.length} chars, auth=${txBody.auth ? "verified" : "not-configured"})`);
 }
 
 async function quickReviewSmoke() {

@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 export const metadata = {
   title: "XIO ProofOps Agent | Milan AI Week",
   description:
@@ -276,7 +278,7 @@ function Metric({ label, value, detail }: { label: string; value: string; detail
   );
 }
 
-function Badge({ children, tone }: { children: React.ReactNode; tone: "cyan" | "rose" | "amber" | "neutral" }) {
+function Badge({ children, tone }: { children: ReactNode; tone: "cyan" | "rose" | "amber" | "neutral" }) {
   const tones = {
     cyan: "border-cyan-300/30 bg-cyan-300/10 text-cyan-100",
     rose: "border-rose-300/30 bg-rose-300/10 text-rose-100",

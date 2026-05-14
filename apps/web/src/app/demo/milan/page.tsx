@@ -14,6 +14,9 @@ export const metadata = {
     "Autonomous proof, approval, and audit trails for regulated business decisions.",
 };
 
+const THESIS =
+  "Most AI agents generate answers. XIO ProofOps generates defensible business evidence.";
+
 const cognitiveRisk = computeCognitiveRisk(MILAN_SCENARIO_TEXT);
 
 const workflow = [
@@ -103,223 +106,288 @@ const proofArtifacts = [
   "Full audit trail",
 ] as const;
 
+const endpoints = [
+  ["GET", "/api/demo/milan", "Deterministic workflow JSON + partner statuses."],
+  ["POST", "/api/demo/milan/cognitive-risk", "BrainSNN score over arbitrary { text }."],
+  ["GET", "/api/demo/milan/plan", "Gemini-planned review lanes (deterministic fallback)."],
+  ["GET", "/api/demo/milan/redline", "Featherless safer-language edits (fallback safe)."],
+  ["GET", "/api/demo/milan/transcribe", "Canonical voice transcript + Speechmatics auth ping."],
+  ["GET", "/api/demo/milan/proof-pack", "DOCX proof pack with live partner output rolled in."],
+] as const;
+
+const severityTone: Record<(typeof findings)[number]["severity"], "rose" | "amber" | "neutral"> = {
+  Critical: "rose",
+  High: "amber",
+  Medium: "neutral",
+};
+
+const severityBorder: Record<(typeof findings)[number]["severity"], string> = {
+  Critical: "border-l-rose-400/70",
+  High: "border-l-amber-300/70",
+  Medium: "border-l-white/20",
+};
+
 export default function MilanDemoPage() {
   const partners = getPartnerStatuses();
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100">
-      <section className="mx-auto max-w-7xl px-6 py-10 lg:py-14">
-        <div className="rounded-[2rem] border border-cyan-400/20 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.22),_transparent_34%),linear-gradient(135deg,_rgba(15,23,42,0.98),_rgba(10,10,10,0.98))] p-6 shadow-2xl shadow-cyan-950/30 lg:p-10">
-          <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.35em] text-cyan-300">
+      <div className="mx-auto max-w-7xl px-6 py-10 lg:py-14">
+        {/* ─────────── HERO ─────────── */}
+        <section className="relative overflow-hidden rounded-[2rem] border border-cyan-400/20 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.22),_transparent_34%),linear-gradient(135deg,_rgba(15,23,42,0.98),_rgba(10,10,10,0.98))] p-6 shadow-2xl shadow-cyan-950/30 lg:p-12">
+          <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr] lg:items-center">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.4em] text-cyan-300">
                 Milan AI Week Hackathon
               </p>
-              <h1 className="mt-5 text-4xl font-semibold tracking-tight text-white sm:text-6xl">
+              <h1 className="mt-6 text-5xl font-semibold leading-[1.05] tracking-tight text-white sm:text-6xl lg:text-7xl">
                 XIO ProofOps Agent
               </h1>
-              <p className="mt-5 text-xl text-neutral-300">
+              <p className="mt-6 text-xl text-neutral-200 sm:text-2xl">
                 Autonomous proof, approval, and audit trails for regulated business decisions.
               </p>
-              <p className="mt-4 max-w-2xl text-sm leading-6 text-neutral-400">
-                Upload a deck, contract, policy, or voice transcript. The agent classifies the risk,
-                plans the review, verifies the claims, scores cognitive manipulation, proposes safer
-                language, binds human approval to the output hash, and queues an audit-ready proof pack.
+              <blockquote className="mt-8 border-l-2 border-cyan-300/60 pl-5 text-lg italic leading-relaxed text-cyan-50 sm:text-xl">
+                &ldquo;{THESIS}&rdquo;
+              </blockquote>
+              <p className="mt-6 max-w-2xl text-sm leading-6 text-neutral-400">
+                Drop a deck, contract, policy, or voice transcript. The agent classifies the risk,
+                plans the review with Gemini, verifies citations, scores cognitive manipulation,
+                drafts safer redlines on Featherless, binds human approval to the output hash, and
+                queues an audit-ready DOCX proof pack.
               </p>
+
+              <div className="mt-8 flex flex-wrap gap-3 text-sm">
+                <a
+                  href="/api/demo/milan/proof-pack"
+                  className="rounded-full bg-cyan-300 px-6 py-3 font-semibold text-neutral-950 shadow-lg shadow-cyan-300/20 transition hover:bg-cyan-200"
+                >
+                  Download proof pack (.docx)
+                </a>
+                <a
+                  href="#try-it"
+                  className="rounded-full border border-cyan-300/40 bg-cyan-300/10 px-6 py-3 font-semibold text-cyan-100 transition hover:bg-cyan-300/20"
+                >
+                  Try BrainSNN live →
+                </a>
+                <a
+                  href="/api/demo/milan"
+                  className="rounded-full border border-white/15 px-6 py-3 font-semibold text-white transition hover:bg-white/10"
+                >
+                  View JSON
+                </a>
+                <a
+                  href="/matters/new"
+                  className="rounded-full border border-white/15 px-6 py-3 font-semibold text-white transition hover:bg-white/10"
+                >
+                  Open full matter wizard
+                </a>
+              </div>
             </div>
-            <div className="grid min-w-72 gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm backdrop-blur">
-              <Metric label="Decision lanes" value="4" detail="securities, privacy, marketing, AI-use" />
+
+            <div className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-5 backdrop-blur">
+              <Metric label="Decision lanes" value="4" detail="securities · privacy · marketing · AI-use" />
               <Metric
                 label="Cognitive risk"
                 value={`${cognitiveRisk.score}/100`}
-                detail="derived from deck + transcript text"
+                detail="derived live from deck + transcript text"
               />
+              <Metric label="Citations" value="6/7" detail="verified against offline corpus" />
               <Metric label="Export gate" value="locked" detail="awaiting hash-bound approval" />
             </div>
           </div>
+        </section>
 
-          <div className="mt-8 flex flex-wrap gap-3 text-sm">
-            <a
-              href="/api/demo/milan/proof-pack"
-              className="rounded-full bg-cyan-300 px-5 py-3 font-semibold text-neutral-950 hover:bg-cyan-200"
-            >
-              Download proof pack (.docx)
-            </a>
-            <a
-              href="/api/demo/milan"
-              className="rounded-full border border-white/15 px-5 py-3 font-semibold text-white hover:bg-white/10"
-            >
-              View deterministic JSON
-            </a>
-            <a
-              href="/matters/new"
-              className="rounded-full border border-white/15 px-5 py-3 font-semibold text-white hover:bg-white/10"
-            >
-              Open full matter wizard
-            </a>
-          </div>
-        </div>
-
-        <section className="mt-8 grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 lg:p-6">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <h2 className="text-2xl font-semibold text-white">90-second agent timeline</h2>
-                <p className="mt-1 text-sm text-neutral-400">
-                  The demo is shaped as a workflow, not a chatbot.
-                </p>
-              </div>
-              <Badge tone="cyan">autonomous proof run</Badge>
-            </div>
-            <div className="mt-6 space-y-3">
-              {workflow.map((step, index) => (
-                <div
-                  key={step.agent}
-                  className="grid gap-3 rounded-2xl border border-white/10 bg-neutral-900/80 p-4 sm:grid-cols-[2rem_1fr_auto] sm:items-center"
-                >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-cyan-300 text-sm font-bold text-neutral-950">
+        {/* ─────────── WORKFLOW BAND ─────────── */}
+        <section className="mt-14">
+          <SectionHeader
+            eyebrow="The autonomous proof run"
+            title="8 agents. One shipping artifact."
+            subtitle="A workflow, not a chatbot. Every step writes to the audit trail."
+            chip="autonomous proof run"
+          />
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {workflow.map((step, index) => (
+              <article
+                key={step.agent}
+                className="relative flex h-full flex-col rounded-2xl border border-white/10 bg-neutral-900/70 p-5 transition hover:border-cyan-300/30 hover:bg-neutral-900/90"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-cyan-300 text-sm font-bold text-neutral-950">
                     {index + 1}
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-semibold text-white">{step.agent}</h3>
-                      <span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-neutral-300">
-                        {step.state}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm text-neutral-400">{step.detail}</p>
-                  </div>
-                  <div className="rounded-full bg-white/5 px-3 py-1 text-xs font-semibold text-cyan-200">
-                    {step.signal}
-                  </div>
+                  </span>
+                  <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-neutral-300">
+                    {step.state}
+                  </span>
                 </div>
-              ))}
-            </div>
+                <h3 className="mt-4 text-base font-semibold text-white">{step.agent}</h3>
+                <p className="mt-2 flex-1 text-sm leading-relaxed text-neutral-400">{step.detail}</p>
+                <div className="mt-4 inline-flex w-fit rounded-full bg-cyan-300/10 px-3 py-1 text-xs font-semibold text-cyan-200">
+                  {step.signal}
+                </div>
+              </article>
+            ))}
           </div>
+        </section>
 
-          <div className="space-y-6">
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 lg:p-6">
-              <div className="flex items-center justify-between gap-4">
+        {/* ─────────── BRAINSNN + INTERACTIVE TESTER ─────────── */}
+        <section id="try-it" className="mt-14">
+          <SectionHeader
+            eyebrow="BrainSNN cognitive-risk agent"
+            title="Compliance checks legality. BrainSNN checks judgment."
+            subtitle="The score is derived from the input text — change the words, watch it move."
+            chip="lexical · deterministic"
+          />
+          <div className="mt-8 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+              <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-semibold text-white">BrainSNN risk layer</h2>
+                  <h3 className="text-lg font-semibold text-white">Canonical scenario</h3>
                   <p className="mt-1 text-sm text-neutral-400">
-                    Compliance checks legality. BrainSNN checks what the message does to judgment.
+                    Investor deck + sales-call transcript + marketing claim.
                   </p>
                 </div>
                 <div className="text-right">
-                  <div className="text-4xl font-semibold text-rose-300">{cognitiveRisk.score}</div>
-                  <div className="text-xs uppercase tracking-[0.25em] text-neutral-500">risk</div>
+                  <div className="text-5xl font-semibold text-rose-300">{cognitiveRisk.score}</div>
+                  <div className="text-xs uppercase tracking-[0.25em] text-neutral-500">composite</div>
                 </div>
               </div>
-              <div className="mt-5 grid gap-3 text-sm">
+              <div className="mt-6 grid gap-3 text-sm">
                 <RiskBar label="Emotional activation" value={cognitiveRisk.dimensions.emotionalActivation} />
                 <RiskBar label="Certainty pressure" value={cognitiveRisk.dimensions.certaintyPressure} />
                 <RiskBar label="Trust erosion" value={cognitiveRisk.dimensions.trustErosion} />
                 <RiskBar label="Urgency compression" value={cognitiveRisk.dimensions.urgencyCompression} />
               </div>
+              <p className="mt-6 text-xs text-neutral-500">
+                Saturation thresholds tuned so canonical Milan input lands at 78/100. Patterns + weights live in{" "}
+                <code className="font-mono text-neutral-300">lib/demo/cognitive-risk.ts</code>.
+              </p>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 lg:p-6">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-2xl font-semibold text-white">Partner-category fit</h2>
-                <span className="text-xs uppercase tracking-[0.25em] text-neutral-500">
-                  env-var driven
-                </span>
-              </div>
-              <div className="mt-5 grid gap-3">
-                {partners.map((partner) => (
-                  <div
-                    key={partner.id}
-                    className="rounded-2xl border border-white/10 bg-neutral-900/70 p-4"
+            <CognitiveRiskTester initialText={MILAN_SCENARIO_TEXT} />
+          </div>
+        </section>
+
+        {/* ─────────── FINDINGS + PROOF PACK ─────────── */}
+        <section className="mt-14">
+          <SectionHeader
+            eyebrow="Evidence the workflow ships"
+            title="Findings and the artifact that carries them."
+            subtitle="Every finding is hash-bound. Approval invalidates on edit. Export emits a DOCX."
+            chip="export gated"
+          />
+          <div className="mt-8 grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+              <h3 className="text-lg font-semibold text-white">Risk findings</h3>
+              <p className="mt-1 text-sm text-neutral-400">
+                Ranked by severity, every finding carries evidence + a proposed fix.
+              </p>
+              <div className="mt-5 space-y-3">
+                {findings.map((finding) => (
+                  <article
+                    key={finding.label}
+                    className={`rounded-2xl border border-white/10 border-l-4 ${severityBorder[finding.severity]} bg-neutral-900/70 p-4`}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="font-semibold text-cyan-200">{partner.name}</div>
-                      <span
-                        className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-                          partner.live
-                            ? "border-emerald-300/40 bg-emerald-300/10 text-emerald-200"
-                            : "border-white/15 bg-white/5 text-neutral-400"
-                        }`}
-                        title={partner.envVar ?? undefined}
-                      >
-                        {partner.live ? "live" : "stub"}
-                      </span>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h4 className="font-semibold text-white">{finding.label}</h4>
+                      <Badge tone={severityTone[finding.severity]}>{finding.severity}</Badge>
                     </div>
-                    <p className="mt-1 text-sm text-neutral-400">{partner.role}</p>
+                    <p className="mt-3 text-sm text-neutral-400">
+                      <span className="font-semibold text-neutral-300">Evidence:</span> {finding.evidence}
+                    </p>
+                    <p className="mt-2 text-sm text-cyan-100">
+                      <span className="font-semibold">Fix:</span> {finding.fix}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-cyan-300/30 bg-gradient-to-br from-cyan-300/[0.06] via-white/[0.03] to-transparent p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-lg font-semibold text-white">Proof pack</h3>
+                <Badge tone="cyan">DOCX</Badge>
+              </div>
+              <p className="mt-1 text-sm text-neutral-400">
+                The artifact a compliance officer keeps. Findings, redline summary, cognitive-risk
+                receipt, output + approval hashes, and the full audit trail — in one file.
+              </p>
+              <div className="mt-5 grid gap-2.5 sm:grid-cols-2">
+                {proofArtifacts.map((artifact) => (
+                  <div
+                    key={artifact}
+                    className="flex items-start gap-2 rounded-xl border border-white/10 bg-neutral-900/60 p-3 text-sm text-neutral-300"
+                  >
+                    <span className="mt-0.5 text-cyan-300">✓</span>
+                    <span>{artifact}</span>
                   </div>
                 ))}
               </div>
-              <p className="mt-4 text-xs text-neutral-500">
-                Set <code className="font-mono text-neutral-300">GEMINI_API_KEY</code>,{" "}
-                <code className="font-mono text-neutral-300">SPEECHMATICS_API_KEY</code>,{" "}
-                <code className="font-mono text-neutral-300">FEATHERLESS_API_KEY</code>, and{" "}
-                <code className="font-mono text-neutral-300">VULTR_DEPLOY</code> on the host to
-                flip each row from stub to live.
+              <a
+                href="/api/demo/milan/proof-pack"
+                className="mt-6 flex items-center justify-center gap-2 rounded-2xl bg-cyan-300 px-5 py-4 text-base font-semibold text-neutral-950 shadow-lg shadow-cyan-300/20 transition hover:bg-cyan-200"
+              >
+                Download proof pack (.docx)
+                <span aria-hidden>↓</span>
+              </a>
+              <p className="mt-3 text-center text-xs text-neutral-500">
+                Headers expose <code className="font-mono text-neutral-300">X-ProofPack-OutputHash</code> and
+                each partner&apos;s source so judges can verify the evidence chain from curl.
               </p>
             </div>
           </div>
         </section>
 
-        <section className="mt-8">
-          <CognitiveRiskTester initialText={MILAN_SCENARIO_TEXT} />
-        </section>
-
-        <section className="mt-8 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 lg:p-6">
-            <h2 className="text-2xl font-semibold text-white">Risk findings</h2>
-            <div className="mt-5 space-y-3">
-              {findings.map((finding) => (
-                <article key={finding.label} className="rounded-2xl border border-white/10 bg-neutral-900/70 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="font-semibold text-white">{finding.label}</h3>
-                    <Badge tone={finding.severity === "Critical" ? "rose" : finding.severity === "High" ? "amber" : "neutral"}>
-                      {finding.severity}
-                    </Badge>
-                  </div>
-                  <p className="mt-3 text-sm text-neutral-400">Evidence: {finding.evidence}</p>
-                  <p className="mt-2 text-sm text-cyan-100">Fix: {finding.fix}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 lg:p-6">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <h2 className="text-2xl font-semibold text-white">Proof pack queued</h2>
-                <p className="mt-1 text-sm text-neutral-400">
-                  This is the artifact judges should remember: evidence, not vibes.
-                </p>
-              </div>
-              <Badge tone="cyan">export gated</Badge>
-            </div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {proofArtifacts.map((artifact) => (
-                <div key={artifact} className="rounded-2xl border border-white/10 bg-neutral-900/70 p-4 text-sm text-neutral-300">
-                  <span className="mr-2 text-cyan-300">✓</span>
-                  {artifact}
+        {/* ─────────── PARTNER ROW ─────────── */}
+        <section className="mt-14">
+          <SectionHeader
+            eyebrow="Sponsor tracks"
+            title="Partner-category fit."
+            subtitle="Every integration is env-var driven. Set the keys on the host and the rows flip from stub to live."
+            chip="env-var driven"
+          />
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {partners.map((partner) => (
+              <article
+                key={partner.id}
+                className={`flex h-full flex-col rounded-2xl border p-5 transition ${
+                  partner.live
+                    ? "border-emerald-300/30 bg-emerald-300/[0.04]"
+                    : "border-white/10 bg-neutral-900/60"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-lg font-semibold text-white">{partner.name}</div>
+                  <span
+                    className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                      partner.live
+                        ? "border-emerald-300/40 bg-emerald-300/10 text-emerald-200"
+                        : "border-white/15 bg-white/5 text-neutral-400"
+                    }`}
+                    title={partner.envVar ?? undefined}
+                  >
+                    {partner.live ? "● live" : "○ stub"}
+                  </span>
                 </div>
-              ))}
-            </div>
-            <div className="mt-6 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4">
-              <div className="text-xs uppercase tracking-[0.25em] text-cyan-200">submission line</div>
-              <p className="mt-2 text-lg font-semibold text-white">
-                Most agents generate answers. XIO ProofOps generates defensible business evidence.
-              </p>
-            </div>
+                <p className="mt-3 flex-1 text-sm leading-relaxed text-neutral-400">{partner.role}</p>
+                {partner.envVar && (
+                  <p className="mt-4 font-mono text-[11px] text-neutral-500">
+                    {partner.envVar}
+                  </p>
+                )}
+              </article>
+            ))}
           </div>
         </section>
 
-        <section className="mt-8 rounded-3xl border border-white/10 bg-white/[0.03] p-5 lg:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-2xl font-semibold text-white">Live endpoints judges can poke</h2>
-              <p className="mt-1 text-sm text-neutral-400">
-                Every workflow step has a public route. Curl, devtools, or paste-into-Postman — same shape every time.
-              </p>
-            </div>
-            <Badge tone="cyan">no auth</Badge>
-          </div>
-          <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
+        {/* ─────────── LIVE ENDPOINTS ─────────── */}
+        <section className="mt-14 rounded-3xl border border-white/10 bg-white/[0.03] p-6 lg:p-8">
+          <SectionHeader
+            eyebrow="Technical evidence"
+            title="Live endpoints judges can poke."
+            subtitle="Every workflow step has a public route. Curl, devtools, Postman — same shape every time."
+            chip="no auth"
+            compact
+          />
+          <div className="mt-6 overflow-hidden rounded-2xl border border-white/10">
             <table className="w-full border-collapse text-left text-sm">
               <thead className="bg-neutral-900/80 text-xs uppercase tracking-wider text-neutral-400">
                 <tr>
@@ -329,14 +397,7 @@ export default function MilanDemoPage() {
                 </tr>
               </thead>
               <tbody className="text-neutral-300">
-                {[
-                  ["GET", "/api/demo/milan", "Deterministic workflow JSON + partner statuses."],
-                  ["POST", "/api/demo/milan/cognitive-risk", "BrainSNN score over arbitrary { text }."],
-                  ["GET", "/api/demo/milan/plan", "Gemini-planned review lanes (deterministic fallback)."],
-                  ["GET", "/api/demo/milan/redline", "Featherless safer-language edits (fallback safe)."],
-                  ["GET", "/api/demo/milan/transcribe", "Canonical voice transcript + Speechmatics auth ping."],
-                  ["GET", "/api/demo/milan/proof-pack", "DOCX proof pack with live partner output rolled in."],
-                ].map(([method, endpoint, desc]) => (
+                {endpoints.map(([method, endpoint, desc]) => (
                   <tr key={endpoint} className="border-t border-white/10 odd:bg-neutral-950/50">
                     <td className="px-4 py-3 font-mono text-xs text-cyan-200">{method}</td>
                     <td className="px-4 py-3 font-mono text-xs text-cyan-100">{endpoint}</td>
@@ -347,17 +408,60 @@ export default function MilanDemoPage() {
             </table>
           </div>
         </section>
-      </section>
+
+        {/* ─────────── CLOSING THESIS ─────────── */}
+        <section className="mt-14 overflow-hidden rounded-[2rem] border border-cyan-300/30 bg-[radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.22),_transparent_42%),linear-gradient(135deg,_rgba(15,23,42,0.98),_rgba(10,10,10,0.98))] p-8 text-center shadow-2xl shadow-cyan-950/30 lg:p-14">
+          <p className="text-xs font-semibold uppercase tracking-[0.4em] text-cyan-300">
+            submission line
+          </p>
+          <blockquote className="mx-auto mt-6 max-w-4xl text-2xl font-semibold leading-snug text-white sm:text-3xl lg:text-4xl">
+            &ldquo;{THESIS}&rdquo;
+          </blockquote>
+          <p className="mt-6 text-sm text-neutral-400">
+            Submission packet: <code className="font-mono text-neutral-300">docs/MILAN_SUBMISSION.md</code>{" "}
+            · Architecture brief: <code className="font-mono text-neutral-300">docs/HACKATHON_MILAN.md</code>
+          </p>
+        </section>
+      </div>
     </main>
+  );
+}
+
+function SectionHeader({
+  eyebrow,
+  title,
+  subtitle,
+  chip,
+  compact,
+}: {
+  eyebrow: string;
+  title: string;
+  subtitle?: string;
+  chip?: string;
+  compact?: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.35em] text-cyan-300">{eyebrow}</p>
+        <h2
+          className={`${compact ? "mt-2 text-2xl" : "mt-3 text-3xl sm:text-4xl"} font-semibold tracking-tight text-white`}
+        >
+          {title}
+        </h2>
+        {subtitle && <p className="mt-2 max-w-3xl text-sm leading-relaxed text-neutral-400">{subtitle}</p>}
+      </div>
+      {chip && <Badge tone="cyan">{chip}</Badge>}
+    </div>
   );
 }
 
 function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-neutral-950/60 p-3">
-      <div className="text-xs uppercase tracking-[0.22em] text-neutral-500">{label}</div>
+    <div className="rounded-xl border border-white/10 bg-neutral-950/60 p-4">
+      <div className="text-[10px] uppercase tracking-[0.25em] text-neutral-500">{label}</div>
       <div className="mt-1 text-2xl font-semibold text-white">{value}</div>
-      <div className="text-xs text-neutral-400">{detail}</div>
+      <div className="mt-1 text-xs text-neutral-400">{detail}</div>
     </div>
   );
 }

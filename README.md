@@ -101,7 +101,7 @@ Add `DATABASE_URL` and `NEXTAUTH_SECRET` when persistence and real auth are requ
 
 ```bash
 pnpm install
-pnpm test            # 533 tests across agents / cognition / web
+pnpm test            # 682 tests across agents / cognition / web
 pnpm -r typecheck
 pnpm --filter @compliance-ai/web build
 pnpm smoke:demo      # full route + endpoint smoke (source-packs, verify, export-redline)

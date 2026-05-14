@@ -45,6 +45,9 @@ Voice intelligence enters through **Speechmatics**: diarized sales / investor / 
 | `POST /api/demo/milan/cognitive-risk` `{text}` | Live BrainSNN score over any pasted text. |
 | `GET /api/demo/milan/plan` | Gemini-planned review lanes for the canonical scenario (deterministic fallback if `GEMINI_API_KEY` is unset). |
 | `POST /api/demo/milan/plan` `{text}` | Gemini-planned review lanes over arbitrary text. |
+| `GET /api/demo/milan/redline` | Featherless safer-language edits over the canonical scenario (deterministic fallback if `FEATHERLESS_API_KEY` is unset). |
+| `POST /api/demo/milan/redline` `{text}` | Featherless safer-language edits over arbitrary text. |
+| `GET /api/demo/milan/transcribe` | Canonical voice transcript + Speechmatics auth-ping when `SPEECHMATICS_API_KEY` is set. |
 | `GET /api/demo/milan/proof-pack` | Downloadable DOCX proof pack — the artifact judges walk away with. |
 | `GET /matters/new` | Full matter wizard — the production review path the demo route summarizes. |
 
@@ -60,7 +63,7 @@ Submission docs: `docs/HACKATHON_MILAN.md`, `docs/MILAN_SUBMISSION.md`
 - TypeScript, React 19, Tailwind v4
 - Postgres (Drizzle ORM) + in-memory preview stores
 - `docx` for OOXML proof-pack rendering
-- Vitest (663 tests passing)
+- Vitest (682 tests passing)
 - nixpacks build, Railway/Vultr-deployable
 
 ## Partner-track integrations
@@ -82,7 +85,7 @@ Without any keys the demo is still fully functional via the deterministic path �
 | **Presentation** | Workflow timeline, not a chatbot. Interactive BrainSNN tester. Downloadable DOCX evidence. 90-second video storyboard in `HACKATHON_MILAN.md`. |
 | **Business value / impact** | Regulated teams cannot ship AI output without a defensible audit trail. ProofOps is the proof chain. The DOCX pack is what a compliance officer actually keeps. |
 | **Originality** | Approval-gated, hash-bound, audit-ready proof workflow with cognitive-risk scoring as a layer existing compliance products do not have. |
-| **Technical implementation** | Next 16 build clean, 663 tests passing, smoke covers every Milan route including the DOCX binary, BrainSNN score derived from input text (not a constant). Graceful Gemini fallback so judges never see a 5xx. |
+| **Technical implementation** | Next 16 build clean, 682 tests passing, smoke covers every Milan route including the DOCX binary, BrainSNN score derived from input text (not a constant). Graceful Gemini fallback so judges never see a 5xx. |
 
 ## What to record (90 seconds)
 

@@ -3,6 +3,10 @@ import {
   MILAN_SCENARIO_TEXT,
   computeCognitiveRisk,
 } from "../../../lib/demo/cognitive-risk";
+import { getPartnerStatuses } from "../../../lib/demo/partner-status";
+import { CognitiveRiskTester } from "./CognitiveRiskTester";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "XIO ProofOps Agent | Milan AI Week",
@@ -90,25 +94,6 @@ const findings = [
   },
 ] as const;
 
-const partnerFit = [
-  [
-    "Vultr",
-    "Enterprise-grade Next.js workload — regionally placed, healthchecked, deployable as a private compliance plane.",
-  ],
-  [
-    "Gemini",
-    "Planner and multimodal reasoning layer — structured-output JSON for review lanes, grounded analysis over deck + transcript.",
-  ],
-  [
-    "Speechmatics",
-    "Voice intelligence — diarized transcripts with confidence metadata for sales, investor, and compliance calls.",
-  ],
-  [
-    "Featherless",
-    "Open-weights inference for sovereign, auditable review lanes where firms cannot send claim text to a closed API.",
-  ],
-] as const;
-
 const proofArtifacts = [
   "Risk-ranked claim table",
   "BrainSNN cognitive-risk receipt",
@@ -119,6 +104,7 @@ const proofArtifacts = [
 ] as const;
 
 export default function MilanDemoPage() {
+  const partners = getPartnerStatuses();
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100">
       <section className="mx-auto max-w-7xl px-6 py-10 lg:py-14">
@@ -233,17 +219,48 @@ export default function MilanDemoPage() {
             </div>
 
             <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 lg:p-6">
-              <h2 className="text-2xl font-semibold text-white">Partner-category fit</h2>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-2xl font-semibold text-white">Partner-category fit</h2>
+                <span className="text-xs uppercase tracking-[0.25em] text-neutral-500">
+                  env-var driven
+                </span>
+              </div>
               <div className="mt-5 grid gap-3">
-                {partnerFit.map(([name, detail]) => (
-                  <div key={name} className="rounded-2xl border border-white/10 bg-neutral-900/70 p-4">
-                    <div className="font-semibold text-cyan-200">{name}</div>
-                    <p className="mt-1 text-sm text-neutral-400">{detail}</p>
+                {partners.map((partner) => (
+                  <div
+                    key={partner.id}
+                    className="rounded-2xl border border-white/10 bg-neutral-900/70 p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="font-semibold text-cyan-200">{partner.name}</div>
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                          partner.live
+                            ? "border-emerald-300/40 bg-emerald-300/10 text-emerald-200"
+                            : "border-white/15 bg-white/5 text-neutral-400"
+                        }`}
+                        title={partner.envVar ?? undefined}
+                      >
+                        {partner.live ? "live" : "stub"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-neutral-400">{partner.role}</p>
                   </div>
                 ))}
               </div>
+              <p className="mt-4 text-xs text-neutral-500">
+                Set <code className="font-mono text-neutral-300">GEMINI_API_KEY</code>,{" "}
+                <code className="font-mono text-neutral-300">SPEECHMATICS_API_KEY</code>,{" "}
+                <code className="font-mono text-neutral-300">FEATHERLESS_API_KEY</code>, and{" "}
+                <code className="font-mono text-neutral-300">VULTR_DEPLOY</code> on the host to
+                flip each row from stub to live.
+              </p>
             </div>
           </div>
+        </section>
+
+        <section className="mt-8">
+          <CognitiveRiskTester initialText={MILAN_SCENARIO_TEXT} />
         </section>
 
         <section className="mt-8 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">

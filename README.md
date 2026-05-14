@@ -1,5 +1,7 @@
 # XIO Compliance Brain
 
+> **Milan AI Week hackathon submission lives at `/demo/milan`** — see [`docs/MILAN_SUBMISSION.md`](docs/MILAN_SUBMISSION.md) for the one-pager and [`docs/HACKATHON_MILAN.md`](docs/HACKATHON_MILAN.md) for the architecture brief + 90-second video storyboard.
+
 Canadian legal workbench. A lawyer drops a document, picks what kind of review they want, gets structured AI-assisted output grounded in Canadian law, verifies every citation, and exports a filed-work-product-ready DOCX — with a full audit trail from the first prompt to the final file.
 
 ## What a lawyer does (5 steps)

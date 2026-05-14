@@ -141,9 +141,21 @@ How each piece of the submission lands against the standard lablab.ai rubric:
 - Milan route coverage in `scripts/smoke-demo.mjs` — page, JSON contract (product, 8 steps, partner-fit keys, derived BrainSNN score, dimensions, proof-pack URL), and DOCX download (content-type, filename, size).
 - Submission brief, 90-second video storyboard, and judging-criteria mapping (this doc).
 
-## Next build pass (credentialed)
+## What this PR delivers — partner integrations
 
-1. Live Gemini planner call behind `GEMINI_API_KEY`, with deterministic fallback so smoke tests stay credential-free.
-2. Speechmatics audio-upload boundary behind `SPEECHMATICS_API_KEY` — accepts a clip, returns transcript, feeds the workflow.
-3. Featherless-routed Redline Agent behind `FEATHERLESS_API_KEY` — open-weights inference for sovereign lanes.
-4. Vultr deploy URL pinned in this doc + the submission entry on lablab.
+All four sponsor tracks now have live, env-gated providers with graceful deterministic fallback:
+
+| Partner | Endpoint | Env vars | Live when set |
+|---|---|---|---|
+| **Gemini** | `GET\|POST /api/demo/milan/plan` | `GEMINI_API_KEY` (+ optional `GEMINI_MODEL`) | Planner returns `source: "gemini"` with structured-output JSON. Bad responses / 4xx / 5xx / timeout fall back to deterministic with the error captured. |
+| **Featherless** | `GET\|POST /api/demo/milan/redline` | `FEATHERLESS_API_KEY` (+ `FEATHERLESS_MODEL`, `FEATHERLESS_BASE_URL`) | Redline drafter returns `source: "featherless"`. Same fallback contract. |
+| **Speechmatics** | `GET /api/demo/milan/transcribe` | `SPEECHMATICS_API_KEY` (+ `SPEECHMATICS_BASE_URL`) | Auth-ping against `/v2/jobs` runs per request; response carries `auth.{ok,status,error,latencyMs}` and `source: "speechmatics"` when verified. |
+| **Vultr** | (hosting — no runtime API call) | `VULTR_DEPLOY` or `VULTR_API_KEY` | Partner row lights up. Vultr's control-plane key is NEVER called from request handlers — keep it in CI / deploy tooling only. |
+
+The DOCX proof pack rolls each partner's live output into the artifact (plan section labels the model + latency, redline section pairs before/after with the model that drafted it, transcript section reports auth status). `X-ProofPack-{Plan,Redline,Transcript}-Source` headers expose the same info to curl.
+
+## Next build pass
+
+1. Speechmatics live audio upload + batch-job polling (right now we ship the auth-ping path and the canonical transcript; the upload UI is the credentialed next pass).
+2. Vultr autoscaling / multi-region deploy story written up in `docs/DEPLOY_VULTR.md`.
+3. Production OAuth + tenant isolation hardening (out of scope for the hackathon window).

@@ -26,11 +26,13 @@ export function getPartnerStatuses(
     {
       id: "vultr",
       name: "Vultr",
-      // Vultr is presence-of-deploy, not a key — we mark it live when
-      // the app is running on a Vultr host or when an explicit marker
-      // env var is set in the deploy.
+      // Vultr's role is hosting, not a runtime API call — we mark it
+      // live when the deploy is tagged via VULTR_DEPLOY or the operator
+      // has set VULTR_API_KEY (used by their CI / deploy tooling, not
+      // the running app — never call Vultr's control-plane API from
+      // request handlers).
       envVar: "VULTR_DEPLOY",
-      live: Boolean(env.VULTR_DEPLOY),
+      live: Boolean(env.VULTR_DEPLOY) || Boolean(env.VULTR_API_KEY),
       role: "Enterprise compliance plane — regional, healthchecked, private.",
     },
     {

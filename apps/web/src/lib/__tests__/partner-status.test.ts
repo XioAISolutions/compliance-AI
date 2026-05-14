@@ -34,6 +34,12 @@ describe("getPartnerStatuses", () => {
     expect(result.every((p) => p.live)).toBe(true);
   });
 
+  it("VULTR_API_KEY also activates the Vultr row", () => {
+    const result = getPartnerStatuses({ VULTR_API_KEY: "abc" });
+    const vultr = result.find((p) => p.id === "vultr")!;
+    expect(vultr.live).toBe(true);
+  });
+
   it("does not activate Gemini for empty-string key", () => {
     const result = getPartnerStatuses({ GEMINI_API_KEY: "" });
     const gemini = result.find((p) => p.id === "gemini")!;

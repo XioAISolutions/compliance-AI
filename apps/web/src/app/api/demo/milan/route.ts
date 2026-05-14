@@ -3,6 +3,9 @@ import {
   MILAN_SCENARIO_TEXT,
   computeCognitiveRisk,
 } from "../../../../lib/demo/cognitive-risk";
+import { getPartnerStatuses } from "../../../../lib/demo/partner-status";
+
+export const dynamic = "force-dynamic";
 
 const cognitiveRisk = computeCognitiveRisk(MILAN_SCENARIO_TEXT);
 
@@ -20,12 +23,8 @@ const demoRun = {
     claim: "Protected returns, limited spots, AI-reviewed onboarding, and instant approval.",
     text: MILAN_SCENARIO_TEXT,
   },
-  partnerFit: {
-    vultr: "Enterprise-grade Next.js workload — regionally placed, healthchecked, and deployable as a private compliance plane.",
-    gemini: "Gemini powers the planner and multimodal reasoning step: structured-output JSON for review lanes, grounded analysis over deck + transcript context.",
-    speechmatics: "Speechmatics ingests sales, investor, and compliance calls — diarized transcripts with confidence metadata feed the same proof workflow.",
-    featherless: "Featherless serves open-weights review models for sovereign, auditable lanes where firms cannot send claim text to a closed API.",
-  },
+  // partnerFit is rebuilt per-request in the handler so it reflects
+  // which sponsor keys are configured on the deploy.
   workflow: [
     {
       step: 1,
@@ -117,9 +116,23 @@ const demoRun = {
 };
 
 export async function GET() {
-  return NextResponse.json(demoRun, {
+  const partners = getPartnerStatuses();
+  const partnerFit = Object.fromEntries(
+    partners.map((p) => [p.id, p.role]),
+  );
+  const body = {
+    ...demoRun,
+    partnerFit,
+    partners: partners.map((p) => ({
+      id: p.id,
+      name: p.name,
+      live: p.live,
+      role: p.role,
+    })),
+  };
+  return NextResponse.json(body, {
     headers: {
-      "Cache-Control": "public, max-age=60",
+      "Cache-Control": "no-store",
     },
   });
 }

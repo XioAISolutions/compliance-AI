@@ -42,6 +42,7 @@ Voice intelligence enters through **Speechmatics**: diarized sales / investor / 
 |---|---|
 | `GET /demo/milan` | Judge surface — workflow timeline, BrainSNN risk bars, partner-status, interactive risk tester, download button. |
 | `GET /api/demo/milan` | Deterministic JSON: scenario, 8-step workflow, findings, BrainSNN, partner statuses, proof-pack URL. |
+| `GET /api/demo/milan/scenario` | Raw deck / transcript / claim text — what BrainSNN scored against. |
 | `POST /api/demo/milan/cognitive-risk` `{text}` | Live BrainSNN score over any pasted text. |
 | `GET /api/demo/milan/plan` | Gemini-planned review lanes for the canonical scenario (deterministic fallback if `GEMINI_API_KEY` is unset). |
 | `POST /api/demo/milan/plan` `{text}` | Gemini-planned review lanes over arbitrary text. |

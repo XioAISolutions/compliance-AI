@@ -28,6 +28,7 @@ const routes = [
   "/api/healthcheck",
   "/api/agents",
   "/api/demo/milan",
+  "/api/demo/milan/scenario",
   "/api/demo/milan/proof-pack",
   "/api/demo/milan/plan",
   "/api/demo/milan/redline",
@@ -92,6 +93,30 @@ async function milanProofOpsSmoke() {
     }
   }
   console.log(`ok /api/demo/milan (${body.workflow.length} agent steps, BrainSNN ${body.brainSnnRisk.score}, partners ${body.partners.filter((p) => p.live).length}/${body.partners.length} live)`);
+
+  // Scenario raw-inputs endpoint — backs the "view raw inputs" link
+  // on /demo/milan. Three artifacts (deck / transcript / claim), the
+  // same derived cognitive-risk number the page shows, headline claim.
+  const scenarioRes = await fetch(`${baseUrl}/api/demo/milan/scenario`);
+  if (scenarioRes.status !== 200) {
+    throw new Error(`/api/demo/milan/scenario returned ${scenarioRes.status}: ${await scenarioRes.text()}`);
+  }
+  const scenarioBody = await scenarioRes.json();
+  if (!Array.isArray(scenarioBody.artifacts) || scenarioBody.artifacts.length !== 3) {
+    throw new Error(`/api/demo/milan/scenario artifacts wrong: ${JSON.stringify(scenarioBody.artifacts)}`);
+  }
+  const sources = new Set(scenarioBody.artifacts.map((a) => a.source));
+  for (const expected of ["deck", "transcript", "claim"]) {
+    if (!sources.has(expected)) {
+      throw new Error(`/api/demo/milan/scenario missing artifact source ${expected}`);
+    }
+  }
+  if (scenarioBody.cognitiveRisk?.score !== body.brainSnnRisk?.score) {
+    throw new Error(
+      `/api/demo/milan/scenario cognitiveRisk.score (${scenarioBody.cognitiveRisk?.score}) does not match /api/demo/milan brainSnnRisk.score (${body.brainSnnRisk?.score})`,
+    );
+  }
+  console.log(`ok /api/demo/milan/scenario (${scenarioBody.artifacts.length} artifacts, score=${scenarioBody.cognitiveRisk.score})`);
 
   // Proof-pack DOCX download — the artifact judges should walk away
   // with. Confirms binary path, headers, and that the docx renderer

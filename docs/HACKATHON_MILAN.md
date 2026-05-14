@@ -105,11 +105,17 @@ This turns the project from a legal app into a broader enterprise proof system f
 - Partner fit is explicit for Vultr, Gemini, Speechmatics, and Featherless.
 - Export remains framed as approval-gated and audit-ready.
 
+## What this PR delivers
+
+- `/demo/milan` judge surface with the 8-step proof workflow, BrainSNN risk layer, findings, partner-fit cards, and proof-pack summary.
+- `/api/demo/milan` deterministic JSON for smoke tests and judges.
+- Milan ProofOps link wired into the root cockpit (`HomeCockpit.tsx`).
+- Milan route coverage in `scripts/smoke-demo.mjs` (page + API contract: product, 8 workflow steps, partner-fit keys, BrainSNN score).
+- This submission brief.
+
 ## Next build pass
 
-1. Wire the Milan route into the root navigation.
-2. Add a transcript paste/upload path in the real matter wizard.
-3. Add a Gemini planner provider wrapper.
-4. Add a Speechmatics adapter boundary.
-5. Add a real BrainSNN scoring helper that can run over claims and transcript excerpts.
-6. Add Milan route coverage to `scripts/smoke-demo.mjs`.
+1. Add a transcript paste/upload path in the real matter wizard.
+2. Add a Gemini planner provider wrapper.
+3. Add a Speechmatics adapter boundary.
+4. Add a real BrainSNN scoring helper that can run over claims and transcript excerpts.

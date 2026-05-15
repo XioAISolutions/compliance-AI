@@ -143,8 +143,47 @@ const severityBorder: Record<(typeof findings)[number]["severity"], string> = {
 
 export default function MilanDemoPage() {
   const partners = getPartnerStatuses();
+  // JSON-LD lets search crawlers and LLM agents describe the submission
+  // accurately without scraping the cyan-on-neutral hero. The thesis is
+  // the headline so an answer engine asked "what is XIO ProofOps?"
+  // returns the differentiator, not the marketing tagline.
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "XIO ProofOps Agent",
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web",
+    description: THESIS,
+    url: "/demo/milan",
+    creator: { "@type": "Organization", name: "XIO AI Solutions" },
+    audience: {
+      "@type": "Audience",
+      audienceType: "Compliance, legal, and regulated-industry teams",
+    },
+    featureList: [
+      "Autonomous compliance review workflow",
+      "BrainSNN cognitive-risk scoring derived from input text",
+      "Hash-bound human approval gate",
+      "DOCX proof-pack export",
+      "Citation verification against authority corpus",
+      "Sovereign-lane open-weights inference via Featherless",
+      "Voice-call ingestion via Speechmatics",
+      "Gemini-backed multimodal planner",
+    ],
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+      availability: "https://schema.org/InStock",
+    },
+  };
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100">
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <div className="mx-auto max-w-7xl px-6 py-10 lg:py-14">
         {/* ─────────── HERO ─────────── */}
         <section className="relative overflow-hidden rounded-[2rem] border border-cyan-400/20 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.22),_transparent_34%),linear-gradient(135deg,_rgba(15,23,42,0.98),_rgba(10,10,10,0.98))] p-6 shadow-2xl shadow-cyan-950/30 lg:p-12">

@@ -98,6 +98,7 @@ export async function redline(
           { role: "user", content: text },
         ],
         response_format: { type: "json_object" },
+        max_tokens: 512,
         temperature: 0.2,
       }),
       signal: AbortSignal.timeout(15_000),

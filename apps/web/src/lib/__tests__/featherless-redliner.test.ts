@@ -38,6 +38,7 @@ describe("featherless-redliner", () => {
 
   describe("redline() — Featherless request", () => {
     it("caps output tokens for chat completions", async () => {
+      const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
       const fetchMock = vi.fn(
         async (_input: RequestInfo | URL, _init?: RequestInit) =>
           Response.json({
@@ -70,6 +71,7 @@ describe("featherless-redliner", () => {
       expect(JSON.parse(String(init?.body))).toMatchObject({
         max_tokens: 512,
       });
+      expect(timeoutSpy).toHaveBeenCalledWith(30_000);
     });
   });
 });

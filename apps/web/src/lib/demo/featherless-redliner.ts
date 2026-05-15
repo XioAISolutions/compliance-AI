@@ -32,6 +32,7 @@ export interface RedlineResult {
 
 const DEFAULT_MODEL = "meta-llama/Meta-Llama-3.1-8B-Instruct";
 const DEFAULT_BASE_URL = "https://api.featherless.ai/v1";
+const FEATHERLESS_TIMEOUT_MS = 30_000;
 
 const DETERMINISTIC_EDITS: RedlineEdit[] = [
   {
@@ -101,7 +102,7 @@ export async function redline(
         max_tokens: 512,
         temperature: 0.2,
       }),
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(FEATHERLESS_TIMEOUT_MS),
     });
 
     if (!res.ok) {

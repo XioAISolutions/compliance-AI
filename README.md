@@ -1,6 +1,11 @@
 # XIO Compliance Brain
 
-> **Milan AI Week hackathon submission lives at `/demo/milan`** — see [`docs/MILAN_SUBMISSION.md`](docs/MILAN_SUBMISSION.md) for the one-pager and [`docs/HACKATHON_MILAN.md`](docs/HACKATHON_MILAN.md) for the architecture brief + 90-second video storyboard.
+> **Active hackathon submission — Milan AI Week:** the **XIO ProofOps Agent** demo lives at `/demo/milan`. See [`docs/MILAN_SUBMISSION.md`](docs/MILAN_SUBMISSION.md) for the one-pager and [`docs/HACKATHON_MILAN.md`](docs/HACKATHON_MILAN.md) for the architecture brief + 90-second video storyboard.
+>
+> **Prior hackathon submission — AMD MI300X:** the Triad Review Engine demo lives on
+> branch [`feat/amd-mi300x-vllm`](https://github.com/XioAISolutions/compliance-AI/tree/feat/amd-mi300x-vllm).
+> Start with the [90-second judge demo](https://compliance-ai-amd-demo-production.up.railway.app/demo/judge),
+> then inspect the [release assets](https://github.com/XioAISolutions/compliance-AI/releases/tag/v1.0.0-amd-hackathon-submission).
 
 Canadian legal workbench. A lawyer drops a document, picks what kind of review they want, gets structured AI-assisted output grounded in Canadian law, verifies every citation, and exports a filed-work-product-ready DOCX — with a full audit trail from the first prompt to the final file.
 

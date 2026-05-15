@@ -5,23 +5,39 @@
  * not decoration. A judge pastes any text and watches the four
  * dimensions + composite update against POST /api/demo/milan/cognitive-risk.
  *
- * Kept intentionally narrow: no streaming, no debouncing, no fancy
- * state machine. The user types, hits "Re-score", we hit the endpoint,
- * we render the dimensions. That's the whole product surface this
- * component is meant to expose.
+ * Once a score lands, the "Rewrite via Featherless" button appears.
+ * Clicking it routes the same text through Featherless (POST
+ * /api/demo/milan/rewrite) for safer-language edits, re-scores the
+ * concatenated rewrite, and shows the before/after risk pair so the
+ * full proof loop runs in one click — measure → rewrite → re-measure.
  */
 
 import { useState, useTransition } from "react";
 
+interface Dimensions {
+  emotionalActivation: number;
+  certaintyPressure: number;
+  trustErosion: number;
+  urgencyCompression: number;
+}
+
 interface RiskResult {
   score: number;
-  dimensions: {
-    emotionalActivation: number;
-    certaintyPressure: number;
-    trustErosion: number;
-    urgencyCompression: number;
-  };
+  dimensions: Dimensions;
   inputLength: number;
+}
+
+interface RewriteResult {
+  before: { text: string; cognitiveRisk: { score: number; dimensions: Dimensions } };
+  after: { text: string; cognitiveRisk: { score: number; dimensions: Dimensions } };
+  redline: {
+    source: "featherless" | "deterministic";
+    model: string;
+    latencyMs: number;
+    edits: Array<{ before: string; after: string; reason: string }>;
+    error?: string;
+  };
+  delta: { score: number; dimensions: Dimensions };
 }
 
 const SAMPLES: ReadonlyArray<{ label: string; text: string }> = [
@@ -42,11 +58,14 @@ const SAMPLES: ReadonlyArray<{ label: string; text: string }> = [
 export function CognitiveRiskTester({ initialText }: { initialText: string }) {
   const [text, setText] = useState(initialText);
   const [result, setResult] = useState<RiskResult | null>(null);
+  const [rewrite, setRewrite] = useState<RewriteResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [scoring, startScoring] = useTransition();
+  const [rewriting, startRewriting] = useTransition();
 
   const score = async (input: string) => {
     setError(null);
+    setRewrite(null);
     try {
       const res = await fetch("/api/demo/milan/cognitive-risk", {
         method: "POST",
@@ -61,6 +80,25 @@ export function CognitiveRiskTester({ initialText }: { initialText: string }) {
       if ("score" in body) setResult(body);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error");
+    }
+  };
+
+  const runRewrite = async (input: string) => {
+    setError(null);
+    try {
+      const res = await fetch("/api/demo/milan/rewrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: input }),
+      });
+      const body = (await res.json()) as RewriteResult | { error: string };
+      if (!res.ok) {
+        setError("error" in body ? body.error : `Rewrite failed (${res.status})`);
+        return;
+      }
+      if ("before" in body) setRewrite(body);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Rewrite network error");
     }
   };
 
@@ -86,7 +124,7 @@ export function CognitiveRiskTester({ initialText }: { initialText: string }) {
             type="button"
             onClick={() => {
               setText(sample.text);
-              startTransition(() => {
+              startScoring(() => {
                 void score(sample.text);
               });
             }}
@@ -106,18 +144,35 @@ export function CognitiveRiskTester({ initialText }: { initialText: string }) {
       />
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm">
-        <button
-          type="button"
-          onClick={() =>
-            startTransition(() => {
-              void score(text);
-            })
-          }
-          disabled={pending || text.trim().length === 0}
-          className="rounded-full bg-cyan-300 px-4 py-2 font-semibold text-neutral-950 hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {pending ? "Scoring…" : "Re-score"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              startScoring(() => {
+                void score(text);
+              })
+            }
+            disabled={scoring || text.trim().length === 0}
+            className="rounded-full bg-cyan-300 px-4 py-2 font-semibold text-neutral-950 hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {scoring ? "Scoring…" : "Re-score"}
+          </button>
+          {result && (
+            <button
+              type="button"
+              onClick={() =>
+                startRewriting(() => {
+                  void runRewrite(text);
+                })
+              }
+              disabled={rewriting || text.trim().length === 0}
+              className="rounded-full border border-cyan-300/40 bg-cyan-300/10 px-4 py-2 font-semibold text-cyan-100 hover:bg-cyan-300/20 disabled:cursor-not-allowed disabled:opacity-50"
+              title="Route this text through Featherless for safer-language edits, then re-score."
+            >
+              {rewriting ? "Rewriting…" : "Rewrite via Featherless →"}
+            </button>
+          )}
+        </div>
         <span className="text-xs text-neutral-500">
           POST /api/demo/milan/cognitive-risk · {text.length} chars
         </span>
@@ -143,6 +198,93 @@ export function CognitiveRiskTester({ initialText }: { initialText: string }) {
           </div>
         </div>
       )}
+
+      {rewrite && (
+        <div className="mt-6 space-y-4 rounded-2xl border border-cyan-300/30 bg-cyan-300/5 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="font-semibold uppercase tracking-[0.25em] text-cyan-200">
+              Featherless rewrite · {rewrite.redline.source} · {rewrite.redline.model}
+            </div>
+            <div className="text-neutral-400">
+              {rewrite.redline.latencyMs}ms · {rewrite.redline.edits.length} edits
+              {rewrite.redline.error ? ` · fallback: ${rewrite.redline.error.slice(0, 60)}` : ""}
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <BeforeAfterCard
+              label="Before"
+              risk={rewrite.before.cognitiveRisk}
+              tone="rose"
+            />
+            <BeforeAfterCard
+              label="After"
+              risk={rewrite.after.cognitiveRisk}
+              tone="emerald"
+              delta={rewrite.delta.score}
+            />
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-neutral-950/80 p-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400">
+              Safer-language rewrite (concatenated)
+            </div>
+            <p className="mt-2 text-sm leading-relaxed text-neutral-200">{rewrite.after.text}</p>
+          </div>
+
+          {rewrite.redline.edits.length > 0 && (
+            <details className="rounded-xl border border-white/10 bg-neutral-950/60 p-3 text-sm">
+              <summary className="cursor-pointer font-semibold text-neutral-200">
+                Show {rewrite.redline.edits.length} edits
+              </summary>
+              <ul className="mt-3 space-y-3">
+                {rewrite.redline.edits.map((edit, i) => (
+                  <li key={i} className="border-l-2 border-cyan-300/40 pl-3 text-xs">
+                    <div className="text-rose-200">— {edit.before}</div>
+                    <div className="mt-1 text-emerald-200">+ {edit.after}</div>
+                    <div className="mt-1 text-neutral-500 italic">{edit.reason}</div>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BeforeAfterCard({
+  label,
+  risk,
+  tone,
+  delta,
+}: {
+  label: string;
+  risk: { score: number; dimensions: Dimensions };
+  tone: "rose" | "emerald";
+  delta?: number;
+}) {
+  const scoreColor = tone === "rose" ? "text-rose-300" : "text-emerald-300";
+  return (
+    <div className="rounded-xl border border-white/10 bg-neutral-950/80 p-3">
+      <div className="flex items-baseline justify-between">
+        <div className="text-xs font-semibold uppercase tracking-[0.25em] text-neutral-400">
+          {label}
+        </div>
+        {typeof delta === "number" && delta !== 0 && (
+          <div className="text-xs font-semibold text-emerald-300">
+            {delta > 0 ? `−${delta}` : `+${Math.abs(delta)}`}
+          </div>
+        )}
+      </div>
+      <div className={`mt-1 text-3xl font-semibold ${scoreColor}`}>{risk.score}</div>
+      <div className="mt-2 space-y-1.5">
+        <Bar label="Emotional" value={risk.dimensions.emotionalActivation} />
+        <Bar label="Certainty" value={risk.dimensions.certaintyPressure} />
+        <Bar label="Trust" value={risk.dimensions.trustErosion} />
+        <Bar label="Urgency" value={risk.dimensions.urgencyCompression} />
+      </div>
     </div>
   );
 }

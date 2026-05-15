@@ -125,6 +125,7 @@ const endpoints = [
   ["POST", "/api/demo/milan/cognitive-risk", "BrainSNN score over arbitrary { text }."],
   ["GET", "/api/demo/milan/plan", "Gemini-planned review lanes (deterministic fallback)."],
   ["GET", "/api/demo/milan/redline", "Featherless safer-language edits (fallback safe)."],
+  ["POST", "/api/demo/milan/rewrite", "Full loop — score, rewrite via Featherless, re-score, return delta."],
   ["GET", "/api/demo/milan/transcribe", "Canonical voice transcript + Speechmatics auth ping."],
   ["GET", "/api/demo/milan/proof-pack", "DOCX proof pack with live partner output rolled in."],
 ] as const;

@@ -201,6 +201,50 @@ async function milanProofOpsSmoke() {
   );
   console.log(`ok /api/demo/milan/cognitive-risk (score=${liveBody.score}, urgency=${liveBody.dimensions.urgencyCompression})`);
 
+  // Rewrite-and-rescore loop — the full proof beat. Ties Featherless
+  // (or its deterministic fallback) to the BrainSNN scorer and
+  // returns the delta. Smoke pins the shape so a regression in either
+  // helper breaks here before judges see it.
+  const rewriteRes = await fetch(`${baseUrl}/api/demo/milan/rewrite`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text: "Protected returns. Guaranteed performance — risk-free. Limited spots. Closing today. Act now.",
+    }),
+  });
+  if (rewriteRes.status !== 200) {
+    throw new Error(`/api/demo/milan/rewrite returned ${rewriteRes.status}: ${await rewriteRes.text()}`);
+  }
+  const rewriteBody = await rewriteRes.json();
+  if (typeof rewriteBody.before?.cognitiveRisk?.score !== "number") {
+    throw new Error(`/api/demo/milan/rewrite missing before.cognitiveRisk.score: ${JSON.stringify(rewriteBody)}`);
+  }
+  if (typeof rewriteBody.after?.cognitiveRisk?.score !== "number") {
+    throw new Error(`/api/demo/milan/rewrite missing after.cognitiveRisk.score: ${JSON.stringify(rewriteBody)}`);
+  }
+  if (!Array.isArray(rewriteBody.redline?.edits) || rewriteBody.redline.edits.length === 0) {
+    throw new Error(`/api/demo/milan/rewrite no edits: ${JSON.stringify(rewriteBody.redline)}`);
+  }
+  if (!["featherless", "deterministic"].includes(rewriteBody.redline.source)) {
+    throw new Error(`/api/demo/milan/rewrite bad redline source: ${rewriteBody.redline.source}`);
+  }
+  if (typeof rewriteBody.delta?.score !== "number") {
+    throw new Error(`/api/demo/milan/rewrite missing delta.score: ${JSON.stringify(rewriteBody.delta)}`);
+  }
+  // Bad bodies (missing/empty text) → 400.
+  await expectStatus(
+    `/api/demo/milan/rewrite`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    },
+    400,
+  );
+  console.log(
+    `ok /api/demo/milan/rewrite (source=${rewriteBody.redline.source}, ${rewriteBody.before.cognitiveRisk.score}→${rewriteBody.after.cognitiveRisk.score}, Δ=${rewriteBody.delta.score})`,
+  );
+
   // Planner — works in both Gemini and deterministic modes. Smoke
   // just verifies the contract; the source field reflects which
   // backend served the response on the deploy under test.

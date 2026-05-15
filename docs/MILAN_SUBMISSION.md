@@ -64,7 +64,7 @@ Submission docs: `docs/HACKATHON_MILAN.md`, `docs/MILAN_SUBMISSION.md`
 - TypeScript, React 19, Tailwind v4
 - Postgres (Drizzle ORM) + in-memory preview stores
 - `docx` for OOXML proof-pack rendering
-- Vitest (686 tests passing)
+- Vitest (687 tests passing)
 - nixpacks build, Railway/Vultr-deployable
 
 ## Partner-track integrations
@@ -86,7 +86,7 @@ Without any keys the demo is still fully functional via the deterministic path â
 | **Presentation** | Workflow timeline, not a chatbot. Interactive BrainSNN tester. Downloadable DOCX evidence. 90-second video storyboard in `HACKATHON_MILAN.md`. |
 | **Business value / impact** | Regulated teams cannot ship AI output without a defensible audit trail. ProofOps is the proof chain. The DOCX pack is what a compliance officer actually keeps. |
 | **Originality** | Approval-gated, hash-bound, audit-ready proof workflow with cognitive-risk scoring as a layer existing compliance products do not have. |
-| **Technical implementation** | Next 16 build clean, 686 tests passing, smoke covers every Milan route including the DOCX binary, BrainSNN score derived from input text (not a constant). Graceful Gemini fallback so judges never see a 5xx. |
+| **Technical implementation** | Next 16 build clean, 687 tests passing, smoke covers every Milan route including the DOCX binary, BrainSNN score derived from input text (not a constant). Graceful Gemini fallback so judges never see a 5xx. |
 
 ## What to record (90 seconds)
 

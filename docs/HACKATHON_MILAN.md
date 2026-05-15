@@ -123,7 +123,7 @@ How each piece of the submission lands against the standard lablab.ai rubric:
 | **Presentation** | `/demo/milan` is shaped as a workflow timeline, not a chatbot. 90-second video follows the storyboard above. Submission line is consistent across page, doc, and DOCX. |
 | **Business value / impact** | Regulated industries cannot ship AI output without evidence the output can be defended. ProofOps is the proof chain, not the draft. The DOCX proof pack is the shipping artifact a compliance officer would actually keep. |
 | **Originality** | The thesis is the differentiator. Most hackathon entries are "chat with X" — this is "approval-gated, hash-bound, audit-ready proof workflow," with cognitive-risk scoring as a layer existing compliance products do not have. |
-| **Technical implementation** | Builds cleanly on Next 16, 686 unit tests pass, smoke covers `/demo/milan`, `/api/demo/milan`, and `/api/demo/milan/proof-pack`. BrainSNN score is derived from text via `computeCognitiveRisk` — a judge opening devtools can see real computation, not a constant. Approval gate is wired and tested. |
+| **Technical implementation** | Builds cleanly on Next 16, 687 unit tests pass, smoke covers `/demo/milan`, `/api/demo/milan`, and `/api/demo/milan/proof-pack`. BrainSNN score is derived from text via `computeCognitiveRisk` — a judge opening devtools can see real computation, not a constant. Approval gate is wired and tested. |
 
 ## Build acceptance checklist
 

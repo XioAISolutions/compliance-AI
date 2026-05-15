@@ -30,6 +30,7 @@ const routes = [
   "/api/demo/milan",
   "/api/demo/milan/scenario",
   "/api/demo/milan/proof-pack",
+  "/demo/milan/opengraph-image",
   "/api/demo/milan/plan",
   "/api/demo/milan/redline",
   "/api/demo/milan/transcribe",
@@ -138,6 +139,30 @@ async function milanProofOpsSmoke() {
     throw new Error(`/api/demo/milan/proof-pack suspiciously small: ${buf.byteLength} bytes`);
   }
   console.log(`ok /api/demo/milan/proof-pack (${buf.byteLength} bytes)`);
+
+  // OG / Twitter card — `next/og` regressions tend to silently render
+  // a near-empty PNG, so assert the magic bytes + a minimum size that
+  // means the layout actually composed something.
+  const og = await fetch(`${baseUrl}/demo/milan/opengraph-image`);
+  if (og.status !== 200) {
+    throw new Error(`/demo/milan/opengraph-image returned ${og.status}: ${await og.text()}`);
+  }
+  const ogCt = og.headers.get("content-type") ?? "";
+  if (!ogCt.includes("image/png")) {
+    throw new Error(`OG image wrong content-type: ${ogCt}`);
+  }
+  const ogBuf = new Uint8Array(await og.arrayBuffer());
+  // PNG magic: 89 50 4E 47 0D 0A 1A 0A
+  const pngMagic = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  for (let i = 0; i < pngMagic.length; i++) {
+    if (ogBuf[i] !== pngMagic[i]) {
+      throw new Error(`OG image not a valid PNG (magic mismatch at byte ${i})`);
+    }
+  }
+  if (ogBuf.byteLength < 20_000) {
+    throw new Error(`OG image suspiciously small (${ogBuf.byteLength} bytes) — likely empty render`);
+  }
+  console.log(`ok /demo/milan/opengraph-image (${ogBuf.byteLength} bytes, valid PNG)`);
 
   // Interactive cognitive-risk endpoint — proves the BrainSNN score
   // varies with input and rejects malformed payloads.

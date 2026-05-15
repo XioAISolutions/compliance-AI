@@ -1,6 +1,8 @@
 # XIO Compliance Brain
 
-> **AMD hackathon submission:** the MI300X / Qwen 2.5 72B Triad Review demo lives on
+> **Active hackathon submission — Milan AI Week:** the **XIO ProofOps Agent** demo lives at `/demo/milan`. See [`docs/MILAN_SUBMISSION.md`](docs/MILAN_SUBMISSION.md) for the one-pager and [`docs/HACKATHON_MILAN.md`](docs/HACKATHON_MILAN.md) for the architecture brief + 90-second video storyboard.
+>
+> **Prior hackathon submission — AMD MI300X:** the Triad Review Engine demo lives on
 > branch [`feat/amd-mi300x-vllm`](https://github.com/XioAISolutions/compliance-AI/tree/feat/amd-mi300x-vllm).
 > Start with the [90-second judge demo](https://compliance-ai-amd-demo-production.up.railway.app/demo/judge),
 > then inspect the [release assets](https://github.com/XioAISolutions/compliance-AI/releases/tag/v1.0.0-amd-hackathon-submission).
@@ -104,7 +106,7 @@ Add `DATABASE_URL` and `NEXTAUTH_SECRET` when persistence and real auth are requ
 
 ```bash
 pnpm install
-pnpm test            # 533 tests across agents / cognition / web
+pnpm test            # 687 tests across agents / cognition / web
 pnpm -r typecheck
 pnpm --filter @compliance-ai/web build
 pnpm smoke:demo      # full route + endpoint smoke (source-packs, verify, export-redline)

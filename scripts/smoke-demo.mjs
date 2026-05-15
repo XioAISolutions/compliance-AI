@@ -4,6 +4,7 @@
  *
  * Covers:
  *   - Public page routes + legacy API endpoints.
+ *   - /demo/milan + /api/demo/milan hackathon proof workflow.
  *   - /api/quick-review uploads (classifies, creates a matter, returns redirect).
  *   - /api/source-packs (taskType + lane filters).
  *   - /api/citations/verify (offline-corpus hit + CanLII URL heuristic + batch summary).
@@ -18,6 +19,7 @@ const baseUrl = process.env.DEMO_BASE_URL || process.env.BASE_URL || "http://127
 const routes = [
   "/",
   "/demo",
+  "/demo/milan",
   "/matters",
   "/matters/new",
   "/queue",
@@ -25,6 +27,13 @@ const routes = [
   "/controls",
   "/api/healthcheck",
   "/api/agents",
+  "/api/demo/milan",
+  "/api/demo/milan/scenario",
+  "/api/demo/milan/proof-pack",
+  "/demo/milan/opengraph-image",
+  "/api/demo/milan/plan",
+  "/api/demo/milan/redline",
+  "/api/demo/milan/transcribe",
 ];
 
 async function expectOk(path) {
@@ -43,6 +52,256 @@ async function expectStatus(path, init, expected) {
   }
   console.log(`ok ${path} ${res.status}`);
   return res;
+}
+
+async function milanProofOpsSmoke() {
+  const res = await fetch(`${baseUrl}/api/demo/milan`);
+  if (res.status !== 200) {
+    throw new Error(`/api/demo/milan returned ${res.status}: ${await res.text()}`);
+  }
+  const body = await res.json();
+  if (body.product !== "XIO ProofOps Agent") {
+    throw new Error(`/api/demo/milan wrong product: ${JSON.stringify(body.product)}`);
+  }
+  if (!Array.isArray(body.workflow) || body.workflow.length !== 8) {
+    throw new Error(`/api/demo/milan workflow should have 8 steps: ${JSON.stringify(body.workflow)}`);
+  }
+  if (!body.partnerFit?.vultr || !body.partnerFit?.gemini || !body.partnerFit?.speechmatics || !body.partnerFit?.featherless) {
+    throw new Error(`/api/demo/milan missing partner fit: ${JSON.stringify(body.partnerFit)}`);
+  }
+  // BrainSNN score is now derived from the scenario text. Pin the
+  // canonical value so a regression in the cognitive-risk patterns is
+  // caught by smoke, not by judges.
+  if (body.brainSnnRisk?.score !== 78) {
+    throw new Error(`/api/demo/milan wrong BrainSNN score: ${JSON.stringify(body.brainSnnRisk)}`);
+  }
+  const dims = body.brainSnnRisk?.dimensions ?? {};
+  for (const key of ["emotionalActivation", "certaintyPressure", "trustErosion", "urgencyCompression"]) {
+    if (typeof dims[key] !== "number") {
+      throw new Error(`/api/demo/milan missing dimension ${key}: ${JSON.stringify(dims)}`);
+    }
+  }
+  if (body.proofPack?.downloadUrl !== "/api/demo/milan/proof-pack") {
+    throw new Error(`/api/demo/milan proofPack.downloadUrl wrong: ${JSON.stringify(body.proofPack)}`);
+  }
+  if (!Array.isArray(body.partners) || body.partners.length !== 4) {
+    throw new Error(`/api/demo/milan partners list wrong: ${JSON.stringify(body.partners)}`);
+  }
+  const partnerIds = new Set(body.partners.map((p) => p.id));
+  for (const id of ["vultr", "gemini", "speechmatics", "featherless"]) {
+    if (!partnerIds.has(id)) {
+      throw new Error(`/api/demo/milan partners missing ${id}: ${JSON.stringify(body.partners)}`);
+    }
+  }
+  console.log(`ok /api/demo/milan (${body.workflow.length} agent steps, BrainSNN ${body.brainSnnRisk.score}, partners ${body.partners.filter((p) => p.live).length}/${body.partners.length} live)`);
+
+  // Scenario raw-inputs endpoint — backs the "view raw inputs" link
+  // on /demo/milan. Three artifacts (deck / transcript / claim), the
+  // same derived cognitive-risk number the page shows, headline claim.
+  const scenarioRes = await fetch(`${baseUrl}/api/demo/milan/scenario`);
+  if (scenarioRes.status !== 200) {
+    throw new Error(`/api/demo/milan/scenario returned ${scenarioRes.status}: ${await scenarioRes.text()}`);
+  }
+  const scenarioBody = await scenarioRes.json();
+  if (!Array.isArray(scenarioBody.artifacts) || scenarioBody.artifacts.length !== 3) {
+    throw new Error(`/api/demo/milan/scenario artifacts wrong: ${JSON.stringify(scenarioBody.artifacts)}`);
+  }
+  const sources = new Set(scenarioBody.artifacts.map((a) => a.source));
+  for (const expected of ["deck", "transcript", "claim"]) {
+    if (!sources.has(expected)) {
+      throw new Error(`/api/demo/milan/scenario missing artifact source ${expected}`);
+    }
+  }
+  if (scenarioBody.cognitiveRisk?.score !== body.brainSnnRisk?.score) {
+    throw new Error(
+      `/api/demo/milan/scenario cognitiveRisk.score (${scenarioBody.cognitiveRisk?.score}) does not match /api/demo/milan brainSnnRisk.score (${body.brainSnnRisk?.score})`,
+    );
+  }
+  console.log(`ok /api/demo/milan/scenario (${scenarioBody.artifacts.length} artifacts, score=${scenarioBody.cognitiveRisk.score})`);
+
+  // Proof-pack DOCX download — the artifact judges should walk away
+  // with. Confirms binary path, headers, and that the docx renderer
+  // produces a non-trivially-sized file.
+  const pack = await fetch(`${baseUrl}/api/demo/milan/proof-pack`);
+  if (pack.status !== 200) {
+    throw new Error(`/api/demo/milan/proof-pack returned ${pack.status}: ${await pack.text()}`);
+  }
+  const ct = pack.headers.get("content-type") ?? "";
+  if (!ct.includes("officedocument.wordprocessingml.document")) {
+    throw new Error(`/api/demo/milan/proof-pack wrong content-type: ${ct}`);
+  }
+  const disposition = pack.headers.get("content-disposition") ?? "";
+  if (!disposition.includes('xio-proofops-milan.docx')) {
+    throw new Error(`/api/demo/milan/proof-pack missing filename: ${disposition}`);
+  }
+  const buf = await pack.arrayBuffer();
+  if (buf.byteLength < 2000) {
+    throw new Error(`/api/demo/milan/proof-pack suspiciously small: ${buf.byteLength} bytes`);
+  }
+  console.log(`ok /api/demo/milan/proof-pack (${buf.byteLength} bytes)`);
+
+  // OG / Twitter card — `next/og` regressions tend to silently render
+  // a near-empty PNG, so assert the magic bytes + a minimum size that
+  // means the layout actually composed something.
+  const og = await fetch(`${baseUrl}/demo/milan/opengraph-image`);
+  if (og.status !== 200) {
+    throw new Error(`/demo/milan/opengraph-image returned ${og.status}: ${await og.text()}`);
+  }
+  const ogCt = og.headers.get("content-type") ?? "";
+  if (!ogCt.includes("image/png")) {
+    throw new Error(`OG image wrong content-type: ${ogCt}`);
+  }
+  const ogBuf = new Uint8Array(await og.arrayBuffer());
+  // PNG magic: 89 50 4E 47 0D 0A 1A 0A
+  const pngMagic = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  for (let i = 0; i < pngMagic.length; i++) {
+    if (ogBuf[i] !== pngMagic[i]) {
+      throw new Error(`OG image not a valid PNG (magic mismatch at byte ${i})`);
+    }
+  }
+  if (ogBuf.byteLength < 20_000) {
+    throw new Error(`OG image suspiciously small (${ogBuf.byteLength} bytes) — likely empty render`);
+  }
+  console.log(`ok /demo/milan/opengraph-image (${ogBuf.byteLength} bytes, valid PNG)`);
+
+  // Interactive cognitive-risk endpoint — proves the BrainSNN score
+  // varies with input and rejects malformed payloads.
+  const live = await fetch(`${baseUrl}/api/demo/milan/cognitive-risk`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text: "Closing today. Act now. Limited spots. Last chance. Hurry.",
+    }),
+  });
+  if (live.status !== 200) {
+    throw new Error(`/api/demo/milan/cognitive-risk returned ${live.status}: ${await live.text()}`);
+  }
+  const liveBody = await live.json();
+  if (typeof liveBody.score !== "number" || liveBody.score <= 0) {
+    throw new Error(`/api/demo/milan/cognitive-risk unexpected score: ${JSON.stringify(liveBody)}`);
+  }
+  if (liveBody.dimensions?.urgencyCompression <= 0) {
+    throw new Error(
+      `/api/demo/milan/cognitive-risk urgency dimension should be positive on urgency text: ${JSON.stringify(liveBody)}`,
+    );
+  }
+  if (liveBody.dimensions?.certaintyPressure !== 0) {
+    throw new Error(
+      `/api/demo/milan/cognitive-risk certainty should be 0 on pure-urgency text: ${JSON.stringify(liveBody)}`,
+    );
+  }
+  await expectStatus(
+    `/api/demo/milan/cognitive-risk`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    },
+    400,
+  );
+  console.log(`ok /api/demo/milan/cognitive-risk (score=${liveBody.score}, urgency=${liveBody.dimensions.urgencyCompression})`);
+
+  // Rewrite-and-rescore loop — the full proof beat. Ties Featherless
+  // (or its deterministic fallback) to the BrainSNN scorer and
+  // returns the delta. Smoke pins the shape so a regression in either
+  // helper breaks here before judges see it.
+  const rewriteRes = await fetch(`${baseUrl}/api/demo/milan/rewrite`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text: "Protected returns. Guaranteed performance — risk-free. Limited spots. Closing today. Act now.",
+    }),
+  });
+  if (rewriteRes.status !== 200) {
+    throw new Error(`/api/demo/milan/rewrite returned ${rewriteRes.status}: ${await rewriteRes.text()}`);
+  }
+  const rewriteBody = await rewriteRes.json();
+  if (typeof rewriteBody.before?.cognitiveRisk?.score !== "number") {
+    throw new Error(`/api/demo/milan/rewrite missing before.cognitiveRisk.score: ${JSON.stringify(rewriteBody)}`);
+  }
+  if (typeof rewriteBody.after?.cognitiveRisk?.score !== "number") {
+    throw new Error(`/api/demo/milan/rewrite missing after.cognitiveRisk.score: ${JSON.stringify(rewriteBody)}`);
+  }
+  if (!Array.isArray(rewriteBody.redline?.edits) || rewriteBody.redline.edits.length === 0) {
+    throw new Error(`/api/demo/milan/rewrite no edits: ${JSON.stringify(rewriteBody.redline)}`);
+  }
+  if (!["featherless", "deterministic"].includes(rewriteBody.redline.source)) {
+    throw new Error(`/api/demo/milan/rewrite bad redline source: ${rewriteBody.redline.source}`);
+  }
+  if (typeof rewriteBody.delta?.score !== "number") {
+    throw new Error(`/api/demo/milan/rewrite missing delta.score: ${JSON.stringify(rewriteBody.delta)}`);
+  }
+  // Bad bodies (missing/empty text) → 400.
+  await expectStatus(
+    `/api/demo/milan/rewrite`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    },
+    400,
+  );
+  console.log(
+    `ok /api/demo/milan/rewrite (source=${rewriteBody.redline.source}, ${rewriteBody.before.cognitiveRisk.score}→${rewriteBody.after.cognitiveRisk.score}, Δ=${rewriteBody.delta.score})`,
+  );
+
+  // Planner — works in both Gemini and deterministic modes. Smoke
+  // just verifies the contract; the source field reflects which
+  // backend served the response on the deploy under test.
+  const planRes = await fetch(`${baseUrl}/api/demo/milan/plan`);
+  if (planRes.status !== 200) {
+    throw new Error(`/api/demo/milan/plan returned ${planRes.status}: ${await planRes.text()}`);
+  }
+  const planBody = await planRes.json();
+  if (!["gemini", "deterministic"].includes(planBody.source)) {
+    throw new Error(`/api/demo/milan/plan bad source: ${JSON.stringify(planBody)}`);
+  }
+  if (!Array.isArray(planBody.lanes) || planBody.lanes.length === 0) {
+    throw new Error(`/api/demo/milan/plan no lanes: ${JSON.stringify(planBody)}`);
+  }
+  for (const lane of planBody.lanes) {
+    if (typeof lane.name !== "string" || typeof lane.rationale !== "string") {
+      throw new Error(`/api/demo/milan/plan malformed lane: ${JSON.stringify(lane)}`);
+    }
+  }
+  console.log(`ok /api/demo/milan/plan (source=${planBody.source}, ${planBody.lanes.length} lanes, ${planBody.latencyMs}ms)`);
+
+  // Featherless redliner — same shape contract regardless of live/stub.
+  const redlineRes = await fetch(`${baseUrl}/api/demo/milan/redline`);
+  if (redlineRes.status !== 200) {
+    throw new Error(`/api/demo/milan/redline returned ${redlineRes.status}: ${await redlineRes.text()}`);
+  }
+  const redlineBody = await redlineRes.json();
+  if (!["featherless", "deterministic"].includes(redlineBody.source)) {
+    throw new Error(`/api/demo/milan/redline bad source: ${JSON.stringify(redlineBody)}`);
+  }
+  if (!Array.isArray(redlineBody.edits) || redlineBody.edits.length === 0) {
+    throw new Error(`/api/demo/milan/redline no edits: ${JSON.stringify(redlineBody)}`);
+  }
+  for (const edit of redlineBody.edits) {
+    for (const key of ["before", "after", "reason"]) {
+      if (typeof edit[key] !== "string" || edit[key].length === 0) {
+        throw new Error(`/api/demo/milan/redline malformed edit: ${JSON.stringify(edit)}`);
+      }
+    }
+  }
+  console.log(`ok /api/demo/milan/redline (source=${redlineBody.source}, ${redlineBody.edits.length} edits, ${redlineBody.latencyMs}ms)`);
+
+  // Speechmatics transcribe — always returns the canonical transcript.
+  // `auth` is null in the no-key path and an object in the configured
+  // path (regardless of whether auth succeeded).
+  const txRes = await fetch(`${baseUrl}/api/demo/milan/transcribe`);
+  if (txRes.status !== 200) {
+    throw new Error(`/api/demo/milan/transcribe returned ${txRes.status}: ${await txRes.text()}`);
+  }
+  const txBody = await txRes.json();
+  if (!["speechmatics", "deterministic"].includes(txBody.source)) {
+    throw new Error(`/api/demo/milan/transcribe bad source: ${JSON.stringify(txBody)}`);
+  }
+  if (typeof txBody.transcript !== "string" || txBody.transcript.length === 0) {
+    throw new Error(`/api/demo/milan/transcribe missing transcript: ${JSON.stringify(txBody)}`);
+  }
+  console.log(`ok /api/demo/milan/transcribe (source=${txBody.source}, transcript=${txBody.transcript.length} chars, auth=${txBody.auth ? "verified" : "not-configured"})`);
 }
 
 async function quickReviewSmoke() {
@@ -141,7 +400,7 @@ async function verifierSmoke() {
     throw new Error(`/api/citations/verify returned ${res.status}: ${await res.text()}`);
   }
   const body = await res.json();
-  const { summary, results } = body;
+  const { summary } = body;
   if (!summary || summary.total !== 3) {
     throw new Error(`verify summary.total !== 3: ${JSON.stringify(summary)}`);
   }
@@ -208,6 +467,7 @@ async function redlineExportSmoke(matterId) {
 for (const route of routes) {
   await expectOk(route);
 }
+await milanProofOpsSmoke();
 const matterId = await quickReviewSmoke();
 await sourcePacksSmoke();
 await verifierSmoke();

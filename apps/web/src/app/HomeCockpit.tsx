@@ -35,14 +35,24 @@ export function HomeCockpit({ assessment }: { assessment: DemoAssessmentResult }
   return (
     <>
       <div className="mb-8">
-        <h1 className="text-4xl font-semibold">XIO Compliance Brain</h1>
-        <p className="mt-3 text-lg text-neutral-600 dark:text-neutral-400">
-          Private compliance review workbench for lawyers and regulated firms.
-        </p>
-        <p className="mt-2 text-sm text-neutral-500">
-          Hosted preview uses sample documents. Private installs can keep everything on local
-          Ollama.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-semibold">XIO Compliance Brain</h1>
+            <p className="mt-3 text-lg text-neutral-600 dark:text-neutral-400">
+              Private compliance review workbench for lawyers and regulated firms.
+            </p>
+            <p className="mt-2 text-sm text-neutral-500">
+              Hosted preview uses sample documents. Private installs can keep everything on local
+              Ollama.
+            </p>
+          </div>
+          <Link
+            href="/demo/milan"
+            className="rounded-full border border-cyan-300/40 bg-cyan-300/10 px-4 py-2 text-sm font-semibold text-cyan-800 hover:bg-cyan-300/20 dark:text-cyan-100"
+          >
+            Milan ProofOps demo
+          </Link>
+        </div>
       </div>
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">

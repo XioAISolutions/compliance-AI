@@ -103,21 +103,20 @@ export function CognitiveRiskTester({ initialText }: { initialText: string }) {
   };
 
   return (
-    <div className="rounded-3xl border border-cyan-300/20 bg-neutral-900/60 p-5 lg:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-semibold text-white">Try BrainSNN yourself</h2>
-          <p className="mt-1 text-sm text-neutral-400">
-            Paste any deck paragraph, sales-call line, or marketing claim. The score is computed
-            server-side and varies with the text.
-          </p>
-        </div>
-        <span className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-xs font-semibold text-cyan-100">
-          live endpoint
+    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-xs font-medium uppercase tracking-[0.25em] text-neutral-500">
+          Try BrainSNN yourself
+        </p>
+        <span className="text-[10px] font-medium uppercase tracking-wider text-cyan-300">
+          live · POST
         </span>
       </div>
+      <p className="mt-3 text-sm leading-relaxed text-neutral-400">
+        Paste any deck paragraph, sales-call line, or marketing claim. Score moves with the text.
+      </p>
 
-      <div className="mt-4 flex flex-wrap gap-2 text-xs">
+      <div className="mt-5 flex flex-wrap gap-2">
         {SAMPLES.map((sample) => (
           <button
             key={sample.label}
@@ -128,7 +127,7 @@ export function CognitiveRiskTester({ initialText }: { initialText: string }) {
                 void score(sample.text);
               });
             }}
-            className="rounded-full border border-white/15 px-3 py-1 font-medium text-neutral-200 hover:bg-white/10"
+            className="rounded-full border border-white/[0.08] bg-white/[0.02] px-3 py-1 text-xs font-medium text-neutral-300 transition hover:border-cyan-300/40 hover:text-cyan-100"
           >
             {sample.label}
           </button>
@@ -139,11 +138,11 @@ export function CognitiveRiskTester({ initialText }: { initialText: string }) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={5}
-        className="mt-4 w-full rounded-2xl border border-white/10 bg-neutral-950 p-3 font-mono text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-cyan-300/40 focus:outline-none"
+        className="mt-5 w-full resize-y rounded-xl border border-white/[0.08] bg-neutral-950 p-3 font-mono text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-cyan-300/40 focus:outline-none"
         placeholder="Paste deck text, transcript line, or claim…"
       />
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -153,9 +152,9 @@ export function CognitiveRiskTester({ initialText }: { initialText: string }) {
               })
             }
             disabled={scoring || text.trim().length === 0}
-            className="rounded-full bg-cyan-300 px-4 py-2 font-semibold text-neutral-950 hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-full bg-cyan-300 px-4 py-2 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {scoring ? "Scoring…" : "Re-score"}
+            {scoring ? "Scoring…" : "Score"}
           </button>
           {result && (
             <button
@@ -166,31 +165,33 @@ export function CognitiveRiskTester({ initialText }: { initialText: string }) {
                 })
               }
               disabled={rewriting || text.trim().length === 0}
-              className="rounded-full border border-cyan-300/40 bg-cyan-300/10 px-4 py-2 font-semibold text-cyan-100 hover:bg-cyan-300/20 disabled:cursor-not-allowed disabled:opacity-50"
-              title="Route this text through Featherless for safer-language edits, then re-score."
+              className="rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:border-cyan-300/40 hover:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-50"
+              title="Route this text through Featherless, then re-score."
             >
               {rewriting ? "Rewriting…" : "Rewrite via Featherless →"}
             </button>
           )}
         </div>
-        <span className="text-xs text-neutral-500">
-          POST /api/demo/milan/cognitive-risk · {text.length} chars
-        </span>
+        <span className="font-mono text-[11px] text-neutral-500">{text.length} chars</span>
       </div>
 
       {error && (
-        <div className="mt-4 rounded-2xl border border-rose-400/30 bg-rose-400/10 p-3 text-sm text-rose-100">
+        <div className="mt-5 rounded-xl border border-rose-400/30 bg-rose-400/[0.06] p-3 text-sm text-rose-200">
           {error}
         </div>
       )}
 
       {result && (
-        <div className="mt-5 grid gap-4 sm:grid-cols-[auto_1fr] sm:items-center">
-          <div className="rounded-2xl border border-white/10 bg-neutral-950/80 p-4 text-center">
-            <div className="text-4xl font-semibold text-rose-300">{result.score}</div>
-            <div className="text-xs uppercase tracking-[0.25em] text-neutral-500">composite</div>
+        <div className="mt-6 grid gap-6 sm:grid-cols-[auto_1fr] sm:items-center">
+          <div>
+            <div className="text-5xl font-semibold tracking-tight text-rose-300">
+              {result.score}
+            </div>
+            <div className="text-[10px] font-medium uppercase tracking-[0.25em] text-neutral-500">
+              composite
+            </div>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Bar label="Emotional activation" value={result.dimensions.emotionalActivation} />
             <Bar label="Certainty pressure" value={result.dimensions.certaintyPressure} />
             <Bar label="Trust erosion" value={result.dimensions.trustErosion} />
@@ -200,23 +201,19 @@ export function CognitiveRiskTester({ initialText }: { initialText: string }) {
       )}
 
       {rewrite && (
-        <div className="mt-6 space-y-4 rounded-2xl border border-cyan-300/30 bg-cyan-300/5 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="font-semibold uppercase tracking-[0.25em] text-cyan-200">
-              Featherless rewrite · {rewrite.redline.source} · {rewrite.redline.model}
-            </div>
-            <div className="text-neutral-400">
-              {rewrite.redline.latencyMs}ms · {rewrite.redline.edits.length} edits
-              {rewrite.redline.error ? ` · fallback: ${rewrite.redline.error.slice(0, 60)}` : ""}
-            </div>
+        <div className="mt-8 border-t border-white/[0.06] pt-6">
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <p className="text-xs font-medium uppercase tracking-[0.25em] text-cyan-300">
+              Featherless rewrite · {rewrite.redline.source}
+            </p>
+            <p className="font-mono text-[11px] text-neutral-500">
+              {rewrite.redline.model} · {rewrite.redline.latencyMs}ms ·{" "}
+              {rewrite.redline.edits.length} edits
+            </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <BeforeAfterCard
-              label="Before"
-              risk={rewrite.before.cognitiveRisk}
-              tone="rose"
-            />
+          <div className="mt-5 grid gap-6 sm:grid-cols-2">
+            <BeforeAfterCard label="Before" risk={rewrite.before.cognitiveRisk} tone="rose" />
             <BeforeAfterCard
               label="After"
               risk={rewrite.after.cognitiveRisk}
@@ -225,24 +222,24 @@ export function CognitiveRiskTester({ initialText }: { initialText: string }) {
             />
           </div>
 
-          <div className="rounded-xl border border-white/10 bg-neutral-950/80 p-3">
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400">
-              Safer-language rewrite (concatenated)
-            </div>
+          <div className="mt-5">
+            <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-neutral-500">
+              Safer-language passage
+            </p>
             <p className="mt-2 text-sm leading-relaxed text-neutral-200">{rewrite.after.text}</p>
           </div>
 
           {rewrite.redline.edits.length > 0 && (
-            <details className="rounded-xl border border-white/10 bg-neutral-950/60 p-3 text-sm">
-              <summary className="cursor-pointer font-semibold text-neutral-200">
-                Show {rewrite.redline.edits.length} edits
+            <details className="mt-5 text-sm">
+              <summary className="cursor-pointer text-xs font-medium text-neutral-400 transition hover:text-neutral-100">
+                Show {rewrite.redline.edits.length} edit{rewrite.redline.edits.length !== 1 ? "s" : ""}
               </summary>
-              <ul className="mt-3 space-y-3">
+              <ul className="mt-3 space-y-4">
                 {rewrite.redline.edits.map((edit, i) => (
-                  <li key={i} className="border-l-2 border-cyan-300/40 pl-3 text-xs">
-                    <div className="text-rose-200">— {edit.before}</div>
+                  <li key={i} className="border-l border-cyan-300/30 pl-3 text-xs leading-relaxed">
+                    <div className="text-rose-200">− {edit.before}</div>
                     <div className="mt-1 text-emerald-200">+ {edit.after}</div>
-                    <div className="mt-1 text-neutral-500 italic">{edit.reason}</div>
+                    <div className="mt-1 italic text-neutral-500">{edit.reason}</div>
                   </li>
                 ))}
               </ul>
@@ -267,19 +264,21 @@ function BeforeAfterCard({
 }) {
   const scoreColor = tone === "rose" ? "text-rose-300" : "text-emerald-300";
   return (
-    <div className="rounded-xl border border-white/10 bg-neutral-950/80 p-3">
+    <div>
       <div className="flex items-baseline justify-between">
-        <div className="text-xs font-semibold uppercase tracking-[0.25em] text-neutral-400">
+        <p className="text-[10px] font-medium uppercase tracking-[0.25em] text-neutral-500">
           {label}
-        </div>
+        </p>
         {typeof delta === "number" && delta !== 0 && (
-          <div className="text-xs font-semibold text-emerald-300">
+          <p className="font-mono text-xs text-emerald-300">
             {delta > 0 ? `−${delta}` : `+${Math.abs(delta)}`}
-          </div>
+          </p>
         )}
       </div>
-      <div className={`mt-1 text-3xl font-semibold ${scoreColor}`}>{risk.score}</div>
-      <div className="mt-2 space-y-1.5">
+      <div className={`mt-2 text-4xl font-semibold tracking-tight ${scoreColor}`}>
+        {risk.score}
+      </div>
+      <div className="mt-4 space-y-2">
         <Bar label="Emotional" value={risk.dimensions.emotionalActivation} />
         <Bar label="Certainty" value={risk.dimensions.certaintyPressure} />
         <Bar label="Trust" value={risk.dimensions.trustErosion} />
@@ -293,12 +292,12 @@ function Bar({ label, value }: { label: string; value: number }) {
   const clamped = Math.max(0, Math.min(100, value));
   return (
     <div>
-      <div className="mb-1 flex justify-between text-xs text-neutral-400">
-        <span>{label}</span>
-        <span>{clamped}%</span>
+      <div className="mb-1 flex justify-between text-[11px]">
+        <span className="text-neutral-400">{label}</span>
+        <span className="font-mono text-neutral-500">{clamped}%</span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-white/10">
-        <div className="h-full rounded-full bg-cyan-300" style={{ width: `${clamped}%` }} />
+      <div className="h-1 overflow-hidden rounded-full bg-white/10">
+        <div className="h-full rounded-full bg-cyan-300/80" style={{ width: `${clamped}%` }} />
       </div>
     </div>
   );

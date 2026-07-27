@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDefaultApprovalStore } from "../../../lib/approvals-store";
 import { getDefaultAuditStore, sha256 } from "../../../lib/audit-store";
 import { requireSession } from "../../../lib/auth";
+import { consolidateMatterLessons, getLessonsBundle } from "../../../lib/lessons";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,6 +78,20 @@ export async function POST(req: NextRequest) {
     inputContent: `Approval requested for: ${body.summary}`,
     outputContent: `Approval id: ${item.id}`,
   });
+
+  // Approval-request is the cleanest "session close" signal we have —
+  // the lawyer is saying this matter's review is done. Fire-and-forget
+  // the lesson consolidation pass; the response shouldn't wait. The
+  // scheduler also gets a session-close wake so the garden picks up
+  // any deeper consolidation later.
+  void consolidateMatterLessons(body.matterId, item.id).catch(() => {
+    // Advisory; swallow.
+  });
+  try {
+    getLessonsBundle().scheduler.notifySessionClose(session.organizationId);
+  } catch {
+    // Scheduler optional in test envs.
+  }
 
   return NextResponse.json(item, { status: 201 });
 }
